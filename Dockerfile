@@ -27,4 +27,4 @@ RUN yarn install --production --frozen-lockfile # or npm ci --only=production
 
 EXPOSE 3000
 
-CMD ["node", "dist/src/main"]
+CMD ["node", "dist/main"]
