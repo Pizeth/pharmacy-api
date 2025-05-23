@@ -5,7 +5,7 @@ steps:
       [
         'build',
         '-t',
-        '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
+        'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
         '.',
       ]
 
@@ -14,7 +14,7 @@ steps:
     args:
       [
         'push',
-        '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
+        'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
       ]
 
   # Deploy container image to Cloud Run
@@ -25,7 +25,7 @@ steps:
       - 'deploy'
       - '${_SERVICE_NAME}' # Name of your Cloud Run service
       - '--image'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
+      - 'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -36,14 +36,14 @@ steps:
       # - '--set-env-vars=NODE_ENV=production,DB_HOST=your-db-host'
 
 images:
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
+  - 'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
 
 # Define substitution variables here or in the Trigger UI
 # These are examples, adjust them as needed.
 substitutions:
-  _SERVICE_NAME: 'my-nestjs-service' # Your desired Cloud Run service name
-  _REGION: 'us-central1' # Your GCP region
-  _ARTIFACT_REPO_NAME: 'nestjs-apps' # Your Artifact Registry repository name
+  _SERVICE_NAME: 'pharmacy-api-service' # Your desired Cloud Run service name
+  _REGION: 'gcr.io' # Your GCP region
+  _ARTIFACT_REPO_NAME: 'piseth-chesda' # Your Artifact Registry repository name
   # PROJECT_ID is automatically available
 
 options:
