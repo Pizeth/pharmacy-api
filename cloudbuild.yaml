@@ -2,20 +2,16 @@ steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args:
-      [
-        'build',
-        '-t',
-        'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
-        '.',
-      ]
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '.'
 
   # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
-      [
-        'push',
-        'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA',
-      ]
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
 
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -23,28 +19,24 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - '${_SERVICE_NAME}' # Name of your Cloud Run service
+      - '${_SERVICE_NAME}'
       - '--image'
-      - 'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
       - '--region'
       - '${_REGION}'
       - '--platform'
-      - 'managed' # Or 'gke' if deploying to Cloud Run for Anthos
-      - '--allow-unauthenticated' # Allows public access. Remove if you want to restrict access.
-      # Add other flags as needed, e.g., --port, --set-env-vars
-      # - '--port=8080' # If your app doesn't use 8080 or the Dockerfile EXPOSE port
-      # - '--set-env-vars=NODE_ENV=production,DB_HOST=your-db-host'
+      - 'managed'
+      - '--allow-unauthenticated'
 
 images:
-  - 'gcr.io/pharmacy-piseth-chesda/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO_NAME}/${_SERVICE_NAME}:$COMMIT_SHA'
 
-# Define substitution variables here or in the Trigger UI
-# These are examples, adjust them as needed.
 substitutions:
-  _SERVICE_NAME: 'pharmacy-api-service' # Your desired Cloud Run service name
-  _REGION: 'gcr.io' # Your GCP region
-  _ARTIFACT_REPO_NAME: 'piseth-chesda' # Your Artifact Registry repository name
-  # PROJECT_ID is automatically available
+  _SERVICE_NAME: 'pharmacy-api-service'
+  # --- CORRECTED ---
+  # Choose a region close to you, e.g., asia-southeast1 (Singapore)
+  _REGION: 'asia-southeast1'
+  _ARTIFACT_REPO_NAME: 'piseth-chesda' # The name of your repository in Artifact Registry
 
 options:
   logging: CLOUD_LOGGING_ONLY
