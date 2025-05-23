@@ -8,7 +8,8 @@ RUN yarn install --frozen-lockfile # or npm ci
 
 COPY . .
 
-RUN yarn build # This runs `nest build` which creates the `dist` folder
+# RUN yarn build # This runs `nest build` which creates the `dist` folder
+RUN yarn build && ls -al /usr/src/app/dist
 
 # Stage 2: Production image
 FROM node:24.0-alpine AS production
