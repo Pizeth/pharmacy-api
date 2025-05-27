@@ -1,0 +1,883 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+model AuditTrail {
+  id              Int               @id @default(autoincrement())
+  action          String
+  timestamp       DateTime  
+  ipAddress       String            @map("ip_address")
+  userId          Int               @map("user_id")
+  user            User              @relation(fields: [userId], references: [id])
+
+  description     String?
+  
+  @@index([userId, timestamp])
+}
+
+// Multi-Factor Authentication Backup Codes
+model MFABackupCode {
+  id              Int               @id @default(autoincrement())
+  userId          Int               @map("user_id")
+  code            String            @unique
+  used            Boolean           @default(false)
+  expiresAt       DateTime          @map("expires_at")
+}
+
+model LoginAttempt {
+  id              Int               @id @default(autoincrement())
+  userId          Int?              @map("user_id")
+  username        String
+  ipAddress       String            @map("ip_address")
+  timestamp       DateTime          @default(now())
+  status          LoginStatus
+  userAgent       String?           @map("user_agent")
+}
+
+// Refresh Token Model
+model RefreshToken {
+  id              Int               @id @default(autoincrement())
+  token           String            @unique
+  userId          Int               @map("user_id")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime          @map("expires_at")
+  createdAt       DateTime          @map("created_at") @default(now())
+  
+  @@index([userId])
+}
+
+model User {
+  id              Int               @id @default(autoincrement())
+  username        String            @unique @db.VarChar(50)
+  email           String            @unique @db.VarChar(50) 
+  password        String        
+  avatar          String?           @db.VarChar(255)
+  profile         Profile?  
+
+   // Advanced Authentication Fields
+  role            Role              @default(USER)
+  authMethod      AuthMethod?       @map("auth_method") @default(PASSWORD)
+
+  // Multi-Factor Authentication
+  mfaSecret       String?           @map("mfa_secret")
+  mfaEnabled      Boolean           @map("mfa_enabled") @default(false)
+
+  // Authentication tracking
+  loginAttempts   Int               @map("login_attemps") @default(0)
+  lastLogin       DateTime?         @map("last_login") @db.Timestamp(6)  
+
+  // Token Management
+  refreshTokens   RefreshToken[]      
+
+  // Security Flags
+  isBan           Boolean           @default(false) @map("is_ban")
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isLocked        Boolean           @default(false) @map("is_locked")  
+
+  // Audit and Tracking
+  deletedAt       DateTime?         @map("deleted_at")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  auditTrail      AuditTrail[]     
+
+  @@index([username, email])
+  @@unique([username, email])
+  @@map("users")
+}
+
+model Profile {
+  id              Int               @id @default(autoincrement())
+  first_name      String            @db.VarChar(50)
+  last_name       String            @db.VarChar(50)
+  sex             Sex       
+  dob             DateTime        
+  pob             String?           @db.VarChar(50)
+  address         String?           @db.VarChar(255)
+  phone           String?           @db.VarChar(255)
+  married         Boolean       
+  bio             String?       
+  userId          Int               @unique @map("user_id")
+  Cashier         Cashier?
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  User            User              @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("profiles")
+}
+
+model Cashier {
+  id              Int               @id @default(autoincrement())
+  profileId       Int               @unique @map("profile_id")
+  cashierNumber   String            @unique @default(uuid()) @map("cashier_number")
+  cashierType     CashierType       @map("cashier_type")
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+  startDate       DateTime          @map("start_date")
+  endDate         DateTime?         @map("end_date")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  orders          Order[] 
+  profile         Profile           @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("cashiers")    
+} 
+
+model Supplier {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique @db.VarChar(255)
+  email           String?           @unique @db.VarChar(255)
+  phone           String            @unique @db.VarChar(255)
+  address         String?           @db.VarChar(255)
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  @@map("suppliers")
+}
+
+model Category {
+  id              Int               @id @default(autoincrement()) @map("short_name")
+  shortName       String            @unique @db.VarChar(30)
+  name            String            @unique @db.VarChar(200)
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  image           String?           @db.VarChar(255)
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  subCategories   SubCategory[]  
+  @@map("categories")
+}
+
+model SubCategory {
+  id              Int               @id @default(autoincrement())
+  categoryId      Int               @map("category_id")
+  shortName       String            @unique @db.VarChar(30) @map("short_name")
+  name            String            @unique @db.VarChar(255)
+  description     String?           @db.VarChar(255)
+  image           String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  category        Category          @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products        Product[]
+  @@map("sub_categories")
+}
+
+model Manufacturer {
+  id              Int               @id @default(autoincrement())
+  name            String            @db.VarChar(255)
+  image           String?           @db.VarChar(255)
+  phone           String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  products Product[]
+  @@map("manufacturers")
+}
+
+model ProductType {
+  id              Int               @id @default(autoincrement())
+  name            String            @db.VarChar(255)
+  image           String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  products Product[]   
+  @@map("product_types")
+}
+
+// Unit Type model to allow flexible and extensible unit categorization
+// model UnitType {
+//   id              Int               @id @default(autoincrement())
+//   name            String            @unique @db.VarChar(50)
+//   nameKh          String?           @unique @db.VarChar(50) @map("name_kh")
+//   code            String            @unique @db.VarChar(20)
+//   description     String?           @db.VarChar(255)
+  
+//   // Tracking fields
+//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   createdBy       Int               @map("created_by")
+//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+//   lastUpdatedBy   Int               @map("last_updated_by")
+//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   objectVersionId Int               @default(1) @map("object_version_id")
+  
+//   // Relationships
+//   productUnits    ProductUnit[]     
+  
+//   @@map("unit_types")
+// }
+
+// Product Unit of Measurement model to support hierarchical units
+model ProductUnit {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique @db.VarChar(50)
+  symbol          String?           @db.VarChar(10)
+  
+  // Hierarchical unit support
+  baseUnitId      Int?              @map("base_unit_id")
+  baseUnitRatio   Decimal?          @db.Decimal(10, 2) @map("base_unit_ratio")
+  
+  // Relationships
+  baseUnit        ProductUnit?      @relation("UnitHierarchy", fields: [baseUnitId], references: [id])
+  derivedUnits    ProductUnit[]     @relation("UnitHierarchy")
+  
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Inverse relations
+  products        Product[]
+  stocks          Stock[]
+  parentUnit      UnitHierarchy[]   @relation("ParentUnit")
+  childUnit       UnitHierarchy[]   @relation("ChildUnit")
+  
+  @@map("product_unit")
+}
+
+// New model to handle product-specific unit hierarchies
+model UnitHierarchy {
+  id              Int               @id @default(autoincrement())
+  productId       Int               @map("product_id")
+  parentUnitId    Int               @map("parent_unit_id")
+  childUnitId     Int               @map("child_unit_id")
+  quantity        Decimal           @db.Decimal(10, 2)
+  
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int 
+  
+  // Relations
+  product         Product           @relation(fields: [productId], references: [id])
+  parentUnit      ProductUnit       @relation("ParentUnit", fields: [parentUnitId], references: [id])
+  childUnit       ProductUnit       @relation("ChildUnit", fields: [childUnitId], references: [id])
+  
+  @@unique([productId, parentUnitId, childUnitId])
+  @@map("product_specific_unit_hierarchies")
+}
+
+model Product {
+  id              Int               @id @default(autoincrement())
+  subCategoryId   Int               @map("sub_category_id")
+  manufacturerId  Int               @map("manufacturer_id")
+  productTypeId   Int               @map("product_type_id")
+  productCode     String?           @unique @db.VarChar(30) @map("product_code")
+  name            String            @unique @db.VarChar(200)
+  shortName       String            @unique @db.VarChar(200) @map("short_name")
+  description     String?           @db.VarChar(255) @map("description")
+  longDescription String?           @db.VarChar(500) @map("long_description")    
+  barcode         String?           @unique @db.VarChar(30)
+  referenceNumber String?           @unique @db.VarChar(30) @map("reference_number")
+  image           String?           @db.VarChar(255)
+
+  // Base unit tracking
+  baseUnitId      Int               @map("base_unit_id")
+  baseUnitQty     Decimal           @default(0) @db.Decimal(10, 2) @map("base_unit_quantity")
+
+  // Additional tracking      
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+  
+  // Relationships
+  subCategory     SubCategory       @relation(fields: [subCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manufacturer    Manufacturer      @relation(fields: [manufacturerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productType     ProductType       @relation(fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  baseUnit        ProductUnit       @relation(fields: [baseUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  // Inverse relations
+  unitHierarchy   UnitHierarchy[]   
+  promoDetails    PromoDetail[]
+  transactions    ProductTransaction[]
+  orderLines      OrderLine[]
+  stocks          Stock[]
+  CocktailDetail CocktailDetail[]
+  
+  @@map("products")
+}
+
+model Cocktail {
+  id              Int               @id @default(autoincrement())
+  cocktailCode    String?           @unique @db.VarChar(30) @map("cocktail_code")
+  name            String            @unique @db.VarChar(200)
+  shortName       String            @unique @db.VarChar(200) @map("short_name")
+  description     String?           @db.VarChar(500) @map("description")   
+  image           String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Inverse relations
+  CocktailDetail CocktailDetail[]
+}
+
+model CocktailDetail {
+  id              Int               @id @default(autoincrement())
+  productId       Int
+  cocktailId      Int
+
+  // Optional: to track the quantity of each product in the cocktail
+  quantity        Decimal? @db.Decimal(10, 2) 
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cocktail        Cocktail          @relation(fields: [cocktailId], references: [id], onDelete: Cascade)
+
+  @@map("cocktail_details")
+}
+
+model Stock {
+  id              Int               @id @default(autoincrement())
+  productId       Int               @map("product_id")
+  unitId          Int               @map("unit_id")
+  
+  // Simplified stock tracking
+  baseUnitQty     Decimal           @db.Decimal(10, 2) @map("base_unit_quantity")
+  unitQuantity    Decimal           @db.Decimal(10, 2) @map("unit_quantity")
+  
+  price           Decimal           @db.Decimal(7, 3)
+  salePrice       Decimal?          @db.Decimal(7, 3) @map("sale_price")
+  importedDate    DateTime          @db.Timestamp(6) @map("imported_date")
+  expiredDate     DateTime?         @db.Timestamp(6) @map("expired_date")
+  qrCode          String            @db.VarChar(255) @map("qr_code")
+
+  // Tracking 
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+  
+  // Relationships
+  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unit            ProductUnit       @relation(fields: [unitId], references: [id])
+  
+  @@map("stocks")
+}
+
+// model UnitConversion {
+//   id              Int               @id @default(autoincrement())
+//   fromUnitId      Int               @map("from_unit_id")
+//   toUnitId        Int               @map("to_unit_id")
+//   convfactor      Decimal           @db.Decimal(10, 2) @map("conversion_factor")
+  
+//   fromUnit        ProductUnit       @relation("FromUnitConversions", fields: [fromUnitId], references: [id])
+//   toUnit          ProductUnit       @relation("ToUnitConversions", fields: [toUnitId], references: [id])
+  
+//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   createdBy       Int               @map("created_by")
+//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+//   lastUpdatedBy   Int               @map("last_updated_by")
+//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  
+//   @@unique([fromUnitId, toUnitId])
+//   @@map("unit_conversions")
+// }
+
+// model CompositeUnit { 
+//   id              Int               @id @default(autoincrement()) 
+//   productId       Int               @map("product_id") 
+//   unitId          Int               @map("unit_id") 
+//   quantity        Decimal           @db.Decimal(10, 2) @map("quantity") // Quantity in this unit 
+//   baseUnitQty     Decimal           @db.Decimal(10, 2) @map("base_unit_quantity") // Equivalent quantity in base unit 
+
+//   // Additional tracking 
+//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   createdBy       Int               @map("created_by")
+//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+//   lastUpdatedBy   Int               @map("last_updated_by")
+//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   objectVersionId Int               @default(1) @map("object_version_id")
+
+//   // Relationships 
+//   Stock           Stock[]
+//   product         Product           @relation(fields: [productId], references: [id]) 
+//   unit            ProductUnit       @relation(fields: [unitId], references: [id]) 
+//   @@map("composite_units") 
+// }
+
+// model Product {
+//   id              Int               @id @default(autoincrement())
+//   subCategoryId   Int               @map("sub_category_id")
+//   manufacturerId  Int               @map("manufacturer_id")
+//   productTypeId   Int               @map("product_type_id")
+//   productCode     String?           @unique @db.VarChar(30) @map("product_code")
+//   name            String            @unique @db.VarChar(200)
+//   shortName       String            @unique @db.VarChar(200) @map("short_name")
+//   description     String?           @db.VarChar(255) @map("description")
+//   longDescription String?           @db.VarChar(500) @map("long_description")    
+//   barcode         String?           @unique @db.VarChar(30)
+//   quantity        Int
+//   referenceNumber String?           @unique @db.VarChar(30) @map("reference_number")
+//   image           String?            @db.VarChar(255)      
+//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   createdBy       Int               @map("created_by")
+//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+//   lastUpdatedBy   Int               @map("last_updated_by")
+//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   objectVersionId Int               @default(1) @map("object_version_id")
+
+//   // Relationships
+//   subCategory     SubCategory       @relation(fields: [subCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+//   manufacturer    Manufacturer      @relation(fields: [manufacturerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+//   productType     ProductType       @relation(fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+//   promoDetails    PromoDetail[]
+//   transactions    ProductTransaction[]
+//   orderLines      OrderLine[]
+//   stocks          Stock[]
+//   @@map("products")
+// }
+
+// model Stock {
+//   id              Int               @id @default(autoincrement())
+//   productId       Int               @map("product_id")
+//   quantity        Int
+//   price           Decimal           @db.Decimal(7, 3)
+//   salePrice       Decimal?          @db.Decimal(7, 3) @map("sale_price")
+//   importedDate    DateTime          @db.Timestamp(6) @map("imported_date")
+//   expiredDate     DateTime?         @db.Timestamp(6) @map("expired_date")
+//   qrCode          String            @db.VarChar(255) @map("qr_code")
+//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   createdBy       Int               @map("created_by")
+//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+//   lastUpdatedBy   Int               @map("last_updated_by")
+//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   objectVersionId Int               @default(1) @map("object_version_id")
+
+//   product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+//   @@map("stocks")
+// }
+
+model PromoDetail {
+  id              Int               @id @default(autoincrement())
+  productId       Int               @map("product_id")
+  promotionId     Int               @map("promotion_id")
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promotion       Promotion         @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("promotion_details")
+}
+
+model Promotion {
+  id              Int               @id @default(autoincrement())
+  promoCode       String            @db.VarChar(70) @map("promo_code")
+  name            String            @db.VarChar(255)
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  promoDetails    PromoDetail[]
+  invoices        Invoice[]
+  @@map("promotions")
+}
+
+model ProductTransaction {
+  id              Int               @id @default(autoincrement())
+  warehouseId     Int               @map("warehouse_id")
+  productId       Int               @map("product_id")
+  trxNumber       String            @unique @db.VarChar(100) @map("trx_number")
+  description     String?           @db.VarChar(255)
+  type            String            @db.VarChar(1)
+  quantity        Int?        
+
+  // Transaction Tracking
+  cancelFlag      String?           @db.VarChar(1) @map("cancel_flag")
+  canceledBy      Int?              @map("canceled_by")
+  cancelReason    String?           @db.VarChar(1000) @map("cancel_reason")
+
+  // Additional Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  warehouse       Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("product_transactions")
+}
+
+model Warehouse {
+  id              Int               @id @default(autoincrement())
+  branchId        Int               @map("branch_id")
+  parentId        Int?        
+  shortName       String            @unique @db.VarChar(30) @map("short_name")
+  name            String            @unique @db.VarChar(255)
+
+  // Tracking
+  description     String?           @db.VarChar(255)
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  branch          StoreBranch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transactions    ProductTransaction[]
+  @@map("warehouses")
+}
+
+model Store {
+  id              Int               @id @default(autoincrement())
+  countryCode     String            @db.VarChar(3) @map("country_code")
+  shortName       String            @unique @db.VarChar(30) @map("short_name")
+  name            String            @unique @db.VarChar(200)
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  branches        StoreBranch[]
+  @@map("stores")
+}
+
+model StoreBranch {        
+  id              Int               @id @default(autoincrement())
+  storeId         Int               @unique @map("store_id")
+  shortName       String            @unique @db.VarChar(50) @map("short_name")
+  name            String            @unique @db.VarChar(100)
+  description     String?           @db.VarChar(255)
+  parentId        Int?              @map("parent_id")
+  managerId       Int?              @map("manager_id")
+
+   // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships      
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // storeBranch     StoreBranch       @relation(fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // cashier         Cashier           @relation(fields: [managerId], references: [id])
+  warehouses      Warehouse[]
+  orders          Order[]
+  @@map("store_branches")
+  // StoreBranch StoreBranch[]
+}
+
+model Order { 
+  id              Int               @id @default(autoincrement())
+  branchId        Int               @map("branch_id")
+  cashierId       Int               @map("cashier_id")
+  customerId      Int       
+
+  // Order Tracking
+  orderType       String            @db.VarChar(1) @map("order_type")
+  orderNumber     String            @unique @db.VarChar(30) @map("order_number")
+  orderDate       DateTime          @map("order_date")
+  status          String            @db.VarChar(30)
+  description     String?           @db.VarChar(255)
+  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+
+  // Additional Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime                  @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  branch          StoreBranch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashier         Cashier           @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer        Customer          @relation(fields: [customerId], references: [id])
+  orderLines      OrderLine[]
+  invoices        Invoice[]
+  @@map("orders")
+}
+
+model OrderLine {
+  id              Int               @id @default(autoincrement())
+  orderId         Int               @map("order_id")
+  lineNum         Int               @map("line_num")
+  lineType        String            @db.VarChar(1)
+  productId       Int               @map("product_id")
+  serviceId       Int?              @map("service_id")
+  price           Decimal?          @db.Decimal(7, 3)
+  quantity        Int?              
+  amount          Decimal?          @db.Decimal(7, 3)
+  description     String?           @db.VarChar(255)
+
+  //Cancel Tracking
+  cancelFlag      String?           @db.VarChar(1) @map("cancel_flag")
+  canceledBy      Int?              @map("canceled_by")
+  cancelReason    String?           @db.VarChar(1000) @map("cancel_reason") 
+
+  // Tracking     
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("order_lines")
+}
+
+model Payment {
+  id              Int               @id @default(autoincrement())
+  payMethodId     Int               @map("pay_method_id")
+  invoiceId       Int               @map("invoice_id")  
+  paymentType     String            @db.VarChar(1) @map("payment_type")
+  paymentNumber   String            @db.VarChar(30) @map("payment_number")
+  description     String?           @db.VarChar(255)
+  paymentDate     DateTime          @map("payment_date")
+  paymentCurrency String            @db.VarChar(3) @map("payment_currency")
+  amount          Decimal           @db.Decimal(7, 3)
+  status          String            @db.VarChar(1)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  paymentMethod   PaymentMethod     @relation(fields: [payMethodId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice         Invoice           @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("payments")
+}
+
+model PaymentMethod {
+  id              Int               @id @default(autoincrement())
+  shortName       String?           @db.VarChar(30) @map("sjort_name")
+  methodName      String            @db.VarChar(100) @map("method_name")
+  methodType      String?           @db.VarChar(1) @map("method_type")
+  description     String?           @db.VarChar(255)
+  cashFlag        String?           @db.VarChar(1) @map("cash_flag")
+  defaultFlag     String?           @db.VarChar(1) @map("default_flag")
+  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  payments        Payment[]
+  @@map("payment_methods")
+}
+
+model Invoice {
+  id              Int               @id @default(autoincrement())
+  orderId         Int               @map("order_id")
+  promotionId     Int?              @map("promotion_id")
+  invoiceNumber   String            @unique @db.VarChar(30) @map("invoice_number")
+  description     String?           @db.VarChar(255)
+  amount          Decimal           @db.Decimal(7, 3)
+  currencyCode    String            @db.VarChar(3) @map("currency_code")
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promotion       Promotion?        @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments        Payment[]
+  @@map("invoices")
+}
+
+model Customer {
+  id              Int               @id @default(autoincrement())
+  customerNumber  String            @unique @db.VarChar(30) @default(uuid())  
+  mobileNumber    String            @unique @db.VarChar(30)
+  gender          String?           @db.VarChar(1)
+  identifyType    String?           @db.VarChar(1)
+  identifyNumber  String?           @db.VarChar(100)
+  description     String?           @db.VarChar(255)
+  registeredDate  DateTime?
+
+  // Tracking
+  enabledFlag     String            @db.VarChar(1)
+  holdFlag        String?           @db.VarChar(1)
+  
+  
+  
+  phoneNumber     String?           @db.VarChar(30)
+  address         String?           @db.VarChar(200)
+  // creditLimit      Decimal?  @db.Decimal(13, 2)
+  // childrenUnder18  String?   @db.VarChar(1)
+  // loginUser        String?   @unique @db.VarChar(20)
+  // loginPassword    String?   @db.VarChar(30)
+
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // party            Party    @relation(fields: [partyId], references: [id])
+  orders          Order[]
+}
+
+enum Sex {
+  Male
+  Female
+  Bi
+  @@map("sex_enum")
+}
+
+enum Role {
+  USER
+  CASHIER
+  MANAGER
+  ADMIN
+  SUPER_ADMIN
+  @@map("role_enum")
+}
+
+enum AuthMethod {
+  PASSWORD
+  GOOGLE
+  MICROSOFT
+  APPLE
+  FACEBOOK
+  TWITTER
+  GITHUB
+}
+
+enum LoginStatus {
+  SUCCESS
+  FAILED
+  LOCKED
+}
+
+enum CashierType {
+  STAFF
+  MANAGER
+  OWNER
+  @@map("cashier_type_enum")
+}
+
+
