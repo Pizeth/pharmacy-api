@@ -57,30 +57,34 @@ export interface PaginatedDataResult<TData> {
 type FindUniqueArgsType<
   TModelName extends Prisma.TypeMap['meta']['modelProps'],
 > = NonNullable<Parameters<PrismaClient[TModelName]['findUnique']>[0]>;
+type FindManyArgsType<TModelName extends Prisma.TypeMap['meta']['modelProps']> =
+  NonNullable<Parameters<PrismaClient[TModelName]['findMany']>[0]>;
 
-/**
- * Interface for the parameters of the findById method.
- */
-interface FindByIdParams<
-  TModelName extends Prisma.TypeMap['meta']['modelProps'],
-> {
-  model: TModelName;
-  where: FindUniqueArgsType<TModelName>['where']; // Use the helper type
-  select?: FindUniqueArgsType<TModelName>['select']; // Use the helper type
-  include?: FindUniqueArgsType<TModelName>['include']; // Use the helper type
-}
+// // Helper conditional type to safely extract the 'select' property type
+// type SelectPropertyType<Args> = Args extends { select?: infer S }
+//   ? S
+//   : undefined;
+// Helper conditional type to safely extract the 'include' property type
+type IncludePropertyType<Args> = Args extends { include?: infer I }
+  ? I
+  : undefined;
+
 /**
  * Interface for the parameters of the findById method.
  * TModelName represents the name of a Prisma model (e.g., 'user', 'post').
  */
-export interface FindByIdParam1s<
+export interface FindByIdParams<
   TModelName extends Prisma.TypeMap['meta']['modelProps'],
 > {
   model: TModelName;
   // 'where' for findUnique must be a unique criteria object for the model
-  where: Prisma.Args<PrismaClient[TModelName], 'findUniqueOrThrow'>['where'];
+  // 'where' is a required property on the FindUniqueArgsType object.
+  // where: FindArgsType<TModelName>['where'];
+  where: Prisma.Args<PrismaClient[TModelName], 'findUnique'>['where'];
   select?: Prisma.Args<PrismaClient[TModelName], 'findUnique'>['select'];
-  include?: Prisma.Args<PrismaClient[TModelName], 'findUnique'>['include'];
+  // select?: FindArgsType<TModelName>['select']; // Use conditional type
+  // select?: SelectPropertyType<FindUniqueArgsType<TModelName>>; // Use conditional type
+  include?: IncludePropertyType<FindUniqueArgsType<TModelName>>; // Use conditional type
 }
 
 /**
@@ -99,7 +103,8 @@ export interface GetPaginatedDataParams<
 
   // Selection
   select?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['select'];
-  include?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['include'];
+  // include?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['include'];
+  include?: IncludePropertyType<FindManyArgsType<TModelName>>; // Use conditional type
 
   // Pagination control:
   // pageSize is used as 'take' for both cursor and offset pagination.
