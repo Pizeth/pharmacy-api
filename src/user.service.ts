@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { Prisma, PrismaClient, User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { DBHelper } from './Utils/DBHelper';
 import { PaginatedDataResult } from './Types/Types';
 
@@ -11,39 +11,76 @@ export class UsersService {
     private readonly dbHelper: DBHelper,
   ) {}
 
-  async user(
-    userWhereUniqueInput: Prisma.UserWhereUniqueInput,
-  ): Promise<User | null> {
+  // async user(
+  //   userWhereUniqueInput: Prisma.UserWhereUniqueInput,
+  // ): Promise<User | null> {
+  //   try {
+  //     return await this.prisma.user.findUnique({
+  //       where: userWhereUniqueInput,
+  //       include: {
+  //         profile: true,
+  //       },
+  //     });
+  //   } catch (error) {
+  //     console.error(
+  //       `Error finding user with ${JSON.stringify(userWhereUniqueInput)}:`,
+  //       error,
+  //     );
+  //     throw error;
+  //   }
+  // }
+
+  async user(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
     try {
-      return await this.prisma.user.findUnique({
-        where: userWhereUniqueInput,
+      const modelName = 'user';
+      return await this.dbHelper.findOne<typeof modelName, User>({
+        model: modelName,
+        where: where,
         include: {
           profile: true,
         },
       });
     } catch (error) {
-      console.error(
-        `Error finding user with ${JSON.stringify(userWhereUniqueInput)}:`,
-        error,
-      );
+      console.error(`Error finding user with ${JSON.stringify(where)}:`, error);
       throw error;
     }
   }
 
-  async users(params: {
-    skip?: number;
-    take?: number;
-    cursor?: Prisma.UserWhereUniqueInput;
-    where?: Prisma.UserWhereInput;
-    orderBy?: Prisma.UserOrderByWithRelationInput;
-  }): Promise<User[]> {
-    const { skip, take, cursor, where, orderBy } = params;
-    return this.prisma.user.findMany({
-      skip,
-      take,
+  // async users(params: {
+  //   model: 'user';
+  //   skip?: number;
+  //   take?: number;
+  //   cursor?: Prisma.UserWhereUniqueInput;
+  //   where?: Prisma.UserWhereInput;
+  //   orderBy?: Prisma.UserOrderByWithRelationInput;
+  // }): Promise<User[]> {
+  //   const { skip, take, cursor, where, orderBy } = params;
+  //   return this.prisma.user.findMany({
+  //     skip,
+  //     take,
+  //     cursor,
+  //     where,
+  //     orderBy,
+  //   });
+  // }
+
+  async users(
+    page: number = 1,
+    pageSize: number = 10,
+    cursor?: Prisma.UserWhereUniqueInput,
+    where?: Prisma.UserWhereInput,
+    orderBy?: Prisma.UserOrderByWithRelationInput,
+    select?: Prisma.UserSelect,
+  ): Promise<PaginatedDataResult<User>> {
+    const modelName = 'user';
+    return this.dbHelper.getPaginatedData({
+      model: modelName,
+      page,
+      pageSize,
       cursor,
       where,
       orderBy,
+      select,
     });
   }
 

@@ -13,7 +13,7 @@
 
 // module.exports = dbConfig;
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -21,9 +21,9 @@ const prisma = new PrismaClient();
 const main = async () => {
   try {
     // Your initialization code here if needed
-    console.log("Prisma connected successfully");
+    console.log('Prisma connected successfully');
   } catch (error) {
-    console.error("Prisma connection error:", error);
+    console.error('Prisma connection error:', error);
     throw error;
   }
 };

@@ -6,6 +6,7 @@ import {
   PaginatedDataResult,
   ModelDelegate,
   PaginationMetadata,
+  FindByIdParams,
 } from 'src/Types/Types';
 
 @Injectable() // Make DBHelper injectable
@@ -104,7 +105,7 @@ export class DBHelper {
       // For cursor-based pagination, the concept of 'currentPage' is relative.
       // We can set it to 1 to indicate the first page *from the cursor*.
       // 'hasPreviousPage' is typically false because we don't paginate backwards from a cursor with this simple setup.
-      currentPageForMeta = 1;
+      // currentPageForMeta = 1;
       currentPageForMeta = 1;
       hasPreviousPageForMeta = false;
     }
@@ -114,8 +115,7 @@ export class DBHelper {
       pageSize: pageSize,
       totalItems: total,
       totalPages: Math.ceil(total / pageSize),
-      hasNextPage:
-        data.length === pageSize && (cursor || page * pageSize < total), // If cursor, true if full page. Else, standard offset logic.
+      hasNextPage: data.length === pageSize, //&& (cursor || page * pageSize < total), // If cursor, true if full page. Else, standard offset logic.
       hasPreviousPage: hasPreviousPageForMeta,
     };
 
@@ -148,4 +148,48 @@ export class DBHelper {
   //       throw error;
   //     }
   //   }
+
+  /**
+   * Finds a single unique record by its unique criteria (e.g., ID).
+   * @param params - Parameters including model name, where (unique criteria), and optional select/include.
+   * @returns A promise that resolves to the found record or null.
+   */
+  public async findOne<
+    TModelName extends Prisma.TypeMap['meta']['modelProps'],
+    TResult = any,
+  >({
+    model,
+    where, // This 'where' must be a unique input for the model
+    select,
+    include,
+  }: FindByIdParams<TModelName>): Promise<TResult | null> {
+    let findUniqueArgs: Prisma.Args<PrismaClient[TModelName], 'findUnique'>;
+
+    // Construct the findUniqueArgs object explicitly in each branch
+    // and use type assertion for robustness with generic types.
+    if (select) {
+      findUniqueArgs = {
+        where,
+        select,
+      } as Prisma.Args<PrismaClient[TModelName], 'findUnique'>;
+    } else if (include) {
+      findUniqueArgs = {
+        where,
+        include,
+      } as Prisma.Args<PrismaClient[TModelName], 'findUnique'>;
+    } else {
+      findUniqueArgs = {
+        where,
+      } as Prisma.Args<PrismaClient[TModelName], 'findUnique'>;
+    }
+
+    const specificModelDelegate = this.prisma[
+      model
+    ] as unknown as ModelDelegate;
+
+    // The result of findUnique can be null if not found
+    const result = await specificModelDelegate.findUnique(findUniqueArgs);
+
+    return result as TResult | null;
+  }
 }

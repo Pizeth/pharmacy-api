@@ -6,6 +6,8 @@
 // }
 
 import { Prisma, PrismaClient } from '@prisma/client';
+import { Readable } from 'stream';
+import { StatusCodes } from 'http-status-codes';
 
 export interface WebpackHotModule {
   accept(callback?: (err?: any) => void): void;
@@ -25,8 +27,8 @@ export interface HotModule extends NodeJS.Module {
  * This is a bit more advanced and might not be strictly necessary if 'any[]' is acceptable for data.
  */
 export type ModelDelegate = {
-  findMany: (args: any) => Promise<any[]>;
-  findUnique: (args: any) => Promise<any | null>; // Added for findById
+  findMany: (args: any) => Promise<unknown[]>;
+  findUnique: (args: any) => Promise<unknown>; // Added for findById
   count: (args: any) => Promise<number>;
   // Add other methods if needed for more generic helpers
 };
@@ -112,3 +114,108 @@ export interface GetPaginatedDataParams<
   page?: number; // Defaults to 1. Used for offset pagination if cursor is not provided
   pageSize?: number; // Defaults to 10. Used as 'take' for both pagination types
 }
+
+// Define interfaces for return types
+// Common HTTP error codes;
+export enum HttpErrorStatusEnum {
+  BadRequest = StatusCodes.BAD_REQUEST,
+  Forbidden = StatusCodes.FORBIDDEN,
+  NotFound = StatusCodes.NOT_FOUND,
+  Unauthorized = StatusCodes.UNAUTHORIZED,
+  RequestTooLong = StatusCodes.REQUEST_TOO_LONG,
+  InternalServerError = StatusCodes.INTERNAL_SERVER_ERROR,
+  ServiceUnavailable = StatusCodes.SERVICE_UNAVAILABLE,
+}
+
+// Enum for common error scenarios (optional)
+export enum R2ErrorCode {
+  FILE_TOO_LARGE = 'FILE_TOO_LARGE',
+  INVALID_FILE_TYPE = 'INVALID_FILE_TYPE',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  ACCESS_DENIED = 'ACCESS_DENIED',
+  FILE_NOT_FOUND = 'FILE_NOT_FOUND',
+  BUCKET_NOT_FOUND = 'BUCKET_NOT_FOUND',
+  QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
+}
+// Common Base Interface (DRY principle):
+export interface R2BaseResponse {
+  // status: number;
+  message: string;
+  fileName: string;
+  timestamp?: Date;
+}
+
+// For list operations
+export interface R2ListResponse extends R2BaseResponse {
+  files: {
+    name: string;
+    size: number;
+    uploadedAt: Date;
+  }[];
+}
+
+// For file metadata types for better type safety
+export interface R2FileMetadataResponse extends R2BaseResponse {
+  metadata: Record<string, string>;
+  mimetype: string;
+  size?: number;
+  lastModified?: Date;
+}
+
+export interface R2PaginatedListResponse extends R2ListResponse {
+  pagination: {
+    total: number;
+    cursor?: string;
+    limit: number;
+  };
+}
+
+export interface R2UploadOptions {
+  fileName: string;
+  buffer: Buffer | Readable;
+  mimetype: string;
+  maxSizeBytes?: number;
+  cacheControl?: string; // e.g., 'max-age=31536000'
+  metadata?: Record<string, string>; // Custom metadata
+}
+
+// Interface for successful upload response
+export interface R2UploadSuccessResponse {
+  status: StatusCodes.CREATED; // 201
+  message: string;
+  fileName: string;
+  url: string;
+  fileSize?: number; // Optional file size in bytes
+  contentType?: string; // Optional MIME type
+}
+
+// Interface for error response (can be used by both upload and delete)
+// export interface R2ErrorResponse {
+//   status: number;
+//   message: string;
+//   fileName: string;
+//   url?: string; // Optional for delete errors
+//   error: string;
+// }
+
+// Interface for successful delete response
+export interface R2DeleteSuccessResponse {
+  status: StatusCodes.OK; // 200;
+  message: string;
+  fileName: string;
+}
+
+// Interface for error response (can be used by both upload and delete)
+export interface R2ErrorResponse extends R2BaseResponse {
+  status: HttpErrorStatusEnum;
+  error: string;
+  stack?: string; // Useful for debugging in development
+  code?: string; // Cloudflare R2 specific error code
+  errorCode?: string; // Optional AWS/R2 specific error code
+  url?: string; // Optional for delete errors
+}
+
+// Union type for upload response
+export type R2UploadResponse = R2UploadSuccessResponse | R2ErrorResponse;
+// Union type for delete response
+export type R2DeleteResponse = R2DeleteSuccessResponse | R2ErrorResponse;
