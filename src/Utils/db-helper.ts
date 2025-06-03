@@ -7,7 +7,7 @@ import {
   ModelDelegate,
   PaginationMetadata,
   FindByIdParams,
-} from 'src/Types/Types';
+} from 'src/types/types';
 
 @Injectable() // Make DBHelper injectable
 export class DBHelper {

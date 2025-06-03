@@ -123,6 +123,10 @@ export class FormSerializer {
     );
   }
 
+  private static isBuffer(value: any): boolean {
+    return Buffer.isBuffer(value);
+  }
+
   public static hasFileField = (data: any): boolean => {
     return Object.values(data).some(
       (value) =>
@@ -132,6 +136,12 @@ export class FormSerializer {
           ('rawFile' in value || 'file' in value)),
     );
   };
+
+  private static fileFromBuffer(buffer: Buffer, fieldName: string): File {
+    return new File([buffer], fieldName, {
+      type: 'application/octet-stream',
+      lastModified: Date.now(),
+    });
 
   // private static initCfg(value: any): boolean {
   //   return this.isUndefined(value) ? false : value;
@@ -213,6 +223,26 @@ export class FormSerializer {
         this.serialize((obj as any)[prop], cfg, fd, key);
       });
       return fd;
+    }
+    if (this.isBuffer(obj)) {
+      const file = pre ? this.fileFromBuffer(obj, pre) : obj;
+      return fd.append(pre!, file), fd;
+    }
+    if (typeof File === 'undefined') {
+      global.File = class File extends Blob {
+        name: string;
+        lastModified: number;
+    
+        constructor(
+          chunks: any[],
+          name: string,
+          options: { type?: string; lastModified?: number } = {}
+        ) {
+          super(chunks, options);
+          this.name = name;
+          this.lastModified = options.lastModified || Date.now();
+        }
+      };
     }
     return fd.append(pre!, obj), fd;
   }

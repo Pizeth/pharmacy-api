@@ -4,7 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './prisma.service'; // Adjust path as needed
 import { UsersService } from './user.service';
-import { DBHelper } from './Utils/DBHelper';
+import { DBHelper } from './utils/db-helper';
+import { VirusScanService } from './services/virus-scan.service';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -22,6 +23,7 @@ import { APP_GUARD } from '@nestjs/core';
   providers: [
     PrismaService,
     UsersService,
+    VirusScanService,
     DBHelper,
     {
       provide: APP_GUARD,

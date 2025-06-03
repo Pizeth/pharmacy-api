@@ -23,7 +23,7 @@ import {
 import { UsersService } from './user.service';
 import { Prisma, User, User as UserModel } from '@prisma/client';
 import { get } from 'http';
-import { PaginatedDataResult } from './Types/Types';
+import { PaginatedDataResult } from './types/types';
 
 @Controller()
 export class AppController {

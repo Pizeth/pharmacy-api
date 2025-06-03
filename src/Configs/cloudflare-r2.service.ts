@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // For environment variables
 import {
   S3Client,
@@ -7,7 +7,8 @@ import {
   PutObjectCommandInput,
   DeleteObjectCommandInput,
   S3ServiceException,
-  HeadObjectCommand, // To type AWS SDK errors
+  HeadObjectCommand,
+  GetObjectCommand, // To type AWS SDK errors
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream'; // For buffer/stream handling
 import {
@@ -16,13 +17,20 @@ import {
   R2ErrorResponse,
   R2DeleteSuccessResponse,
   R2UploadSuccessResponse,
-  HttpErrorStatusEnum,
-} from 'src/Types/Types';
-import { StatusCodes } from 'http-status-codes';
+  // HttpErrorStatusEnum,
+} from 'src/types/types';
+import { VirusScanService } from 'src/services/virus-scan.service';
+import statusCodes from 'http-status-codes';
+import { LoggerService } from 'src/services/logger.service';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
 export class R2Service implements OnModuleInit {
-  private readonly logger = new Logger(R2Service.name);
+  // private readonly logger = new Logger(R2Service.name);
+  private readonly MAX_FILE_SIZE =
+    Number(process.env.VIRUS_TOTAL_MAX_SIZE) || 32 * 1024 * 1024; // 32MB, adjust as needed
+  private readonly EXPIRE_IN_SECONDS =
+    Number(process.env.R2_EXPIRE_IN_SECONDS) || 3600; // Default to 1 hour if not set
   private r2Client: S3Client;
   private accountId: string;
   private accessKeyId: string;
@@ -30,7 +38,11 @@ export class R2Service implements OnModuleInit {
   private bucketName: string;
   private publicDomain: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly virusScanService: VirusScanService,
+    private readonly logger: LoggerService,
+  ) {
     // Load R2 configuration using a helper for required values
     this.accountId = this.getRequiredConfig('R2_ACCOUNT_ID');
     this.accessKeyId = this.getRequiredConfig('R2_ACCESS_KEY_ID');
@@ -50,6 +62,7 @@ export class R2Service implements OnModuleInit {
     if (!value) {
       this.logger.error(
         `Required R2 configuration key '${key}' is missing or empty.`,
+        R2Service.name,
       );
       throw new Error(
         `Required R2 configuration key '${key}' is missing or empty.`,
@@ -89,21 +102,21 @@ export class R2Service implements OnModuleInit {
   private isR2UploadSuccess(
     response: R2UploadResponse,
   ): response is R2UploadSuccessResponse {
-    return response.status === StatusCodes.CREATED; // 201
+    return response.status === statusCodes.CREATED; // 201
   }
 
   private isR2DeleteSuccess(
     response: R2DeleteResponse,
   ): response is R2DeleteSuccessResponse {
-    return response.status === StatusCodes.OK; // 200
+    return response.status === statusCodes.OK; // 200
   }
 
   private isR2Error(
     response: R2UploadResponse | R2DeleteResponse | R2ErrorResponse,
   ): response is R2ErrorResponse {
     return (
-      response.status !== StatusCodes.OK &&
-      response.status !== StatusCodes.CREATED
+      response.status !== statusCodes.OK &&
+      response.status !== statusCodes.CREATED
     );
   }
 
@@ -167,6 +180,35 @@ export class R2Service implements OnModuleInit {
   //     }
   //   }
 
+  async getSignedUrl(
+    filename: string,
+    expiresIn: number = this.EXPIRE_IN_SECONDS, // Default to 1 hour
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+    });
+
+    return await getSignedUrl(this.r2Client, command, { expiresIn });
+  }
+
+  async getFile(key: string): Promise<Readable> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.r2Client.send(command);
+      // The response.Body is a Readable stream
+      const stream = response.Body as Readable;
+      return stream;
+    } catch (error: unknown) {
+      this.logger.error(`Error getting file '${key}':`, JSON.stringify(error));
+      throw new Error(`Error getting file '${key}' from Cloudflare R2`);
+    }
+  }
+
   /**
    * Uploads a file to Cloudflare R2.
    * @param fileName The name of the file to be stored in R2.
@@ -174,23 +216,52 @@ export class R2Service implements OnModuleInit {
    * @param mimetype The MIME type of the file.
    * @returns A promise resolving to an R2UploadResponse.
    */
+
   async uploadFile(
     fileName: string,
     buffer: Buffer | Readable,
     mimetype: string,
-    maxSizeBytes?: number,
+    file: Express.Multer.File,
+    maxSizeBytes: number = this.MAX_FILE_SIZE,
+    correlationId: string,
   ): Promise<R2UploadResponse> {
+    this.logger.log(
+      `Starting upload for: ${file.originalname}`,
+      'R2Service',
+      correlationId,
+    );
     if (
       maxSizeBytes &&
       buffer instanceof Buffer &&
       buffer.length > maxSizeBytes
     ) {
       return {
-        status: StatusCodes.REQUEST_TOO_LONG, // 413
+        status: statusCodes.REQUEST_TOO_LONG, // 413
         message: `File size exceeds maximum allowed size of ${maxSizeBytes} bytes`,
         fileName,
         url: '',
         error: 'File too large',
+      };
+    }
+
+    // File size validation (32MB limit for VirusTotal free tier)
+    if (file.size > this.MAX_FILE_SIZE) {
+      return {
+        status: statusCodes.REQUEST_TOO_LONG, // 413,
+        message: 'File too large for virus scanning',
+        fileName: file.originalname,
+        error: `Max size: ${this.MAX_FILE_SIZE}MB`,
+      };
+    }
+    // Virus scanning with VirusTotal
+    const isClean = await this.virusScanService.scanBuffer(file.buffer);
+
+    if (!isClean) {
+      return {
+        status: statusCodes.UNPROCESSABLE_ENTITY, // 422
+        message: 'File contains potential malware',
+        fileName: file.originalname,
+        error: 'Malicious content detected',
       };
     }
 
@@ -213,13 +284,30 @@ export class R2Service implements OnModuleInit {
       );
 
       return {
-        status: StatusCodes.CREATED, // 201
+        status: statusCodes.CREATED, // 201
         message: 'File uploaded successfully',
         fileName,
         url: publicUrl,
       };
-    } catch (error) {
-      this.logger.error(`Error uploading file '${fileName}':`, error);
+    } catch (error: unknown) {
+      // this.logger.error(`Upload failed: ${error.message}`);
+      // return {
+      //   status: 500,
+      //   message: 'File upload failed',
+      //   fileName: file?.originalname || 'unknown',
+      //   error: error.message,
+      // };
+      // this.logger.error(
+      //   `Upload failed for ${file.originalname}: ${error.message}`,
+      //   error.stack,
+      //   'R2Service',
+      //   correlationId,
+      // );
+      // throw error;
+      this.logger.error(
+        `Error uploading file '${fileName}':`,
+        JSON.stringify(error),
+      );
       const s3Error = error as S3ServiceException; // Type assertion for AWS SDK errors
       let errorMessage = 'An unexpected error occurred during upload.'; // Or 'deletion'
       if (s3Error?.message) {
@@ -260,8 +348,11 @@ export class R2Service implements OnModuleInit {
         message: 'File deleted successfully',
         fileName,
       };
-    } catch (error) {
-      this.logger.error(`Error deleting file '${fileName}':`, error);
+    } catch (error: unknown) {
+      this.logger.error(
+        `Error deleting file '${fileName}':`,
+        JSON.stringify(error),
+      );
       const s3Error = error as S3ServiceException;
       let errorMessage = 'An unexpected error occurred during upload.'; // Or 'deletion'
       if (s3Error?.message) {
@@ -308,7 +399,7 @@ export class R2Service implements OnModuleInit {
       // Re-throw other unexpected errors or log them as appropriate
       this.logger.error(
         `Error checking file existence for '${fileName}':`,
-        err,
+        JSON.stringify(err),
       );
       // Depending on desired behavior, you might re-throw or return false for other errors too.
       // For now, re-throwing for truly unexpected issues.

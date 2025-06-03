@@ -227,6 +227,22 @@ export type R2DeleteResponse = R2DeleteSuccessResponse | R2ErrorResponse;
 //   };
 // }
 
+// User-provided Type Definitions (with the new union type)
+enum BaseThreatCategory {
+  HARMLESS = 'harmless',
+  UNDETECTED = 'undetected',
+  SUSPICIOUS = 'suspicious',
+  MALICIOUS = 'malicious',
+  TIMEOUT = 'timeout',
+}
+
+enum ExtendedThreatCategory {
+  TYPE_UNSUPPORT = 'type-unsupported',
+  FAILURE = 'failure',
+  CONFIRMED_TIMEOUT = 'confirmed-timeout',
+}
+
+type ThreatCategory = BaseThreatCategory | ExtendedThreatCategory;
 export interface VirusTotalApiErrorResponse {
   error: {
     code: string; // e.g., "NotFoundError", "AuthenticationRequiredError", "QuotaExceededError"
@@ -234,17 +250,17 @@ export interface VirusTotalApiErrorResponse {
   };
 }
 export interface VirusTotalResponse {
-  data: Data;
+  data: FileData;
 }
 
-interface Data {
-  attributes: Attributes;
+interface FileData {
+  attributes: FileAttributes;
   type: string; // e.g., "file"
   id: string; // Typically the SHA256 hash of the file
   links: Links;
 }
 
-interface Attributes {
+interface FileAttributes {
   last_analysis_stats: LastAnalysisStats;
   last_analysis_results: { [key: string]: EngineResult }; // Dictionary of engine results
   md5: string;
@@ -277,15 +293,7 @@ interface LastAnalysisStats {
 }
 
 interface EngineResult {
-  category:
-    | 'harmless'
-    | 'undetected'
-    | 'suspicious'
-    | 'malicious'
-    | 'type-unsupported'
-    | 'timeout'
-    | 'failure'
-    | 'confirmed-timeout';
+  category: ThreatCategory;
   engine_name: string;
   engine_update: string; // Date string e.g., "20240530"
   engine_version: string;
@@ -330,7 +338,7 @@ interface UrlAnalysisData {
 
 interface UrlAnalysisAttributes {
   date: number; // Unix timestamp of the analysis
-  status: 'queued' | 'inprogress' | 'completed' | 'failed';
+  status: 'queued' | 'inprogress' | 'completed' | 'failed'; // Key differentiator
   stats: UrlAnalysisStats;
   results: { [key: string]: UrlEngineResult }; // Dictionary of security vendor results
   url?: string; // The URL that was analyzed (often in meta, but can be here too)
@@ -347,7 +355,7 @@ interface UrlAnalysisStats {
 }
 
 interface UrlEngineResult {
-  category: 'harmless' | 'malicious' | 'suspicious' | 'undetected' | 'timeout';
+  category: BaseThreatCategory;
   result: string; // e.g., "clean site", "malware site", "phishing site"
   // method: 'blacklist' | 'heuristic' | string; // Other methods might exist
   method: string; // Other methods might exist
@@ -368,7 +376,26 @@ interface UrlInfo {
   id: string; // The ID of the URL object itself (usually a hash of the URL)
 }
 
-export type VirusTotalFileReport =
+export type VirusTotalReport =
   | VirusTotalResponse
-  // | VirusTotalUrlAnalysisResponse
+  | VirusTotalUrlAnalysisResponse
   | VirusTotalApiErrorResponse;
+
+// Placeholder for Axios-like Response and Error interfaces
+interface AxiosResponse<T = any, D = any> {
+  data: T;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  config?: any;
+  request?: any;
+}
+
+export interface AxiosError<T = any, D = any> extends Error {
+  config?: any;
+  code?: string;
+  request?: any;
+  response?: AxiosResponse<T, D>;
+  isAxiosError: boolean; // Key property to identify AxiosError
+  toJSON: () => object;
+}
