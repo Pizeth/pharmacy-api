@@ -37,6 +37,7 @@ export class R2Service implements OnModuleInit {
   private secretAccessKey: string;
   private bucketName: string;
   private publicDomain: string;
+  private endPoint: string;
 
   constructor(
     private configService: ConfigService,
@@ -49,7 +50,7 @@ export class R2Service implements OnModuleInit {
     this.secretAccessKey = this.getRequiredConfig('R2_SECRET_ACCESS_KEY');
     this.bucketName = this.getRequiredConfig('R2_BUCKET_NAME');
     this.publicDomain = this.getRequiredConfig('R2_PUBLIC_DOMAIN');
-    this.configService.get('R2_ENDPOINT');
+    this.endPoint = `https://${this.accountId}.r2.cloudflarestorage.com`;
   }
 
   /**
@@ -76,7 +77,7 @@ export class R2Service implements OnModuleInit {
     // Initialize S3Client for R2
     this.r2Client = new S3Client({
       region: 'auto',
-      endpoint: `https://${this.accountId}.r2.cloudflarestorage.com`,
+      endpoint: this.endPoint,
       credentials: {
         accessKeyId: this.accessKeyId,
         secretAccessKey: this.secretAccessKey,
@@ -231,6 +232,8 @@ export class R2Service implements OnModuleInit {
       'R2Service',
       correlationId,
     );
+    // Validate file
+    if (!file) throw new Error('No file provided');
     if (
       maxSizeBytes &&
       buffer instanceof Buffer &&

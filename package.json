@@ -36,11 +36,13 @@
     "clamscan": "^2.4.0",
     "form-data": "^4.0.2",
     "http-status-codes": "^2.3.0",
+    "nestjs-i18n": "^10.5.1",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "ua-parser-js": "^2.0.3",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.25.51"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
