@@ -49,6 +49,7 @@ export class R2Service implements OnModuleInit {
     this.secretAccessKey = this.getRequiredConfig('R2_SECRET_ACCESS_KEY');
     this.bucketName = this.getRequiredConfig('R2_BUCKET_NAME');
     this.publicDomain = this.getRequiredConfig('R2_PUBLIC_DOMAIN');
+    this.configService.get('R2_ENDPOINT');
   }
 
   /**
@@ -255,6 +256,7 @@ export class R2Service implements OnModuleInit {
     }
     // Virus scanning with VirusTotal
     const isClean = await this.virusScanService.scanBuffer(file.buffer);
+    // if (!isClean) throw new Error('File contains malware');
 
     if (!isClean) {
       return {
@@ -264,6 +266,24 @@ export class R2Service implements OnModuleInit {
         error: 'Malicious content detected',
       };
     }
+
+    // Upload logic
+    const fileName = this.generateFileName(file.originalname);
+    await this.r2Client.send(
+      new PutObjectCommand({
+        Bucket: this.configService.get('R2_BUCKET_NAME'),
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }),
+    );
+
+    return {
+      status: 200,
+      message: 'File uploaded successfully',
+      fileName,
+      url: `${this.configService.get('R2_PUBLIC_URL')}/${fileName}`,
+    };
 
     try {
       const params: PutObjectCommandInput = {

@@ -10,8 +10,8 @@ async function bootstrap() {
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
   app.enableCors({
-    origin: process.env.CORS_ORIGINS.split(','),
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080').split(','),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   // await app.listen(process.env.PORT ?? 3000);
