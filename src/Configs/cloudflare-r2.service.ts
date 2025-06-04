@@ -31,7 +31,7 @@ export class R2Service implements OnModuleInit {
     Number(process.env.VIRUS_TOTAL_MAX_SIZE) || 32 * 1024 * 1024; // 32MB, adjust as needed
   private readonly EXPIRE_IN_SECONDS =
     Number(process.env.R2_EXPIRE_IN_SECONDS) || 3600; // Default to 1 hour if not set
-  private r2Client: S3Client;
+  private r2Client!: S3Client;
   private accountId: string;
   private accessKeyId: string;
   private secretAccessKey: string;
@@ -268,22 +268,22 @@ export class R2Service implements OnModuleInit {
     }
 
     // Upload logic
-    const fileName = this.generateFileName(file.originalname);
-    await this.r2Client.send(
-      new PutObjectCommand({
-        Bucket: this.configService.get('R2_BUCKET_NAME'),
-        Key: fileName,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      }),
-    );
+    // const fileName = this.generateFileName(file.originalname);
+    // await this.r2Client.send(
+    //   new PutObjectCommand({
+    //     Bucket: this.configService.get('R2_BUCKET_NAME'),
+    //     Key: fileName,
+    //     Body: file.buffer,
+    //     ContentType: file.mimetype,
+    //   }),
+    // );
 
-    return {
-      status: 200,
-      message: 'File uploaded successfully',
-      fileName,
-      url: `${this.configService.get('R2_PUBLIC_URL')}/${fileName}`,
-    };
+    // return {
+    //   status: 200,
+    //   message: 'File uploaded successfully',
+    //   fileName,
+    //   url: `${this.configService.get('R2_PUBLIC_URL')}/${fileName}`,
+    // };
 
     try {
       const params: PutObjectCommandInput = {
@@ -389,6 +389,12 @@ export class R2Service implements OnModuleInit {
         error: `[${s3Error?.name || 'DeleteError'}] ${errorMessage}`,
       };
     }
+  }
+
+  private generateFileName(originalName: string, desireName: string): string {
+    const timestamp = Date.now();
+    const extension = originalName.split('.').pop();
+    return `${timestamp}.${extension}`;
   }
 
   /**

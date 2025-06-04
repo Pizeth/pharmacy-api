@@ -11,7 +11,17 @@ import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      validate: (config) => {
+        const schema = Joi.object({
+          R2_ACCESS_KEY: Joi.string().required(),
+          R2_SECRET_KEY: Joi.string().required(),
+          R2_BUCKET_NAME: Joi.string().required(),
+          // Add other required vars
+        });
+        return schema.validate(config);
+      },
+    }),
     ThrottlerModule.forRoot([
       {
         name: 'default', // Name is required in v4+
