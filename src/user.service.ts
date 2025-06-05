@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from './prisma/prisma.service';
 import { Prisma, User } from '@prisma/client';
 import { DBHelper } from './utils/db-helper';
 import { PaginatedDataResult } from './types/types';
@@ -38,6 +38,7 @@ export class UsersService {
         where: where,
         include: {
           profile: true,
+          Role: true,
         },
       });
     } catch (error) {
@@ -111,9 +112,13 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
-        role: true,
+        roleId: true,
         avatar: true,
         lastLogin: true,
+      },
+      include: {
+        profile: true, // Include profile information if needed
+        Role: true, // Include role information if needed
       },
     });
   }
@@ -145,7 +150,7 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
-        role: true,
+        roleId: true,
       },
     });
   }
@@ -167,7 +172,7 @@ export class UsersService {
       page,
       pageSize,
       where: {
-        role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
+        // role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
         enabledFlag: true,
         isBan: false,
         OR: [
@@ -184,7 +189,7 @@ export class UsersService {
         username: true,
         email: true,
         lastLogin: true,
-        role: true,
+        roleId: true,
       },
     });
   }
@@ -218,7 +223,7 @@ export class UsersService {
         id: true,
         username: true,
         email: true,
-        role: true,
+        roleId: true,
       },
     });
   }
@@ -244,7 +249,7 @@ export class UsersService {
           id: true,
           username: true,
           email: true,
-          role: true,
+          roleId: true,
           avatar: true,
           lastLogin: true,
           // profile: true, // If 'profile' is a relation and you want to include it

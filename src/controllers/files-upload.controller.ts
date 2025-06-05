@@ -7,8 +7,10 @@ import {
   Post,
   UnauthorizedException,
   UploadedFile,
+  // UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+// import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { R2Service } from 'src/configs/cloudflare-r2.service';
 import { AccessTokenService } from 'src/services/access-token.service';
 import { LoggerService } from 'src/services/logger.service';
@@ -23,6 +25,8 @@ export class FilesController {
   ) {}
   @Post('upload')
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
+  // @UseGuards(JwtAuthGuard)
+  // @Roles('admin', 'uploader') // Custom decorator
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     // ...
   }

@@ -40,10 +40,20 @@ export interface I18nOptions {
 }
 
 export interface ConfigValidationMessages {
-  requiredAndNotEmpty: string;
+  required: string;
   invalidEmail: string;
+  invalidFormat: string;
   invalidUrl: string;
   minLength: string;
   maxLength: string;
-  numericRequired: string;
+  numeric: string;
+  password: {
+    required: '{field} is required and cannot be empty';
+    minLength: '{field} must be at least {min} characters long';
+    maxLength: '{field} must not exceed {max} characters';
+    uppercase: '{field} must contain at least one uppercase letter';
+    lowercase: '{field} must contain at least one lowercase letter';
+    number: '{field} must contain at least one number';
+    specialChar: '{field} must contain at least one special character';
+  };
 }

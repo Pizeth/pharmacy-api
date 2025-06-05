@@ -12,7 +12,7 @@ export class AccessTokenService {
   ): string {
     try {
       return this.jwtService.sign(payload, { expiresIn });
-    } catch (error) {
+    } catch (error: unknown) {
       throw new Error('Failed to generate token');
     }
   }

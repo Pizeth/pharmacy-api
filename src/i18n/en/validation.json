@@ -1,8 +1,21 @@
 {
   "validation": {
-    "required": "{{field}} is required and cannot be empty",
-    "invalid_format": "{{field}} has an invalid format",
-    "min_length": "{{field}} must be at least {{min}} characters long"
+    "required": "{field} is required and cannot be empty",
+    "invalidEmail": "{field} must be a valid email address",
+    "invalidFormat": "{field} has an invalid format",
+    "invalidUrl": "{field} must be a valid URL",
+    "minLength": "{field} must be at least {min} characters long",
+    "maxLength": "{field} must not exceed {max} characters",
+    "numeric": "{field} must be a valid number",
+    "password": {
+      "required": "{field} is required and cannot be empty",
+      "minLength": "{field} must be at least {min} characters long",
+      "maxLength": "{field} must not exceed {max} characters",
+      "uppercase": "{field} must contain at least one uppercase letter",
+      "lowercase": "{field} must contain at least one lowercase letter",
+      "number": "{field} must contain at least one number",
+      "specialChar": "{field} must contain at least one special character"
+    }
   },
 
   "REQUIRED": "Hello",

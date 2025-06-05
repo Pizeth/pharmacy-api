@@ -3,18 +3,20 @@ import { z } from 'zod';
 
 // Enhanced validation helpers
 export class ConfigValidationHelpers {
-  private static messages = ConfigI18nLoader.loadMessages();
+  // Environment-based locale selection (optional enhancement)
+  // Load messages for the specified locale at module initialization.
+  // This ensures messages are ready when ConfigValidationHelpers is initialized.
+  private static readonly LOCALE = process.env.CONFIG_VALIDATION_LOCALE || 'en';
+  // ConfigI18nLoader.loadMessages(LOCALE);
+  private static messages = ConfigI18nLoader.loadMessages(this.LOCALE);
 
   static requiredString(fieldName: string) {
-    const message = this.messages.requiredAndNotEmpty.replace(
-      '{field}',
-      fieldName,
-    );
+    const message = this.messages.required.replace('{field}', fieldName);
     return z.string().min(1, { message });
   }
 
   static requiredEmail(fieldName: string) {
-    const requiredMessage = this.messages.requiredAndNotEmpty.replace(
+    const requiredMessage = this.messages.required.replace(
       '{field}',
       fieldName,
     );
@@ -30,7 +32,7 @@ export class ConfigValidationHelpers {
   }
 
   static requiredUrl(fieldName: string) {
-    const requiredMessage = this.messages.requiredAndNotEmpty.replace(
+    const requiredMessage = this.messages.required.replace(
       '{field}',
       fieldName,
     );
@@ -47,7 +49,7 @@ export class ConfigValidationHelpers {
     minLength: number,
     maxLength?: number,
   ) {
-    const requiredMessage = this.messages.requiredAndNotEmpty.replace(
+    const requiredMessage = this.messages.required.replace(
       '{field}',
       fieldName,
     );
@@ -71,7 +73,7 @@ export class ConfigValidationHelpers {
   }
 
   static requiredNumber(fieldName: string) {
-    const message = this.messages.numericRequired.replace('{field}', fieldName);
+    const message = this.messages.numeric.replace('{field}', fieldName);
     return z.coerce.number({ message }).int().positive();
   }
 

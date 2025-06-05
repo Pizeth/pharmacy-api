@@ -59,6 +59,25 @@ model RefreshToken {
   @@index([userId])
 }
 
+model Role {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique @db.VarChar(50)
+  description     String?           @db.VarChar(255)
+
+  // Tracking
+  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  createdBy       Int               @map("created_by")
+  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
+  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+  objectVersionId Int               @default(1) @map("object_version_id")
+
+  // Relationships
+  users           User[]            
+  
+  @@map("roles")
+}
+
 model User {
   id              Int               @id @default(autoincrement())
   username        String            @unique @db.VarChar(50)
@@ -68,7 +87,7 @@ model User {
   profile         Profile?  
 
    // Advanced Authentication Fields
-  role            Role              @default(USER)
+  roleId          Int               @map("role_id")
   authMethod      AuthMethod?       @map("auth_method") @default(PASSWORD)
 
   // Multi-Factor Authentication
@@ -95,7 +114,10 @@ model User {
   lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
   objectVersionId Int               @default(1) @map("object_version_id")
 
-  auditTrail      AuditTrail[]     
+  auditTrail      AuditTrail[]
+
+// Relationships
+  Role Role[]     
 
   @@index([username, email])
   @@unique([username, email])
@@ -848,14 +870,14 @@ enum Sex {
   @@map("sex_enum")
 }
 
-enum Role {
-  USER
-  CASHIER
-  MANAGER
-  ADMIN
-  SUPER_ADMIN
-  @@map("role_enum")
-}
+// enum Role {
+//   USER
+//   CASHIER
+//   MANAGER
+//   ADMIN
+//   SUPER_ADMIN
+//   @@map("role_enum")
+// }
 
 enum AuthMethod {
   PASSWORD

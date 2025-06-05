@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { PrismaService } from './prisma.service'; // Adjust path as needed
+// import { AppService } from './app.service';
+import { PrismaService } from './prisma/prisma.service'; // Adjust path as needed
 import { UsersService } from './user.service';
 import { DBHelper } from './utils/db-helper';
 import { VirusScanService } from './services/virus-scan.service';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { z, ZodError } from 'zod'; // Import Zod
+import { ZodError } from 'zod'; // Import Zod
 import {
   I18nModule,
   AcceptLanguageResolver,
@@ -18,99 +18,85 @@ import {
   GrpcMetadataResolver,
 } from 'nestjs-i18n';
 import * as path from 'path';
-import { ConfigValidationMessages } from './types/i18n';
-
-// R2_ACCOUNT_ID = '7fcff037e679e423265022c5b9f6be1c';
-// R2_ACCESS_KEY_ID = 'c9db1a71be7599cbc13eff8c2bf1a575';
-// R2_SECRET_ACCESS_KEY =
-//   '000608fea622e90f6d2a733bf7fa7ba094d321df7ec2f661ca8ddaab3122548c';
-// R2_BUCKET_NAME = 'piseth-chesda';
-// R2_PUBLIC_DOMAIN = 'https://pub-ce3376330760464f8be1e4a3b46318c0.r2.dev';
-// R2_EXPIRE_IN_SECONDS = '3600';
-// R2_PUBLIC_URL = '';
-
-const defaultMessages: ConfigValidationMessages = {
-  requiredAndNotEmpty: '{field} is required and cannot be empty',
-  invalidEmail: '{field} must be a valid email address',
-  invalidUrl: '{field} must be a valid URL',
-  minLength: '{field} must be at least {min} characters long',
-  maxLength: '{field} must not exceed {max} characters',
-  numericRequired: '{field} must be a valid number',
-};
-// Define the Zod schema for your configuration
-const configSchema = z.object({
-  R2_ACCESS_KEY: z
-    .string()
-    .min(1, { message: 'R2_ACCESS_KEY is required and cannot be empty' }),
-  R2_SECRET_KEY: z
-    .string()
-    .min(1, { message: 'R2_SECRET_KEY is required and cannot be empty' }),
-  R2_BUCKET_NAME: z
-    .string()
-    .min(1, { message: 'R2_BUCKET_NAME is required and cannot be empty' }),
-  // Add other required environment variables here
-  // Example of an optional variable with a default value:
-  // OPTIONAL_VAR: z.string().optional().default('defaultValue'),
-  // Example of a numeric variable:
-  // PORT: z.coerce.number().int().positive().default(3000), // coerce converts string from env to number
-});
+import { configurationSchema } from './validation/configuration.schema';
+import { SeedModule } from './prisma/seeders/seed.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      // validate: (config) => {
-      //   const schema = Joi.object({
-      //     R2_ACCESS_KEY: Joi.string().required(),
-      //     R2_SECRET_KEY: Joi.string().required(),
-      //     R2_BUCKET_NAME: Joi.string().required(),
-      //     // Add other required vars
+      // validate: async (config: Record<string, any>) => {
+      //   // Inject i18n service dynamically
+      //   const i18n = await import('nestjs-i18n').then(
+      //     (module) => new module.I18nService(),
+      //   );
+      //   // const { I18nService } = await import('nestjs-i18n');
+      //   // const i18n = new I18nService();
+
+      //   const requiredMessage = (field: string) =>
+      //     i18n.translate('validation.required', { args: { field } });
+
+      //   // Define the Zod schema for your configuration dynamically
+      //   const configurationSchema = z.object({
+      //     R2_ACCESS_KEY: z
+      //       .string()
+      //       .min(1, { message: requiredMessage('R2_ACCESS_KEY') }),
+      //     R2_SECRET_KEY: z
+      //       .string()
+      //       .min(1, { message: requiredMessage('R2_SECRET_KEY') }),
+      //     R2_BUCKET_NAME: z
+      //       .string()
+      //       .min(1, { message: requiredMessage('R2_BUCKET_NAME') }),
       //   });
-      //   return schema.validate(config);
+
+      //   try {
+      //     // Validate config using Zod
+      //     const validatedConfig = configurationSchema.parse(config);
+      //     return validatedConfig;
+      //   } catch (error: unknown) {
+      //     if (error instanceof z.ZodError) {
+      //       const errorMessages = error.errors.map(
+      //         (e) => `${e.path.join('.')}: ${e.message}`,
+      //       );
+      //       console.error(
+      //         'Configuration validation error:',
+      //         JSON.stringify(error.flatten(), null, 2),
+      //       );
+      //       throw new Error(
+      //         `Configuration validation failed:\n${errorMessages.join('\n')}`,
+      //       );
+      //     }
+      //     throw error;
+      //   }
       // },
-      validate: async (config: Record<string, any>) => {
-        // Inject i18n service dynamically
-        const i18n = await import('nestjs-i18n').then(
-          (module) => new module.I18nService(),
-        );
-        // const { I18nService } = await import('nestjs-i18n');
-        // const i18n = new I18nService();
-
-        const requiredMessage = (field: string) =>
-          i18n.translate('validation.required', { args: { field } });
-
-        // Define the Zod schema for your configuration dynamically
-        const configurationSchema = z.object({
-          R2_ACCESS_KEY: z
-            .string()
-            .min(1, { message: requiredMessage('R2_ACCESS_KEY') }),
-          R2_SECRET_KEY: z
-            .string()
-            .min(1, { message: requiredMessage('R2_SECRET_KEY') }),
-          R2_BUCKET_NAME: z
-            .string()
-            .min(1, { message: requiredMessage('R2_BUCKET_NAME') }),
-        });
-
+      validate: (config: Record<string, any>) => {
         try {
-          // Validate config using Zod
           const validatedConfig = configurationSchema.parse(config);
+          console.log('✅ Configuration validation successful');
           return validatedConfig;
         } catch (error: unknown) {
-          if (error instanceof z.ZodError) {
-            const errorMessages = error.errors.map(
-              (e) => `${e.path.join('.')}: ${e.message}`,
-            );
+          if (error instanceof ZodError) {
+            const errorMessages = error.errors.map((e) => {
+              // e.message already contains the internationalized message from our helpers
+              return `${e.path.join('.')}: ${e.message}`;
+            });
+            // const errorMessages = error.errors.map(
+            //   (e) => `${e.path.join('.')}: ${e.message}`,
+            // );
             console.error(
-              'Configuration validation error:',
+              '❌ Configuration validation error details:',
               JSON.stringify(error.flatten(), null, 2),
             );
             throw new Error(
               `Configuration validation failed:\n${errorMessages.join('\n')}`,
             );
           }
-          throw error;
+          console.error(
+            '❌ Unexpected error during configuration validation:',
+            error,
+          );
+          throw error; // Re-throw other unexpected errors
         }
       },
     }),
@@ -150,6 +136,7 @@ const configSchema = z.object({
       ],
       inject: [ConfigService],
     }),
+    SeedModule,
   ],
   providers: [
     PrismaService,

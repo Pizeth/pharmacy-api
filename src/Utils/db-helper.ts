@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+// import { PrismaService } from 'src/prisma.service';
 import {
   GetPaginatedDataParams,
   PaginatedDataResult,

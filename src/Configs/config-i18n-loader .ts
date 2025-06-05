@@ -77,7 +77,7 @@ export class ConfigI18nLoader {
     }
   }
 
-  static getMessage(key: keyof ConfigValidationMessages): string {
+  static getMessage(key: keyof ConfigValidationMessages): string | object {
     if (!this.isLoaded) {
       this.loadMessages();
     }
@@ -86,12 +86,31 @@ export class ConfigI18nLoader {
 
   private static getDefaultMessages(): ConfigValidationMessages {
     return {
-      requiredAndNotEmpty: '{field} is required and cannot be empty',
+      required: '{field} is required and cannot be empty',
       invalidEmail: '{field} must be a valid email address',
+      invalidFormat: '{field} has an invalid format',
       invalidUrl: '{field} must be a valid URL',
       minLength: '{field} must be at least {min} characters long',
       maxLength: '{field} must not exceed {max} characters',
-      numericRequired: '{field} must be a valid number',
+      numeric: '{field} must be a valid number',
+      password: {
+        required: '{field} is required and cannot be empty',
+        minLength: '{field} must be at least {min} characters long',
+        maxLength: '{field} must not exceed {max} characters',
+        uppercase: '{field} must contain at least one uppercase letter',
+        lowercase: '{field} must contain at least one lowercase letter',
+        number: '{field} must contain at least one number',
+        specialChar: '{field} must contain at least one special character',
+      },
     };
   }
 }
+
+// R2_ACCOUNT_ID = '7fcff037e679e423265022c5b9f6be1c';
+// R2_ACCESS_KEY_ID = 'c9db1a71be7599cbc13eff8c2bf1a575';
+// R2_SECRET_ACCESS_KEY =
+//   '000608fea622e90f6d2a733bf7fa7ba094d321df7ec2f661ca8ddaab3122548c';
+// R2_BUCKET_NAME = 'piseth-chesda';
+// R2_PUBLIC_DOMAIN = 'https://pub-ce3376330760464f8be1e4a3b46318c0.r2.dev';
+// R2_EXPIRE_IN_SECONDS = '3600';
+// R2_PUBLIC_URL = '';
