@@ -12,7 +12,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 // import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { R2Service } from 'src/configs/cloudflare-r2.service';
-import { AccessTokenService } from 'src/services/access-token.service';
+import { TokenService } from 'src/services/access-token.service';
 import { LoggerService } from 'src/services/logger.service';
 import { Readable } from 'stream';
 
@@ -21,7 +21,7 @@ export class FilesController {
   constructor(
     private readonly r2Service: R2Service,
     private readonly logger: LoggerService,
-    private readonly accessTokenService: AccessTokenService, // Assuming this is the correct service for token generation
+    private readonly tokenService: TokenService, // Assuming this is the correct service for token generation
   ) {}
   @Post('upload')
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
@@ -45,7 +45,7 @@ export class FilesController {
   }
   @Post('generate-token')
   generateToken(@Body() body: { filename: string }) {
-    return this.accessTokenService.generateToken({
+    return this.tokenService.generateToken({
       filename: body.filename,
     });
   }
@@ -53,8 +53,8 @@ export class FilesController {
   @Get('secure/:token')
   async getSecureFile(@Param('token') token: string) {
     try {
-      const { filename } = this.accessTokenService.verifyToken(token);
-      return this.r2Service.getFile(filename);
+      const filename = this.tokenService.verifyToken(token);
+      return this.r2Service.getFile(filename.username);
     } catch (e: unknown) {
       throw new UnauthorizedException('Invalid access token');
     }

@@ -27,7 +27,7 @@ export class TokenService {
     this.expireRefresh = this.config.get<string>('EXPIRE_REFRESH') || '7d';
   }
 
-  private generatePayload(payload: TokenPayload, req: Request) {
+  generatePayload(payload: TokenPayload, req: Request) {
     return {
       id: payload.id,
       username: payload.username,
@@ -38,7 +38,7 @@ export class TokenService {
   }
 
   // Generate access token
-  private generateToken(
+  generateToken(
     payload: TokenPayload | { filename: string },
     expiresIn: string = this.expiresIn,
   ): string {
@@ -53,9 +53,7 @@ export class TokenService {
   }
 
   // Generate refresh tokens
-  private async generateRefreshToken(
-    payload: TokenPayload,
-  ): Promise<RefreshToken> {
+  async generateRefreshToken(payload: TokenPayload): Promise<RefreshToken> {
     // const token = jwt.sign(payload, refreshTokenKey, { expiresIn: "7d" });
     const token = this.generateToken(payload, this.expireRefresh);
     try {
@@ -66,14 +64,14 @@ export class TokenService {
     }
   }
 
-  private verifyToken(token: string): TokenPayload {
+  verifyToken(token: string): TokenPayload {
     return this.jwtService.verify(token, {
       secret: this.refreshTokenKey,
     });
   }
 
   // Verify the access token
-  private verifyTokenClaims(token: string, req: Request): TokenPayload {
+  verifyTokenClaims(token: string, req: Request): TokenPayload {
     try {
       // Verify the token with your secret key
       const verifiedToken = this.jwtService.verify<TokenPayload>(token, {
@@ -161,7 +159,7 @@ export class TokenService {
   }
 
   // Check if refresh token exists in database
-  private async findToken(token: string): Promise<RefreshToken | null> {
+  async findToken(token: string): Promise<RefreshToken | null> {
     try {
       return await this.prisma.refreshToken.findUnique({
         where: { token: token },
@@ -174,7 +172,7 @@ export class TokenService {
   }
 
   // Remove refresh token from database
-  private async removeTokens(token: string) {
+  async removeTokens(token: string) {
     try {
       return await this.prisma.refreshToken.deleteMany({
         where: { token: token },
@@ -186,7 +184,7 @@ export class TokenService {
   }
 
   // Save refresh token to database
-  private async createRefreshToken(token: string, id: number) {
+  async createRefreshToken(token: string, id: number) {
     try {
       return await this.prisma.refreshToken.create({
         data: {
