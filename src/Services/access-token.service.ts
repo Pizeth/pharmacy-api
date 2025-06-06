@@ -1,7 +1,7 @@
 // src/services/access-token.service.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
+import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RefreshToken } from '@prisma/client';
 import { Request } from 'express';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -48,7 +48,11 @@ export class TokenService {
         secret: this.secretKey,
       });
     } catch (error: unknown) {
-      throw new Error('Failed to generate token');
+      throw new AppError(
+        'Failed to generate tokend',
+        statusCode.UNPROCESSABLE_ENTITY,
+        error,
+      );
     }
   }
 
@@ -60,7 +64,11 @@ export class TokenService {
       return await this.createRefreshToken(token, payload.id);
     } catch (error) {
       console.error('Error saving refresh token:', error);
-      throw error;
+      throw new AppError(
+        'Failed to save refresh tokend',
+        statusCode.GONE,
+        error,
+      );
     }
   }
 
@@ -103,6 +111,19 @@ export class TokenService {
 
       return verifiedToken;
     } catch (error: unknown) {
+      // Handle different types of JWT verification errors
+      if (error instanceof TokenExpiredError) {
+        console.error('JWT Token Expired', {
+          error: error.message,
+          ip: req.ip,
+        });
+        throw new AppError(
+          'Authentication failed: Token has expired',
+          statusCode.UNAUTHORIZED,
+          error,
+        );
+      }
+
       if (error instanceof JsonWebTokenError) {
         // Signature verification failed
         console.error('JWT Signature Verification Failed', {
@@ -115,21 +136,6 @@ export class TokenService {
           statusCode.UNAUTHORIZED,
           error,
         );
-      }
-      // Handle different types of JWT verification errors
-      if (error.name === 'JsonWebTokenError') {
-        // Signature verification failed
-        console.error('JWT Signature Verification Failed', {
-          error: error.message,
-          ip: req.ip, // Assuming you have a method to get current IP
-        });
-        // throw new Error("Authentication failed: Invalid token signature");
-        throw new AppError(
-          'Authentication failed: Invalid token signature',
-          statusCode.UNAUTHORIZED,
-          error,
-        );
-
         // // Log the error for security monitoring
         // this.logger.security("Token verification failed", {
         //   error: error.message,
@@ -139,20 +145,6 @@ export class TokenService {
         // // Throw a generic error to prevent information leakage
         // throw new Error("Authentication failed");
       }
-
-      if (error.name === 'TokenExpiredError') {
-        console.error('JWT Token Expired', {
-          error: error.message,
-          ip: req.ip,
-        });
-        throw new AppError(
-          'Authentication failed: Token has expired',
-          statusCode.UNAUTHORIZED,
-          error,
-        );
-        // throw new Error("Authentication failed: Token has expired");
-      }
-
       // Re-throw other errors
       throw error;
     }
@@ -167,7 +159,11 @@ export class TokenService {
       });
     } catch (error) {
       console.error('Error fetching refresh token:', error);
-      throw error;
+      throw new AppError(
+        'Failed to fetch refresh token',
+        statusCode.NOT_FOUND,
+        error,
+      );
     }
   }
 

@@ -69,7 +69,7 @@ export class SeedService
     await this.userSeeder.seed();
 
     // Add more seeders here
-    console.log('📊 Seeding completed');
+    console.log('📊 Database Seeding completed');
   }
 
   async clearAll() {
