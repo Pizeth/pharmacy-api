@@ -1,29 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import data from '../roles.json';
-import { Role } from '@prisma/client';
 
 @Injectable()
 export class RoleSeeder {
   constructor(private readonly prisma: PrismaService) {}
 
   async seed() {
-    // const roles = [
-    //   {
-    //     name: 'SUPER_ADMIN',
-    //     description: 'Super Administrator with full access',
-    //     createdBy: 1,
-    //     lastUpdatedBy: 1,
-    //   },
-    //   {
-    //     name: 'ADMIN',
-    //     description: 'Administrator with limited access',
-    //     createdBy: 1,
-    //     lastUpdatedBy: 1,
-    //   },
-    //   { name: 'USER', description: 'Regular user' },
-    //   { name: 'GUEST', description: 'Guest user with minimal access' },
-    // ];
     const roles = this.getRolesFromData();
 
     for (const roleData of roles) {
@@ -37,12 +20,12 @@ export class RoleSeeder {
     console.log(`✅ Seeded ${roles.length} roles`);
   }
 
-  private getRolesFromData(): Role[] {
+  private getRolesFromData() {
     return data.roles.map((role) => ({
       name: role.name,
       description: role.description,
-      createdBy: 1,
-      lastUpdatedBy: 1,
+      createdBy: Number(role.createdBy) || 1,
+      lastUpdatedBy: Number(role.lastUpdatedBy) || 1,
     }));
   }
 }
