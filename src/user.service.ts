@@ -38,7 +38,7 @@ export class UsersService {
         where: where,
         include: {
           profile: true,
-          Role: true,
+          role: true,
         },
       });
     } catch (error) {
@@ -118,7 +118,7 @@ export class UsersService {
       },
       include: {
         profile: true, // Include profile information if needed
-        Role: true, // Include role information if needed
+        role: true, // Include role information if needed
       },
     });
   }

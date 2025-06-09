@@ -63,10 +63,10 @@ export class SeedService
 
     // Run seeders in order (important for foreign key constraints)
     console.log('🔧 Seeding roles...');
-    await this.roleSeeder.seed();
+    const roles = await this.roleSeeder.seed();
 
     console.log('👤 Seeding users...');
-    await this.userSeeder.seed();
+    await this.userSeeder.seed(roles);
 
     // Add more seeders here
     console.log('📊 Database Seeding completed');

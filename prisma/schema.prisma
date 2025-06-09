@@ -85,9 +85,11 @@ model User {
   password        String        
   avatar          String?           @db.VarChar(255)
   profile         Profile?  
-
-   // Advanced Authentication Fields
   roleId          Int               @map("role_id")
+  // Relation field that links to the Role model.
+  role            Role              @relation(fields: [roleId], references: [id])
+
+  // Advanced Authentication Fields
   authMethod      AuthMethod?       @map("auth_method") @default(PASSWORD)
 
   // Multi-Factor Authentication
@@ -117,7 +119,7 @@ model User {
   auditTrail      AuditTrail[]
 
 // Relationships
-  Role Role[]     
+  // Role Role[]     
 
   @@index([username, email])
   @@unique([username, email])

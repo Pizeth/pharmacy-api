@@ -20,6 +20,7 @@ import {
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 import { SeedModule } from './prisma/seeders/seed.module';
+import { Logger } from './logs/logger';
 
 @Module({
   imports: [
@@ -143,12 +144,13 @@ import { SeedModule } from './prisma/seeders/seed.module';
     UsersService,
     VirusScanService,
     DBHelper,
+    Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],
-  exports: [PrismaService, DBHelper], // Export if other modules need it
+  exports: [PrismaService, UsersService, VirusScanService, DBHelper, Logger], // Export if other modules need it
   controllers: [AppController],
   // providers: [AppService],
 })

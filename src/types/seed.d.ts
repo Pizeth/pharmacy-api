@@ -3,7 +3,8 @@ export interface SuperAdminData {
   email: string;
   password: string;
   avatar: string;
-  roleId?: number;
+  roleId: number;
+  role: Role;
   profile: {
     firstName: string;
     lastName: string;
@@ -15,6 +16,11 @@ export interface SuperAdminData {
     married: boolean;
     bio?: string;
   };
+}
+
+export interface Role {
+  name: string;
+  descrition?: string;
 }
 
 enum Sex {
