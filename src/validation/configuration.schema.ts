@@ -15,7 +15,7 @@ export const configurationSchema = z.object({
 
   //   Virus Total Configuration
   VIRUSTOTAL_API_KEY: validation.requiredString('VIRUSTOTAL_API_KEY'),
-  Virustotal_API_URL: validation.requiredUrl('VIRUSTOTAL_API_URL'),
+  VIRUSTOTAL_API_URL: validation.requiredUrl('VIRUSTOTAL_API_URL'),
   VIRUSTOTAL_API_RATE_LIMIT: validation.requiredNumber(
     'VIRUSTOTAL_API_RATE_LIMIT',
   ),

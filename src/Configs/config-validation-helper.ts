@@ -36,6 +36,7 @@ export class ConfigValidationHelpers {
       '{field}',
       fieldName,
     );
+
     const urlMessage = this.messages.invalidUrl.replace('{field}', fieldName);
 
     return z

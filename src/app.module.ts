@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger as l } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 // import { AppService } from './app.service';
@@ -21,6 +21,9 @@ import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 import { SeedModule } from './prisma/seeders/seed.module';
 import { Logger } from './logs/logger';
+import { TokenService } from './services/access-token.service';
+import { PasswordUtils } from './utils/password-utils.service';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -72,11 +75,13 @@ import { Logger } from './logs/logger';
       //   }
       // },
       validate: (config: Record<string, any>) => {
+        // l.log(config);
         try {
           const validatedConfig = configurationSchema.parse(config);
           console.log('✅ Configuration validation successful');
           return validatedConfig;
         } catch (error: unknown) {
+          l.log(error);
           if (error instanceof ZodError) {
             const errorMessages = error.errors.map((e) => {
               // e.message already contains the internationalized message from our helpers
@@ -122,20 +127,27 @@ import { Logger } from './logs/logger';
         GrpcMetadataResolver,
       ],
     }),
-    I18nModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        fallbackLanguage: configService.getOrThrow('FALLBACK_LANGUAGE'),
-        loaderOptions: {
-          path: path.join(__dirname, '/i18n/'),
-          watch: true,
-        },
-      }),
-      resolvers: [
-        { use: QueryResolver, options: ['lang'] },
-        AcceptLanguageResolver,
-        new HeaderResolver(['x-lang']),
-      ],
+    // I18nModule.forRootAsync({
+    //   useFactory: (configService: ConfigService) => ({
+    //     fallbackLanguage: configService.getOrThrow('FALLBACK_LANGUAGE'),
+    //     loaderOptions: {
+    //       path: path.join(__dirname, '/i18n/'),
+    //       watch: true,
+    //     },
+    //   }),
+    //   resolvers: [
+    //     { use: QueryResolver, options: ['lang'] },
+    //     AcceptLanguageResolver,
+    //     new HeaderResolver(['x-lang']),
+    //   ],
+    //   inject: [ConfigService],
+    // }),
+    JwtModule.registerAsync({
       inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get('SECRET_KEY'),
+        signOptions: { expiresIn: config.get('EXPIRES_IN') },
+      }),
     }),
     SeedModule,
   ],
@@ -143,14 +155,27 @@ import { Logger } from './logs/logger';
     PrismaService,
     UsersService,
     VirusScanService,
+    TokenService,
+    PasswordUtils,
     DBHelper,
+    // SeedService,
+    // UserSeeder,
+    // RoleSeeder,
     Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],
-  exports: [PrismaService, UsersService, VirusScanService, DBHelper, Logger], // Export if other modules need it
+  exports: [
+    PrismaService,
+    UsersService,
+    VirusScanService,
+    TokenService,
+    PasswordUtils,
+    DBHelper,
+    Logger,
+  ], // Export if other modules need it
   controllers: [AppController],
   // providers: [AppService],
 })

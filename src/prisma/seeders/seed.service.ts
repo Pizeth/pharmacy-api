@@ -1,38 +1,44 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma.service';
 import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
-import { PrismaClient } from '@prisma/client';
 
 // Import other seeders as needed
 
 @Injectable()
-export class SeedService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
+// extends PrismaClient
+// implements OnModuleInit, OnModuleDestroy
+export class SeedService {
+  private readonly logger = new Logger(SeedService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly userSeeder: UserSeeder,
     private readonly roleSeeder: RoleSeeder,
   ) {
-    super({
-      // Optional: Add Prisma Client options here, e.g., logging
-      // log: ['query', 'info', 'warn', 'error'],
-    });
+    this.logger.debug('SeedService initialized');
+    // super({
+    //   // Optional: Add Prisma Client options here, e.g., logging
+    //   // log: ['query', 'info', 'warn', 'error'],
+    // });
   }
 
-  async onModuleInit() {
-    await this.$connect();
-    console.log('Prisma Client connected for seeding.');
-  }
+  // async onModuleInit() {
+  //   await this.$connect();
+  //   console.log('Prisma Client connected for seeding.');
+  // }
 
-  async onModuleDestroy() {
-    await this.$disconnect();
-    console.log('Prisma Client disconnected after seeding.');
-  }
+  // async onModuleDestroy() {
+  //   await this.$disconnect();
+  //   console.log('Prisma Client disconnected after seeding.');
+  // }
 
   //   async seedDatabase() {
   //     try {
@@ -47,18 +53,38 @@ export class SeedService
   //     }
   //   }
 
+  private getRequiredConfig(key: string): string {
+    // Null-safe access
+    if (!this.config) {
+      throw new Error('ConfigService is not available');
+    }
+
+    const value = this.config.get<string>(key);
+    if (!value) {
+      Logger.error(`Missing configuration: ${key}`, SeedService.name);
+      throw new Error(`Required configuration '${key}' is missing`);
+    }
+    return value;
+  }
+
+  // Getter methods for lazy loading configuration
+  private get nodeEnv(): string {
+    return this.getRequiredConfig('NODE_ENV') || 'development';
+  }
+
+  private get allowProdSeeding(): boolean {
+    return (
+      this.getRequiredConfig('ALLOW_PRODUCTION_SEEDING').toLowerCase() ===
+      'true'
+    );
+  }
+
   async seedAll() {
-    // Check if we're in production and have safety checks
-    const nodeEnv = this.config.get<string>('NODE_ENV');
-    if (nodeEnv === 'production') {
-      const allowProdSeeding = this.config.get<string>(
-        'ALLOW_PRODUCTION_SEEDING',
+    // Check if we're in production and have safety checks;
+    if (this.nodeEnv === 'production' && !this.allowProdSeeding) {
+      throw new Error(
+        'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
       );
-      if (!allowProdSeeding) {
-        throw new Error(
-          'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
-        );
-      }
     }
 
     // Run seeders in order (important for foreign key constraints)

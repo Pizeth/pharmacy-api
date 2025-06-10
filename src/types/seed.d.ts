@@ -1,3 +1,6 @@
+import { Role } from '@prisma/client';
+import { Sex } from './commons.enum';
+
 export interface SuperAdminData {
   username: string;
   email: string;
@@ -16,15 +19,4 @@ export interface SuperAdminData {
     married: boolean;
     bio?: string;
   };
-}
-
-export interface Role {
-  name: string;
-  descrition?: string;
-}
-
-enum Sex {
-  MALE = 'Male',
-  FEMALE = 'Female',
-  BI = 'Bi',
 }

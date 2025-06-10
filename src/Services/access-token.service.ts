@@ -1,5 +1,5 @@
 // src/services/access-token.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RefreshToken } from '@prisma/client';
@@ -11,20 +11,85 @@ import statusCode from 'http-status-codes';
 
 @Injectable()
 export class TokenService {
-  private expiresIn;
-  private secretKey;
-  private refreshTokenKey;
-  private expireRefresh;
+  // private expiresIn: string;
+  // private secretKey: string;
+  // private refreshTokenKey: string;
+  // private expireRefresh: string;
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService, // Replace with actual Prisma client type
     private readonly jwtService: JwtService,
   ) {
-    this.expiresIn = this.config.get<string>('EXPIRES_IN') || '900s';
-    this.secretKey = this.config.get<string>('SECRET_KEY') || '270400';
-    this.refreshTokenKey =
-      this.config.get<string>('REFRESH_TOKEN_KEY') || '200794';
-    this.expireRefresh = this.config.get<string>('EXPIRE_REFRESH') || '7d';
+    // this.expiresIn = config.get<string>('EXPIRES_IN', '900s');
+    // this.secretKey = config.get<string>('SECRET_KEY', '270400');
+    // this.refreshTokenKey = config.get<string>('REFRESH_TOKEN_KEY', '200794');
+    // this.expireRefresh = config.get<string>('EXPIRE_REFRESH', '7d');
+  }
+
+  // onModuleInit() {
+  //   // Initialize here instead
+  //   this.expiresIn = this.config.get<string>('EXPIRES_IN', '900s');
+  //   this.secretKey = this.config.get<string>('SECRET_KEY', '270400');
+  //   this.refreshTokenKey = this.config.get<string>(
+  //     'REFRESH_TOKEN_KEY',
+  //     '200794',
+  //   );
+  //   this.expireRefresh = this.config.get<string>('EXPIRE_REFRESH', '7d');
+  //   // this.expiresIn = this.getRequiredConfig('EXPIRES_IN');
+  //   // this.secretKey = this.getRequiredConfig('SECRET_KEY');
+  //   // this.refreshTokenKey = this.getRequiredConfig('REFRESH_TOKEN_KEY');
+  //   // this.expireRefresh = this.getRequiredConfig('EXPIRE_REFRESH');
+  // }
+
+  /**
+   * Helper function to get required configuration values and throw if missing.
+   * @param key The environment variable key.
+   * @returns The configuration value as a string.
+   * @throws Error if the key is not found or is empty.
+   */
+  // private getRequiredConfig(key: string): string {
+  //   const value = this.config.get<string>(key);
+  //   if (!value) {
+  //     Logger.error(
+  //       `Required Token configuration key '${key}' is missing or empty.`,
+  //       TokenService.name,
+  //     );
+  //     throw new Error(
+  //       `Required Token configuration key '${key}' is missing or empty.`,
+  //     );
+  //   }
+  //   return value;
+  // }
+
+  private getRequiredConfig(key: string): string {
+    // Null-safe access
+    if (!this.config) {
+      throw new Error('ConfigService is not available');
+    }
+
+    const value = this.config.get<string>(key);
+    if (!value) {
+      Logger.error(`Missing configuration: ${key}`, TokenService.name);
+      throw new Error(`Required configuration '${key}' is missing`);
+    }
+    return value;
+  }
+
+  // Getter methods for lazy loading configuration
+  private get expiresIn(): string {
+    return this.getRequiredConfig('EXPIRES_IN');
+  }
+
+  private get secretKey(): string {
+    return this.getRequiredConfig('SECRET_KEY');
+  }
+
+  private get refreshTokenKey(): string {
+    return this.getRequiredConfig('REFRESH_TOKEN_KEY');
+  }
+
+  private get expireRefresh(): string {
+    return this.getRequiredConfig('EXPIRE_REFRESH');
   }
 
   generatePayload(payload: TokenPayload, req: Request) {
@@ -32,7 +97,8 @@ export class TokenService {
       id: payload.id,
       username: payload.username,
       email: payload.email,
-      role: payload.roleId,
+      roleId: payload.roleId,
+      role: payload.role,
       ip: req.ip,
     };
   }
@@ -58,7 +124,6 @@ export class TokenService {
 
   // Generate refresh tokens
   async generateRefreshToken(payload: TokenPayload): Promise<RefreshToken> {
-    // const token = jwt.sign(payload, refreshTokenKey, { expiresIn: "7d" });
     const token = this.generateToken(payload, this.expireRefresh);
     try {
       return await this.createRefreshToken(token, payload.id);

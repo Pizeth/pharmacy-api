@@ -11,9 +11,11 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest build --webpack --webpackPath webpack-hmr.config.js --watch",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:seed:dev": "tsx --watch prisma/seed.ts",
     "db:reset": "prisma migrate reset && npm run db:seed",
+    "db:seed": "tsx prisma/seed.ts --seed",
+    "db:seed:dev": "tsx --watch prisma/seed.ts --seed",
+    "db:clear": "tsx prisma/seed.ts --clear",
+    "db:full-reset": "npm run db:clear && npm run db:reset",
     "build:webpack": "tsc webpack-hmr.config.ts --outDir ./dist",
     "start:dev1": "npm run build:webpack && nest start --webpack --webpackPath ./dist/webpack-hmr.config.js --watch",
     "start:debug": "nest start --debug --watch",
@@ -26,7 +28,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts --seed"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.824.0",

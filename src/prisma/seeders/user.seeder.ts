@@ -1,23 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
-import { Sex, SuperAdminData } from 'src/types/seed';
-import { Role } from '@prisma/client';
-
-interface TokenPayload {
-  userId: number;
-  username: string;
-  email: string;
-  role: string;
-}
+// import * as bcrypt from 'bcrypt';
+// import * as jwt from 'jsonwebtoken';
+import type { SuperAdminData } from 'src/types/seed';
+import { RefreshToken, Role } from '@prisma/client';
+import { TokenService } from 'src/services/access-token.service';
+// import { TokenPayload } from 'src/types/token';
+import { PasswordUtils } from 'src/utils/password-utils.service';
+import { RoleToken } from 'src/types/token';
+import { Sex } from 'src/types/commons.enum';
 
 @Injectable()
 export class UserSeeder {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly token: TokenService,
+    private readonly passwordUtils: PasswordUtils,
   ) {}
 
   // async seed(roles: Role[]) {
@@ -122,7 +122,7 @@ export class UserSeeder {
           create: {
             username: superAdminData.username,
             email: superAdminData.email,
-            password: await this.hashPassword(superAdminData.password),
+            password: await this.passwordUtils.hash(superAdminData.password),
             avatar: superAdminData.avatar,
             roleId: superAdminData.roleId,
             // Using nested writes for related data.
@@ -143,11 +143,13 @@ export class UserSeeder {
             },
             refreshTokens: {
               create: {
-                token: this.generateRefreshToken({
-                  userId: 0, // Placeholder.
+                token: this.token.generateToken({
+                  id: 0, // Placeholder.
                   username: superAdminData.username,
                   email: superAdminData.email,
-                  role: 'SUPER_ADMIN',
+                  roleId: superAdminData.roleId,
+                  role: this.getRoleToken(superAdminData.role),
+                  ip: 'LOCALHOST',
                 }),
                 expiresAt: expiresAt,
               },
@@ -173,9 +175,9 @@ export class UserSeeder {
         // Step 2: Update the just created user with its own id for audit fields.
         const userId = superAdmin.id;
 
-        const updatedRoles = await tx.role.updateMany({
-          where: { lastUpdatedBy: 0 },
-          data: { lastUpdatedBy: userId },
+        const updatedRoles = await tx.role.updateManyAndReturn({
+          where: { createdBy: 0, lastUpdatedBy: 0 }, //Roles that was created using Placeholder
+          data: { createdBy: userId, lastUpdatedBy: userId },
         });
 
         const updatedSuperAdmin = await tx.user.update({
@@ -193,18 +195,25 @@ export class UserSeeder {
             refreshTokens: {
               update: {
                 where: {
-                  id: superAdmin.refreshTokens.find(
-                    (token) =>
-                      token.userId === superAdmin.id &&
-                      token.expiresAt.getTime() === expiresAt.getTime(),
-                  )?.id,
+                  id: this.getSeedToken(
+                    superAdmin.refreshTokens,
+                    userId,
+                    expiresAt,
+                  ),
+                  // superAdmin.refreshTokens.find(
+                  //   (token) =>
+                  //     token.userId === superAdmin.id &&
+                  //     token.expiresAt.getTime() === expiresAt.getTime(),
+                  // )?.id,
                 },
                 data: {
-                  token: this.generateRefreshToken({
-                    userId: userId,
-                    username: superAdminData.username,
-                    email: superAdminData.email,
-                    role: 'SUPER_ADMIN',
+                  token: this.token.generateToken({
+                    id: userId,
+                    username: superAdmin.username,
+                    email: superAdmin.email,
+                    roleId: superAdmin.roleId,
+                    role: this.getRoleToken(superAdmin.role),
+                    ip: 'LOCALHOST',
                   }),
                 },
               },
@@ -217,50 +226,123 @@ export class UserSeeder {
           },
         });
 
+        // If you need the actual userId for the token after creation and it's not 1
+        if (
+          updatedRoles.every(
+            (role) =>
+              role.createdBy !== userId || role.lastUpdatedBy !== userId,
+          ) ||
+          (updatedSuperAdmin.refreshTokens.length > 0 &&
+            updatedSuperAdmin.refreshTokens.find(
+              (token) => token.userId !== userId,
+            ))
+        ) {
+          console.log(
+            `Admin user created/found with ID: ${userId}. Initial token was for placeholder ID.`,
+          );
+          // Optionally, you could update the token here if userId is crucial for its payload
+          // and different from a hardcoded one. For simplicity, this step is often skipped in basic seeds.
+        }
+
         return updatedSuperAdmin;
       });
-
-      // If you need the actual userId for the token after creation and it's not 1
-      if (
-        result.id !== tokenPayload.userId &&
-        result.refreshTokens.length > 0
-      ) {
-        console.log(
-          `Admin user created/found with ID: ${result.id}. Initial token was for placeholder ID.`,
-        );
-        // Optionally, you could update the token here if userId is crucial for its payload
-        // and different from a hardcoded one. For simplicity, this step is often skipped in basic seeds.
-      }
 
       console.log('Super Admin user seeded successfully:', {
         id: result.id,
         email: result.email,
         role: result.roleId,
-        profile: result.profile || null,
+        profile: result.profile,
         // Be careful logging tokens, even in seeds
         // refreshTokenId: adminUser.refreshTokens.length > 0 ? adminUser.refreshTokens[0].id : null
       });
 
       console.log(`✅ Super admin created/verified: ${result.email}`);
       return result;
-    } catch (error: unknown) {}
+    } catch (error: unknown) {
+      console.log(
+        `Failed to seed Super Admin ${roles.map((r) => r.name).join(', ')}:`,
+        error,
+      );
+    }
   }
 
   // function getRoleByName(data: RolesData, roleName: string): Role | undefined {
   //   return data.roles.find(role => role.name === roleName);
   // }
+  private getRoleToken(role: Role): RoleToken {
+    if (!role) {
+      return {
+        id: 0,
+        name: 'SUPER_ADMIN',
+        descrition: 'Super Administrator with full access',
+      };
+    }
+    return {
+      id: role.id,
+      name: role.name,
+      descrition: role.description,
+    };
+  }
 
-  private getSuperAdminRole(roles: Role[], roleName: string): Role | undefined {
-    return roles.find((role) => role.name === roleName);
+  private getSeedToken(
+    refreshTokens: RefreshToken[],
+    id: number,
+    expiresAt: Date,
+  ): number | undefined {
+    return refreshTokens.find(
+      (token) =>
+        token.userId === id &&
+        token.expiresAt.getTime() === expiresAt.getTime(),
+    )?.id;
+  }
+
+  // private getSuperAdminRole(roles: Role[], roleName: string): Role {
+  //   const result = roles.find((role) => role.name === roleName);
+  //   const defaultRole =
+  //     roles.length > 0
+  //       ? roles[0]
+  //       : ({
+  //           id: 1,
+  //           name: 'SUPER_ADMIN',
+  //           description: 'Super Administrator Role',
+  //           enabledFlag: true,
+  //           createdBy: 0,
+  //           createdDate: new Date(),
+  //           lastUpdatedBy: 0,
+  //           lastUpdatedDate: new Date(),
+  //           objectVersionId: 1,
+  //         } as Role);
+  //   return result || defaultRole;
+  // }
+
+  private getSuperAdminRole(roles: Role[], roleName: string): Role {
+    return (
+      roles.find((role) => role.name === roleName) ||
+      (roles.length > 0
+        ? roles[0]
+        : ({
+            id: 1,
+            name: 'SUPER_ADMIN',
+            description: 'Super Administrator Role',
+            enabledFlag: true,
+            createdBy: 0,
+            createdDate: new Date(),
+            lastUpdatedBy: 0,
+            lastUpdatedDate: new Date(),
+            objectVersionId: 1,
+          } as Role))
+    );
   }
 
   private getSuperAdminData(roles: Role[]): SuperAdminData {
     const role = this.getSuperAdminRole(roles, 'SUPER_ADMIN');
+
     return {
       username: this.config.get('SEED_ADMIN_USERNAME', 'razeth'),
       email: this.config.get('SEED_ADMIN_EMAIL', 'seth.razeth@gmail.com'),
       password: this.config.get('SEED_ADMIN_PASSWORD', 'Kokakola1!'),
       roleId: role?.id || 1,
+      role: role,
       avatar: this.config.get(
         'SEED_ADMIN_AVATAR',
         'https://i.pinimg.com/736x/36/08/fe/3608fede746d1d6b429e58b945a90e1a.jpg',
@@ -279,15 +361,15 @@ export class UserSeeder {
     };
   }
 
-  private async hashPassword(password: string): Promise<string> {
-    const saltRounds = parseInt(this.config.get('BCRYPT_ROUNDS', '12'));
-    return bcrypt.hash(password, saltRounds);
-  }
+  // private async hashPassword(password: string): Promise<string> {
+  //   const saltRounds = parseInt(this.config.get('BCRYPT_ROUNDS', '12'));
+  //   return bcrypt.hash(password, saltRounds);
+  // }
 
-  private generateRefreshToken(payload: TokenPayload): string {
-    const secret =
-      this.config.get<string>('JWT_REFRESH_SECRET') || 'your-refresh-secret';
-    const expiresIn = this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
-    return jwt.sign(payload, secret, { expiresIn });
-  }
+  // private generateRefreshToken(payload: TokenPayload): string {
+  //   const secret =
+  //     this.config.get<string>('JWT_REFRESH_SECRET') || 'your-refresh-secret';
+  //   const expiresIn = this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
+  //   return jwt.sign(payload, secret, { expiresIn });
+  // }
 }
