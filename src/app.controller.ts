@@ -91,7 +91,9 @@ export class AppController {
   }
 
   @Post('user')
-  async signupUser(@Body() userData: UserModel): Promise<UserModel> {
+  async signupUser(
+    @Body() userData: Prisma.UserCreateInput,
+  ): Promise<UserModel> {
     return this.userService.createUser(userData);
   }
 

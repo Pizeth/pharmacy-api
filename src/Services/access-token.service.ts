@@ -11,35 +11,11 @@ import statusCode from 'http-status-codes';
 
 @Injectable()
 export class TokenService {
-  // private expiresIn: string;
-  // private secretKey: string;
-  // private refreshTokenKey: string;
-  // private expireRefresh: string;
   constructor(
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService, // Replace with actual Prisma client type
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {
-    // this.expiresIn = config.get<string>('EXPIRES_IN', '900s');
-    // this.secretKey = config.get<string>('SECRET_KEY', '270400');
-    // this.refreshTokenKey = config.get<string>('REFRESH_TOKEN_KEY', '200794');
-    // this.expireRefresh = config.get<string>('EXPIRE_REFRESH', '7d');
-  }
-
-  // onModuleInit() {
-  //   // Initialize here instead
-  //   this.expiresIn = this.config.get<string>('EXPIRES_IN', '900s');
-  //   this.secretKey = this.config.get<string>('SECRET_KEY', '270400');
-  //   this.refreshTokenKey = this.config.get<string>(
-  //     'REFRESH_TOKEN_KEY',
-  //     '200794',
-  //   );
-  //   this.expireRefresh = this.config.get<string>('EXPIRE_REFRESH', '7d');
-  //   // this.expiresIn = this.getRequiredConfig('EXPIRES_IN');
-  //   // this.secretKey = this.getRequiredConfig('SECRET_KEY');
-  //   // this.refreshTokenKey = this.getRequiredConfig('REFRESH_TOKEN_KEY');
-  //   // this.expireRefresh = this.getRequiredConfig('EXPIRE_REFRESH');
-  // }
+  ) {}
 
   /**
    * Helper function to get required configuration values and throw if missing.
@@ -47,20 +23,6 @@ export class TokenService {
    * @returns The configuration value as a string.
    * @throws Error if the key is not found or is empty.
    */
-  // private getRequiredConfig(key: string): string {
-  //   const value = this.config.get<string>(key);
-  //   if (!value) {
-  //     Logger.error(
-  //       `Required Token configuration key '${key}' is missing or empty.`,
-  //       TokenService.name,
-  //     );
-  //     throw new Error(
-  //       `Required Token configuration key '${key}' is missing or empty.`,
-  //     );
-  //   }
-  //   return value;
-  // }
-
   private getRequiredConfig(key: string): string {
     // Null-safe access
     if (!this.config) {
@@ -195,7 +157,6 @@ export class TokenService {
           error: error.message,
           ip: req.ip, // Assuming you have a method to get current IP
         });
-        // throw new Error("Authentication failed: Invalid token signature");
         throw new AppError(
           'Authentication failed: Invalid token signature',
           statusCode.UNAUTHORIZED,
@@ -206,12 +167,11 @@ export class TokenService {
         //   error: error.message,
         //   tokenDetails: this.sanitizeTokenForLogging(decodedToken),
         // });
-
-        // // Throw a generic error to prevent information leakage
-        // throw new Error("Authentication failed");
       }
       // Re-throw other errors
       throw error;
+      // // Throw a generic error to prevent information leakage
+      // throw new Error("Authentication failed");
     }
   }
 

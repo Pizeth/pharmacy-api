@@ -1,4 +1,4 @@
-export declare const LOG_LEVELS: [
+declare const LOG_LEVELS: [
   'off',
   'log',
   'debug',

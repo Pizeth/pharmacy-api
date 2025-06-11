@@ -2,11 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+import 'reflect-metadata';
 
 declare const module: HotModule;
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('v1');
+  // app.setGlobalPrefix('v1');
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
   app.enableCors({

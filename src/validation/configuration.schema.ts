@@ -48,6 +48,9 @@ export const configurationSchema = z.object({
   ALLOWED_ORIGIN: validation.optionalString('http://localhost:3000'),
   SALT: validation.optionalNumber(12),
   NODE_ENV: validation.optionalString('development'),
+  ALLOW_PRODUCTION_SEEDING: validation.requiredBoolean(
+    'ALLOW_PRODUCTION_SEEDING',
+  ),
 
   // Specialized validations (uncomment as needed)
   DATABASE_URL: validation.requiredUrl('DATABASE_URL'),

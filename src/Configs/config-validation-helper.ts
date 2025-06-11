@@ -78,6 +78,14 @@ export class ConfigValidationHelpers {
     return z.coerce.number({ message }).int().positive();
   }
 
+  static requiredBoolean(fieldName: string) {
+    const message = this.messages.required.replace('{field}', fieldName);
+    return z.preprocess(
+      (val) => val === 'true' || val === true || val === 1,
+      z.boolean({ message }),
+    );
+  }
+
   static optionalString(defaultValue?: string) {
     return z
       .string()

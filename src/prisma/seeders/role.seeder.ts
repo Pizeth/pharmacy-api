@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import data from '../roles.json';
 import { Role } from '@prisma/client';
 
 @Injectable()
 export class RoleSeeder {
+  private readonly logger = new Logger(RoleSeeder.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async seed(): Promise<Role[]> {
+    this.logger.log('🌱 Seeding roles from roles.json...');
     const roles = this.getRolesFromData();
 
     for (const roleData of roles) {
@@ -18,7 +21,7 @@ export class RoleSeeder {
       });
     }
 
-    console.log(`✅ Seeded ${roles.length} roles`);
+    this.logger.log(`✅ Seeded ${roles.length} roles`);
     return await this.prisma.role.findMany({ where: { enabledFlag: true } });
   }
 
