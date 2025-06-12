@@ -66,14 +66,36 @@ export class TokenService {
   }
 
   // Generate access token
+  // generateToken(
+  //   payload: TokenPayload | { filename: string },
+  //   expiresIn: string = this.expiresIn,
+  // ): string {
+  //   try {
+  //     return this.jwtService.sign(payload, {
+  //       expiresIn,
+  //       secret: this.secretKey,
+  //     });
+  //   } catch (error: unknown) {
+  //     throw new AppError(
+  //       'Failed to generate tokend',
+  //       statusCode.UNPROCESSABLE_ENTITY,
+  //       error,
+  //     );
+  //   }
+  // }
+
+  // Update generateToken to access config when needed
   generateToken(
     payload: TokenPayload | { filename: string },
-    expiresIn: string = this.expiresIn,
+    expiresIn?: string,
   ): string {
     try {
+      const actualExpiresIn = expiresIn || this.config.get('EXPIRES_IN');
+      const secretKey = this.config.get<string>('SECRET_KEY');
+
       return this.jwtService.sign(payload, {
-        expiresIn,
-        secret: this.secretKey,
+        expiresIn: actualExpiresIn,
+        secret: secretKey,
       });
     } catch (error: unknown) {
       throw new AppError(

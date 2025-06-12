@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'src/types/seed';
@@ -15,14 +15,22 @@ export class UserSeeder {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    @Inject(forwardRef(() => TokenService))
     private readonly token: TokenService,
-    @Inject(forwardRef(() => PasswordUtils))
     private readonly passwordUtils: PasswordUtils,
-  ) {}
+  ) {
+    this.logger.debug('UserSeeder constructor called');
+    this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
+    this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    this.logger.debug(`TokenService injected: ${!!this.token}`);
+    this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+  }
 
   async seed(roles: Role[]) {
     this.logger.log('🌱 Seeding super admin user...');
+    this.logger.debug(`PrismaService resolved: ${!!this.prisma}`);
+    this.logger.debug(`ConfigService resolved: ${!!this.config}`);
+    this.logger.debug(`TokenService resolved: ${!!this.token}`);
+    this.logger.debug(`PasswordUtils resolved: ${!!this.passwordUtils}`);
     const superAdminData = this.getSuperAdminData(roles);
     try {
       // Wrap the operations in an atomic transaction.
@@ -175,7 +183,7 @@ export class UserSeeder {
       this.logger.log(`✅ Super admin created/verified: ${result.email}`);
       return result;
     } catch (error: unknown) {
-      this.logger.log(
+      this.logger.error(
         `Failed to seed Super Admin ${roles.map((r) => r.name).join(', ')}:`,
         error,
       );

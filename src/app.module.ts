@@ -1,7 +1,7 @@
 import { Module, Logger as l } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { UsersService } from './user.service';
+import { UsersService } from './users/services/users.service';
 import { DBHelper } from './utils/db-helper';
 import { VirusScanService } from './services/virus-scan.service';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';

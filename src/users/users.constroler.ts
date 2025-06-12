@@ -1,31 +1,19 @@
-// import { Controller, Get } from '@nestjs/common';
-// import { AppService } from './app.service';
-
-// @Controller()
-// export class AppController {
-//   constructor(private readonly appService: AppService) {}
-
-//   @Get()
-//   getHello(): string {
-//     return this.appService.getHello();
-//   }
-// }
-
 import {
   Controller,
   Get,
   Param,
   Post,
   Body,
-  Put,
-  Delete,
+  //   Put,
+  //   Delete,
 } from '@nestjs/common';
-import { UsersService } from './users/services/users.service';
+// import { UsersService } from './user.service';
 import { Prisma, User, User as UserModel } from '@prisma/client';
-import { get } from 'http';
-import { PaginatedDataResult } from './types/types';
+import { PaginatedDataResult } from 'src/types/types';
+import { UsersService } from './services/users.service';
+// import { PaginatedDataResult } from './types/types';
 
-@Controller({ version: '1' })
+@Controller({ path: 'users', version: '1' })
 export class AppController {
   constructor(private readonly userService: UsersService) {}
 
@@ -73,7 +61,7 @@ export class AppController {
   //   });
   // }
 
-  @Get('user/:id')
+  @Get('users/:id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
     return this.userService.user({ id: Number(id) });
   }
@@ -90,23 +78,10 @@ export class AppController {
     return this.userService.users();
   }
 
-  @Post('user')
+  @Post('users')
   async signupUser(
     @Body() userData: Prisma.UserCreateInput,
   ): Promise<UserModel> {
     return this.userService.createUser(userData);
   }
-
-  // @Put('publish/:id')
-  // async publishPost(@Param('id') id: string): Promise<PostModel> {
-  //   return this.postService.updatePost({
-  //     where: { id: Number(id) },
-  //     data: { published: true },
-  //   });
-  // }
-
-  // @Delete('post/:id')
-  // async deletePost(@Param('id') id: string): Promise<PostModel> {
-  //   return this.postService.deletePost({ id: Number(id) });
-  // }
 }

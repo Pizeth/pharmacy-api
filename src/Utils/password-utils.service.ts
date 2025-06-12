@@ -6,8 +6,13 @@ import bcrypt from 'bcrypt';
 export class PasswordUtils {
   constructor(private readonly config: ConfigService) {}
   // Password hashing method
-  async hash(password: string, salt: number = 12) {
-    return bcrypt.hash(password, this.getSalt(salt));
+  // async hash(password: string, salt: number = 12) {
+  //   return bcrypt.hash(password, this.getSalt(salt));
+  // }
+
+  async hash(password: string, salt?: number) {
+    const actualSalt = salt || this.config.get<number>('SALT', 12);
+    return bcrypt.hash(password, actualSalt);
   }
 
   // Password compare method

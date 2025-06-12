@@ -3,11 +3,20 @@ import { AppModule } from './app.module';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
 import 'reflect-metadata';
+import { VersioningType } from '@nestjs/common';
 
 declare const module: HotModule;
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // app.setGlobalPrefix('v1');
+  // Set a global prefix for all routes (e.g., /api)
+  app.setGlobalPrefix('api');
+
+  // Enable URI versioning with a default version "3"
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
   app.enableCors({

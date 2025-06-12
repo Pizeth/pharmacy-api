@@ -63,10 +63,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-// import { SeederModule } from '../src/prisma/seeders/seeder.module'; // Adjust path if needed
 import { Seeder } from '../src/prisma/seeders/seeder'; // Adjust path if needed
 import { SeederModule } from 'src/prisma/seeders/seeder.module';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TokenService } from 'src/services/access-token.service';
+import { PasswordUtils } from 'src/utils/password-utils.service';
 
 const logger = new Logger('PrismaSeeder');
 
@@ -82,10 +83,21 @@ async function bootstrap() {
 
     // Add this debug check
     const prismaService = app.get(PrismaService);
-    logger.debug('PrismaService resolved from context:', !!prismaService);
+    logger.debug(`PrismaService resolved from context: ${!!prismaService}`);
+
+    const tokenService = app.get(TokenService);
+    const passwordUtils = app.get(PasswordUtils);
+    logger.debug(`TokenService resolved from context: ${!!tokenService}`);
+    logger.debug(`PasswordUtils resolved from context: ${!!passwordUtils}`);
+    logger.debug('Resolved TokenService instance:', tokenService);
+    logger.debug('Resolved PasswordUtils instance:', passwordUtils);
 
     const seeder = app.get(Seeder);
+    logger.debug(`Seeder resolved from context: ${!!seeder}`);
     logger.debug('Resolved Seeder instance:', seeder);
+
+    // Initialize the seeder explicitly
+    // await seeder.initialize();
 
     if (process.argv.includes('--clear')) {
       await seeder.run('clear');
