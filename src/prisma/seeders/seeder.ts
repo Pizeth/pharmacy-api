@@ -142,6 +142,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
+import { ConfigService } from '@nestjs/config';
+import { TokenService } from 'src/services/token.service';
+import { PasswordUtils } from 'src/utils/password-utils.service';
 
 @Injectable()
 export class Seeder {
@@ -150,11 +153,29 @@ export class Seeder {
   // With a clean DI graph, we can go back to simple constructor injection.
   constructor(
     private readonly prisma: PrismaService,
-    private readonly roleSeeder: RoleSeeder,
-    private readonly userSeeder: UserSeeder,
-  ) {}
+    private readonly config: ConfigService,
+    private readonly tokenService: TokenService,
+    private readonly passwordUtils: PasswordUtils,
+  ) {
+    // Add some debugging to see what's being injected
+    this.logger.debug(`${this.constructor.name} initialized`);
+    this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
+    this.logger.debug(`ConfigService injected: ${!!this.config}`);
+  }
 
   async run(command: 'seed' | 'clear') {
+    this.logger.debug(`Running command: ${command}`);
+    this.logger.debug(`PrismaService available: ${!!this.prisma}`);
+    this.logger.debug(
+      `PrismaService client: ${this.prisma ? '✅ exists' : '❌ missing'}`,
+    );
+
+    if (!this.prisma) {
+      throw new Error(
+        '❌ PrismaService is not available. Check dependency injection.',
+      );
+    }
+
     if (command === 'seed') {
       await this.seedAll();
     } else if (command === 'clear') {
@@ -163,89 +184,58 @@ export class Seeder {
   }
 
   private async seedAll() {
-    this.logger.log('Beginning seeding process...');
+    // Access configuration safely with fallbacks
+    const nodeEnv = this.config.get<string>('NODE_ENV', 'DEVELOPMENT');
+    this.logger.log(`nodeEnv is ${nodeEnv}`);
+    const allowProdSeeding = this.config.get<string>(
+      'ALLOW_PRODUCTION_SEEDING',
+      'false',
+    );
+    this.logger.log(`allowProdSeeding is ${allowProdSeeding}`);
+    // .toLowerCase() === 'true';
+    // Check if we're in production and have safety checks;
+    if (
+      nodeEnv === 'production' &&
+      !(allowProdSeeding.toLowerCase() === 'true')
+    ) {
+      this.logger.error(
+        'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
+      );
+      throw new Error(
+        'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
+      );
+    }
 
+    this.logger.log('Beginning Database seeding process...🌱');
+
+    // Manually instantiate seeders with dependencies
+    const roleSeeder = new RoleSeeder(this.prisma);
+    const userSeeder = new UserSeeder(
+      this.prisma,
+      this.config,
+      this.tokenService,
+      this.passwordUtils,
+    );
     this.logger.log('🔧 Seeding roles...');
-    const roles = await this.roleSeeder.seed();
+    const roles = await roleSeeder.seed();
 
     this.logger.log('👤 Seeding users...');
-    await this.userSeeder.seed(roles);
+    await userSeeder.seed(roles);
 
     this.logger.log('📊 Database Seeding completed');
   }
 
   private async clearAll() {
     this.logger.log('🧹 Clearing database...');
-    // `this.prisma` will be correctly injected.
+
     await this.prisma.$transaction([
+      // Clear in reverse order of dependencies
       this.prisma.refreshToken.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
       this.prisma.role.deleteMany(),
+      // Add other cleanup as needed
     ]);
     this.logger.log('✅ Database cleared');
   }
 }
-
-// import { Inject, Injectable, Logger } from '@nestjs/common';
-// import { PrismaService } from '../prisma.service';
-// import { RoleSeeder } from './role.seeder';
-// import { UserSeeder } from './user.seeder';
-
-// @Injectable()
-// export class Seeder {
-//   private readonly logger = new Logger(Seeder.name);
-
-//   constructor(
-//     @Inject(PrismaService) private readonly prisma: PrismaService,
-//     private readonly roleSeeder: RoleSeeder,
-//     private readonly userSeeder: UserSeeder,
-//   ) {
-//     this.logger.debug('Seeder constructor called');
-//     this.logger.debug('PrismaService injected:', !!this.prisma);
-//     this.logger.debug('RoleSeeder injected:', !!this.roleSeeder);
-//     this.logger.debug('UserSeeder injected:', !!this.userSeeder);
-//   }
-
-//   async run(command: 'seed' | 'clear') {
-//     this.logger.debug(`Running command: ${command}`);
-
-//     if (!this.prisma) {
-//       throw new Error(
-//         'PrismaService is not available. Check dependency injection.',
-//       );
-//     }
-
-//     if (command === 'seed') {
-//       await this.seedAll();
-//     } else if (command === 'clear') {
-//       await this.clearAll();
-//     }
-//   }
-
-//   private async seedAll() {
-//     this.logger.log('Beginning seeding process...');
-
-//     this.logger.log('🔧 Seeding roles...');
-//     const roles = await this.roleSeeder.seed();
-
-//     this.logger.log('👤 Seeding users...');
-//     await this.userSeeder.seed(roles);
-
-//     this.logger.log('📊 Database Seeding completed');
-//   }
-
-//   private async clearAll() {
-//     this.logger.log('🧹 Clearing database...');
-
-//     await this.prisma.$transaction([
-//       // Clear in reverse order of dependencies
-//       this.prisma.refreshToken.deleteMany(),
-//       this.prisma.profile.deleteMany(),
-//       this.prisma.user.deleteMany(),
-//       this.prisma.role.deleteMany(),
-//       // Add other cleanup as needed
-//     ]);
-//     this.logger.log('✅ Database cleared');
-//   }
-// }

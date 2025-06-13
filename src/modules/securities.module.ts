@@ -2,17 +2,18 @@ import { Global, Logger, Module } from '@nestjs/common';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { TokenService } from 'src/services/access-token.service';
+import { TokenService } from 'src/services/token.service';
 import { PasswordUtils } from 'src/utils/password-utils.service';
 import { configurationSchema } from 'src/validation/configuration.schema';
 import { ZodError } from 'zod';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 const logger = new Logger('Security Module');
 
 // @Global()
 @Module({
   imports: [
-    PrismaModule,
+    // PrismaModule,
     ConfigModule.forRoot({
       isGlobal: true, // Recommended to avoid re-importing in sub-dependencies
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
@@ -55,6 +56,12 @@ const logger = new Logger('Security Module');
   ],
   // Provide all necessary services for the seeder context
   providers: [TokenService, PasswordUtils],
-  exports: [TokenService, PasswordUtils, PrismaModule, ConfigModule, JwtModule],
+  exports: [
+    TokenService,
+    PasswordUtils,
+    // PrismaService,
+    ConfigModule,
+    JwtModule,
+  ],
 })
 export class SecurityModule {}

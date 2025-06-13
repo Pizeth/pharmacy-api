@@ -15,17 +15,94 @@ generator client {
   // output   = "../generated/prisma"
 }
 
+// model AuditTrail {
+//   id              Int               @id @default(autoincrement())
+//   action          String
+//   timestamp       DateTime  
+//   ipAddress       String            @map("ip_address")
+//   userId          Int               @map("user_id")
+//   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+ 
+//   description     String?
+  
+//   @@index([userId, timestamp])
+// }
+
+// -----------------------------------------------------------------
+// ENUMS FOR AUDIT TRAIL
+// Using enums provides type safety and consistency for your audit events.
+// -----------------------------------------------------------------
+
+// Defines the type of action performed.
+enum AuditActionType {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOCKED
+  BANNED
+  DISABLED
+  PASSWORD_RESET_REQUEST
+  PASSWORD_RESET_SUCCESS
+  MFA_ENABLED
+  MFA_DISABLED
+  // Add other specific business logic events as needed
+}
+
+// Defines the target entity/table for the audit event.
+// This list should include all models you want to audit.
+enum AuditTargetType {
+  User
+  Role
+  Profile
+  Product
+  Category
+  SubCategory
+  Order
+  OrderLine
+  Invoice
+  Customer
+  Supplier
+  // Add other models as they become auditable
+}
+
+// -----------------------------------------------------------------
+// ENHANCED AUDIT TRAIL MODEL
+// -----------------------------------------------------------------
 model AuditTrail {
   id              Int               @id @default(autoincrement())
-  action          String
-  timestamp       DateTime  
-  ipAddress       String            @map("ip_address")
-  userId          Int               @map("user_id")
-  user            User              @relation(fields: [userId], references: [id])
-
-  description     String?
+  timestamp       DateTime          @default(now())
   
+  // WHO: Information about the actor
+  // userId is now optional to allow for system-generated events (e.g., cron jobs)
+  userId          Int?              @map("user_id")
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress       String            @map("ip_address")
+
+  // Core audit fields for action that was performed
+  action          AuditActionType                           // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  
+  // Enhanced object tracking fields
+  targetType      AuditTargetType?  @map("target_type")     // Table name or entity type
+  targetId        String?           @map("target_id")       // ID of the affected record (String to handle various ID types)
+  
+  // DETAILS: Additional context for the event
+  description     String?                                   // High-level summary of the event
+  oldValues       Json?             @map("old_values")      // Optional: JSON field for storing previous values
+  newValues       Json?             @map("new_values")      // Optional: JSON field for storing new values
+  
+  // Additional context
+  userAgent       String?           @map("user_agent")      // Browser/client information
+  sessionId       String?           @map("session_id")      // Session identifier
+  
+  // You can create a multi-column index for efficient querying
   @@index([userId, timestamp])
+  @@index([targetType, targetId])
+  @@index([targetType, targetId, timestamp]) // New index for finding a record's history
+  @@index([action, timestamp])
+  @@index([timestamp])
+  @@map("audit_trails")
 }
 
 // Multi-Factor Authentication Backup Codes

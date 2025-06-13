@@ -1,13 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import data from '../roles.json';
+import data from '../data/roles.json';
 import { Role } from '@prisma/client';
 
-@Injectable()
+// @Injectable()
 export class RoleSeeder {
   private readonly logger = new Logger(RoleSeeder.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    this.logger.debug(`${this.constructor.name} initialized`);
+    this.logger.debug(`PrismaService injected: ${!!prisma}`);
+  }
 
   async seed(): Promise<Role[]> {
     this.logger.log('🌱 Seeding roles from roles.json...');

@@ -1,64 +1,4 @@
-// // import { ConfigService } from '@nestjs/config';
-// import 'reflect-metadata';
-// import { NestFactory } from '@nestjs/core';
-// // import { AppModule } from '../src/app.module';
-// import { SeedService } from '../src/prisma/seeders/seed.service';
-// import { Logger } from '@nestjs/common';
-// import { SeedModule } from 'src/prisma/seeders/seed.module';
-
-// const logger = new Logger(bootstrap.name);
-
-// async function bootstrap() {
-//   // Create NestJS application context to access services
-//   const app = await NestFactory.createApplicationContext(SeedModule);
-//   const seedService = app.get(SeedService);
-//   // const seedService = app.select(SeedModule).get(SeedService, { strict: true });
-//   logger.debug('Resolved SeedService instance:', seedService); // Check the log for this!
-
-//   try {
-//     // const seedService = app.get(SeedService);
-//     logger.log('🌱 Starting database seeding...');
-
-//     // Handle command line arguments
-//     if (process.argv.includes('--clear')) {
-//       logger.log('🧹 Clearing database...');
-//       await seedService.clearAll();
-//     }
-
-//     if (process.argv.includes('--seed')) {
-//       logger.log('🌱 Seeding database...');
-//       await seedService.seedAll();
-//     }
-
-//     logger.log('✅ Database Seeding completed successfully');
-//   } catch (error) {
-//     logger.error('❌ Database Seeding failed:', error);
-//     process.exit(1);
-//   } finally {
-//     await app.close();
-//   }
-// }
-
-// bootstrap().catch((error) => {
-//   logger.error('❌ Seeding process failed:', error);
-//   process.exit(1);
-// });
-
-//   const configService = app.get(ConfigService);
-
-// try {
-//   console.log('🌱 Starting database seeding...');
-
-//   // Run all seeders
-//   await seedService.seedAll();
-
-//   console.log('✅ Database seeding completed successfully');
-// } catch (error) {
-//   console.error('❌ Database seeding failed:', error);
-//   throw error;
-// } finally {
-//   await app.close();
-// }
+process.env.NEST_DEBUG = 'true';
 
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
@@ -66,8 +6,9 @@ import { Logger } from '@nestjs/common';
 import { Seeder } from '../src/prisma/seeders/seeder'; // Adjust path if needed
 import { SeederModule } from 'src/prisma/seeders/seeder.module';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { TokenService } from 'src/services/access-token.service';
+import { TokenService } from 'src/services/token.service';
 import { PasswordUtils } from 'src/utils/password-utils.service';
+import { ConfigService } from '@nestjs/config';
 
 const logger = new Logger('PrismaSeeder');
 
@@ -82,26 +23,42 @@ async function bootstrap() {
     logger.log('Seeder application context created successfully.');
 
     // Add this debug check
-    const prismaService = app.get(PrismaService);
-    logger.debug(`PrismaService resolved from context: ${!!prismaService}`);
+    // const prismaService = app.get(PrismaService);
+    // logger.debug(`PrismaService resolved from context: ${!!prismaService}`);
 
-    const tokenService = app.get(TokenService);
-    const passwordUtils = app.get(PasswordUtils);
-    logger.debug(`TokenService resolved from context: ${!!tokenService}`);
-    logger.debug(`PasswordUtils resolved from context: ${!!passwordUtils}`);
-    logger.debug('Resolved TokenService instance:', tokenService);
-    logger.debug('Resolved PasswordUtils instance:', passwordUtils);
+    // Test resolution of all critical services
+    const services = [
+      PrismaService,
+      ConfigService,
+      TokenService,
+      PasswordUtils,
+      Seeder,
+    ];
+
+    for (const service of services) {
+      try {
+        const instance: unknown = app.get(service);
+        logger.debug(`Current service name: ${service.name}`);
+        logger.debug(`${service.name} resolved: ${!!instance}`);
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        logger.error(`❌ Failed to resolve ${service.name}: ${errorMessage}`);
+      }
+    }
+
+    logger.log('✅ All base services resolved successfully.');
 
     const seeder = app.get(Seeder);
     logger.debug(`Seeder resolved from context: ${!!seeder}`);
     logger.debug('Resolved Seeder instance:', seeder);
+    logger.log('🌱 Starting database seeding...');
 
-    // Initialize the seeder explicitly
-    // await seeder.initialize();
-
+    // Handle command line arguments
     if (process.argv.includes('--clear')) {
+      logger.log('🧹 Clearing database...');
       await seeder.run('clear');
     } else if (process.argv.includes('--seed')) {
+      logger.log('🌱 Seeding database...');
       await seeder.run('seed');
     } else {
       logger.warn(

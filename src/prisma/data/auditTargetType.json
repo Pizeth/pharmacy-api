@@ -1,0 +1,34 @@
+{
+  "roles": [
+    {
+      "name": "SUPER_ADMIN",
+      "description": "Super Administrator with full access",
+      "createdBy": "0",
+      "lastUpdatedBy": "0"
+    },
+    {
+      "name": "ADMIN",
+      "description": "Administrator with limited access",
+      "createdBy": "0",
+      "lastUpdatedBy": "0"
+    },
+    {
+      "name": "EDITOR",
+      "description": "Editor with limited access",
+      "createdBy": "0",
+      "lastUpdatedBy": "0"
+    },
+    {
+      "name": "USER",
+      "description": "Regular user",
+      "createdBy": "0",
+      "lastUpdatedBy": "0"
+    },
+    {
+      "name": "GUEST",
+      "description": "Guest user with minimal access",
+      "createdBy": "0",
+      "lastUpdatedBy": "0"
+    }
+  ]
+}

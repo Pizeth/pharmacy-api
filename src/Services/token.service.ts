@@ -11,11 +11,17 @@ import statusCode from 'http-status-codes';
 
 @Injectable()
 export class TokenService {
+  private logger = new Logger(TokenService.name);
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) {
+    this.logger.debug(`${this.constructor.name} initialized`);
+    this.logger.debug(`PrismaService injected: ${!!prisma}`);
+    this.logger.debug(`ConfigService injected: ${!!config}`);
+    this.logger.debug(`JwtService injected: ${!!jwtService}`);
+  }
 
   /**
    * Helper function to get required configuration values and throw if missing.
@@ -90,12 +96,12 @@ export class TokenService {
     expiresIn?: string,
   ): string {
     try {
-      const actualExpiresIn = expiresIn || this.config.get('EXPIRES_IN');
-      const secretKey = this.config.get<string>('SECRET_KEY');
+      // const actualExpiresIn = expiresIn || this.config.get('EXPIRES_IN');
+      // const secretKey = this.config.get<string>('SECRET_KEY');
 
       return this.jwtService.sign(payload, {
-        expiresIn: actualExpiresIn,
-        secret: secretKey,
+        expiresIn: expiresIn || this.expiresIn,
+        secret: this.secretKey,
       });
     } catch (error: unknown) {
       throw new AppError(

@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 
 @Injectable()
 export class PasswordUtils {
-  constructor(private readonly config: ConfigService) {}
+  private logger = new Logger(PasswordUtils.name);
+
+  constructor(private readonly config: ConfigService) {
+    this.logger.debug(`${this.constructor.name} initialized`);
+    this.logger.debug(`ConfigService injected: ${!!config}`);
+  }
   // Password hashing method
   // async hash(password: string, salt: number = 12) {
   //   return bcrypt.hash(password, this.getSalt(salt));

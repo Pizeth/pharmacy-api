@@ -2,11 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'src/types/seed';
-import { RefreshToken, Role } from '@prisma/client';
-import { TokenService } from 'src/services/access-token.service';
+import { AuditTrail, RefreshToken, Role } from '@prisma/client';
+import { TokenService } from 'src/services/token.service';
 import { PasswordUtils } from 'src/utils/password-utils.service';
 import { RoleToken } from 'src/types/token';
-import { Sex } from 'src/types/commons.enum';
+import { AuditActionType, AuditTargetType, Sex } from 'src/types/commons.enum';
+import { nanoid } from 'nanoid';
 
 @Injectable()
 export class UserSeeder {
@@ -68,14 +69,17 @@ export class UserSeeder {
             },
             refreshTokens: {
               create: {
-                token: this.token.generateToken({
-                  id: 0, // Placeholder.
-                  username: superAdminData.username,
-                  email: superAdminData.email,
-                  roleId: superAdminData.roleId,
-                  role: this.getRoleToken(superAdminData.role),
-                  ip: 'LOCALHOST',
-                }),
+                token: this.token.generateToken(
+                  {
+                    id: 0, // Placeholder.
+                    username: superAdminData.username,
+                    email: superAdminData.email,
+                    roleId: superAdminData.roleId,
+                    role: this.getRoleToken(superAdminData.role),
+                    ip: 'LOCALHOST',
+                  },
+                  '7d',
+                ),
                 expiresAt: expiresAt,
               },
             },
@@ -83,7 +87,10 @@ export class UserSeeder {
             lastUpdatedBy: 0, // Placeholder.
             auditTrail: {
               create: {
-                action: 'REGISTER_SUPER_ADMIN',
+                action: AuditActionType.CREATE,
+                targetType: AuditTargetType.User,
+                targetId: '0', // Placeholder.
+                userAgent: 'SYSTEM',
                 timestamp: new Date(),
                 ipAddress: 'LOCALHOST',
                 description: 'DEFAULT_ADMIN_SEEDED',
@@ -94,6 +101,7 @@ export class UserSeeder {
             profile: true,
             role: true,
             refreshTokens: true,
+            auditTrail: true,
           },
         });
 
@@ -104,6 +112,8 @@ export class UserSeeder {
           where: { createdBy: 0, lastUpdatedBy: 0 }, //Roles that was created using Placeholder
           data: { createdBy: userId, lastUpdatedBy: userId },
         });
+
+        this.logger.debug(superAdmin);
 
         const updatedSuperAdmin = await tx.user.update({
           where: { id: userId },
@@ -121,20 +131,39 @@ export class UserSeeder {
               update: {
                 where: {
                   id: this.getSeedToken(
-                    superAdmin.refreshTokens,
+                    superAdmin.refreshTokens as RefreshToken[],
                     userId,
                     expiresAt,
                   ),
                 },
                 data: {
-                  token: this.token.generateToken({
-                    id: userId,
-                    username: superAdmin.username,
-                    email: superAdmin.email,
-                    roleId: superAdmin.roleId,
-                    role: this.getRoleToken(superAdmin.role),
-                    ip: 'LOCALHOST',
-                  }),
+                  token: this.token.generateToken(
+                    {
+                      id: userId,
+                      username: superAdmin.username,
+                      email: superAdmin.email,
+                      roleId: superAdmin.roleId,
+                      role: this.getRoleToken(superAdmin.role as Role),
+                      ip: 'LOCALHOST',
+                    },
+                    '7d',
+                  ),
+                },
+              },
+            },
+            auditTrail: {
+              update: {
+                where: {
+                  id: this.getSeedAudit(
+                    superAdmin.auditTrail as AuditTrail[],
+                    userId,
+                    '0', // Matched the Initialize place holder
+                  ),
+                },
+                data: {
+                  targetId: userId,
+                  oldValues: superAdmin,
+                  sessionId: nanoid(),
                 },
               },
             },
@@ -214,6 +243,16 @@ export class UserSeeder {
       (token) =>
         token.userId === id &&
         token.expiresAt.getTime() === expiresAt.getTime(),
+    )?.id;
+  }
+
+  private getSeedAudit(
+    auditTrail: AuditTrail[],
+    id: number,
+    targetId: string,
+  ): number | undefined {
+    return auditTrail.find(
+      (audit) => audit.userId === id && audit.targetId === targetId,
     )?.id;
   }
 
