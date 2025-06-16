@@ -75,19 +75,19 @@ export class AppController {
 
   @Get('user/:id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
-    return this.userService.user({ id: Number(id) });
+    return this.userService.getOne({ id: Number(id) });
   }
 
   @Get('users/:params')
   async getUsersByParams(
     @Param('params') params: Prisma.UserWhereUniqueInput,
   ): Promise<User | null> {
-    return this.userService.user(params);
+    return this.userService.getOne(params);
   }
 
   @Get('users')
   async getAllUsers(): Promise<PaginatedDataResult<User>> {
-    return this.userService.users();
+    return this.userService.getAll();
   }
 
   @Post('user')

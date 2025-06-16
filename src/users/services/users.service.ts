@@ -30,7 +30,7 @@ export class UsersService {
   //   }
   // }
 
-  async user(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
+  async getOne(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
     try {
       const modelName = 'user';
       return await this.dbHelper.findOne<typeof modelName, User>({
@@ -39,6 +39,8 @@ export class UsersService {
         include: {
           profile: true,
           role: true,
+          refreshTokens: true,
+          auditTrail: true,
         },
       });
     } catch (error) {
@@ -65,7 +67,7 @@ export class UsersService {
   //   });
   // }
 
-  async users(
+  async getAll(
     page: number = 1,
     pageSize: number = 10,
     cursor?: Prisma.UserWhereUniqueInput,
@@ -127,7 +129,7 @@ export class UsersService {
    * Find users by a search term (username or email).
    * Demonstrates filtering with 'OR' and 'contains'.
    */
-  async findUsersByTerm(
+  async findByTerms(
     searchTerm: string,
     page: number = 1,
     pageSize: number = 5,

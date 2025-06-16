@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'src/types/seed';
-import { AuditTrail, RefreshToken, Role } from '@prisma/client';
+import { AuditTrail, RefreshToken, Role, User } from '@prisma/client';
 import { TokenService } from 'src/services/token.service';
 import { PasswordUtils } from 'src/utils/password-utils.service';
 import { RoleToken } from 'src/types/token';
@@ -108,6 +108,8 @@ export class UserSeeder {
         // Step 2: Update the just created user with its own id for audit fields.
         const userId = superAdmin.id;
 
+        const { auditTrail, refreshTokens, ...user } = superAdmin;
+
         const updatedRoles = await tx.role.updateManyAndReturn({
           where: { createdBy: 0, lastUpdatedBy: 0 }, //Roles that was created using Placeholder
           data: { createdBy: userId, lastUpdatedBy: userId },
@@ -130,11 +132,7 @@ export class UserSeeder {
             refreshTokens: {
               update: {
                 where: {
-                  id: this.getSeedToken(
-                    superAdmin.refreshTokens as RefreshToken[],
-                    userId,
-                    expiresAt,
-                  ),
+                  id: this.getSeedToken(refreshTokens, userId, expiresAt),
                 },
                 data: {
                   token: this.token.generateToken(
@@ -143,7 +141,7 @@ export class UserSeeder {
                       username: superAdmin.username,
                       email: superAdmin.email,
                       roleId: superAdmin.roleId,
-                      role: this.getRoleToken(superAdmin.role as Role),
+                      role: this.getRoleToken(superAdmin.role),
                       ip: 'LOCALHOST',
                     },
                     '7d',
@@ -155,14 +153,14 @@ export class UserSeeder {
               update: {
                 where: {
                   id: this.getSeedAudit(
-                    superAdmin.auditTrail as AuditTrail[],
+                    auditTrail,
                     userId,
                     '0', // Matched the Initialize place holder
                   ),
                 },
                 data: {
-                  targetId: userId,
-                  oldValues: superAdmin,
+                  targetId: String(userId),
+                  oldValues: user,
                   sessionId: nanoid(),
                 },
               },

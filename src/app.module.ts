@@ -23,6 +23,7 @@ import { PasswordUtils } from './utils/password-utils.service';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from './prisma/prisma.module';
 import { HttpModule } from '@nestjs/axios';
+import { UserController } from './users/users.constroler';
 
 @Module({
   imports: [
@@ -115,7 +116,7 @@ import { HttpModule } from '@nestjs/axios';
     Logger,
     HttpModule,
   ], // Export if other modules need it
-  controllers: [AppController],
+  controllers: [UserController],
 })
 export class AppModule {}
 

@@ -14,7 +14,7 @@ import { UsersService } from './services/users.service';
 // import { PaginatedDataResult } from './types/types';
 
 @Controller({ path: 'users', version: '1' })
-export class AppController {
+export class UserController {
   constructor(private readonly userService: UsersService) {}
 
   // @Get('post/:id')
@@ -61,24 +61,24 @@ export class AppController {
   //   });
   // }
 
-  @Get('users/:id')
+  @Get(':id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
-    return this.userService.user({ id: Number(id) });
+    return this.userService.getOne({ id: Number(id) });
   }
 
-  @Get('users/:params')
+  @Get(':params')
   async getUsersByParams(
     @Param('params') params: Prisma.UserWhereUniqueInput,
   ): Promise<User | null> {
-    return this.userService.user(params);
+    return this.userService.getOne(params);
   }
 
-  @Get('users')
+  @Get()
   async getAllUsers(): Promise<PaginatedDataResult<User>> {
-    return this.userService.users();
+    return this.userService.getAll();
   }
 
-  @Post('users')
+  @Post()
   async signupUser(
     @Body() userData: Prisma.UserCreateInput,
   ): Promise<UserModel> {
