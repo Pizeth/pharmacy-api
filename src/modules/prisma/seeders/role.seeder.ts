@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import data from '../data/roles.json';
 import { Role } from '@prisma/client';
 

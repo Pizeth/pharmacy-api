@@ -139,12 +139,12 @@
 // }
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
 import { ConfigService } from '@nestjs/config';
-import { TokenService } from 'src/services/token.service';
-import { PasswordUtils } from 'src/utils/password-utils.service';
+import { TokenService } from 'src/commons/services/token.service';
+import { PasswordUtils } from 'src/commons/services/password-utils.service';
 
 @Injectable()
 export class Seeder {

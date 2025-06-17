@@ -1,9 +1,5 @@
 import { Module, Logger as l } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { UsersService } from './users/services/users.service';
-import { DBHelper } from './utils/db-helper';
-import { VirusScanService } from './services/virus-scan.service';
+import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ZodError } from 'zod'; // Import Zod
@@ -18,12 +14,7 @@ import {
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 import { Logger } from './logs/logger';
-import { TokenService } from './services/token.service';
-import { PasswordUtils } from './utils/password-utils.service';
-import { JwtModule } from '@nestjs/jwt';
-import { PrismaModule } from './prisma/prisma.module';
-import { HttpModule } from '@nestjs/axios';
-import { UserController } from './users/users.constroler';
+import { UserModule } from './modules/users/user.module';
 
 @Module({
   imports: [
@@ -84,39 +75,26 @@ import { UserController } from './users/users.constroler';
       ],
     }),
 
-    JwtModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get('SECRET_KEY'),
-        signOptions: { expiresIn: config.get('EXPIRES_IN') },
-      }),
-    }),
-    PrismaModule,
-    HttpModule,
-    // SeedModule,
+    // JwtModule.registerAsync({
+    //   inject: [ConfigService],
+    //   useFactory: (config: ConfigService) => ({
+    //     secret: config.get('SECRET_KEY'),
+    //     signOptions: { expiresIn: config.get('EXPIRES_IN') },
+    //   }),
+    // }),
+    // PrismaModule,
+    // HttpModule,
+    UserModule,
   ],
   providers: [
-    UsersService,
-    VirusScanService,
-    TokenService,
-    PasswordUtils,
-    DBHelper,
     Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],
-  exports: [
-    UsersService,
-    VirusScanService,
-    TokenService,
-    PasswordUtils,
-    DBHelper,
-    Logger,
-    HttpModule,
-  ], // Export if other modules need it
-  controllers: [UserController],
+  exports: [], // Export if other modules need it
+  // controllers: [UserController],
 })
 export class AppModule {}
 

@@ -1,14 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/services/prisma.service';
 import { Prisma, User } from '@prisma/client';
-import { DBHelper } from '../../utils/db-helper';
-import { PaginatedDataResult } from '../../types/types';
+import { DBHelper } from '../../helpers/services/db-helper';
+import { PaginatedDataResult } from '../../../types/types';
+import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { CreateUserDto } from '../dto/create-user.dto';
+import { ObjectOmitter } from 'src/commons/services/object-utils.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(
     private prisma: PrismaService,
     private readonly dbHelper: DBHelper,
+    private readonly passwordUtils: PasswordUtils, // Inject your service here
   ) {}
 
   // async user(
@@ -85,6 +90,32 @@ export class UsersService {
       orderBy,
       select,
     });
+  }
+
+  async create(createUserDto: CreateUserDto) {
+    // Destructure the DTO to separate the password from the rest of the data.
+    // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
+    const { password, ...userData } = createUserDto;
+
+    // Use your injected PasswordUtils service to hash the password.
+    const hashedPassword = await this.passwordUtils.hash(password);
+
+    // Create the user in the database with the hashed password.
+    const newUser = await this.prisma.user.create({
+      data: {
+        ...userData,
+        password: hashedPassword, // Use the hashed password
+        // ... any other required fields for user creation
+      },
+    });
+
+    // Best practice: don't return the password hash in the response.
+    // Use the omit helper function for a cleaner approach
+    const result = ObjectOmitter.omit(newUser, 'password');
+
+    this.logger.debug(result);
+
+    return result;
   }
 
   /**

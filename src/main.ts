@@ -1,11 +1,16 @@
+// **CRITICAL STEP**: The import of the patch file MUST be the very first line.
+import './zod-patch'; // <-- This executes the patch immediately.
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
 import 'reflect-metadata';
 import { VersioningType } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { AppModule } from './app.module';
 
 declare const module: HotModule;
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // app.setGlobalPrefix('v1');
@@ -17,6 +22,7 @@ async function bootstrap() {
     type: VersioningType.URI,
     defaultVersion: '1',
   });
+
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
   app.enableCors({
@@ -24,6 +30,23 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  // 1. Use the global ZodValidationPipe from `nestjs-zod`
+  app.useGlobalPipes(new ZodValidationPipe());
+
+  // // 2. Patch NestJS Swagger to understand Zod schemas
+  // patchNestJsSwagger();
+
+  // 2. Setup Swagger as usual
+  const config = new DocumentBuilder()
+    .setTitle('My API')
+    .setDescription('API documentation for my awesome app')
+    .setVersion('1.0')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api-docs', app, document);
+
   // await app.listen(process.env.PORT ?? 3000);
   await app.listen(process.env.PORT || 3000, '0.0.0.0');
   console.log(`Application is running on: ${await app.getUrl()}`);

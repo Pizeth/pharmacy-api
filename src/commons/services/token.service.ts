@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RefreshToken } from '@prisma/client';
 import { Request } from 'express';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { TokenPayload } from 'src/types/token';
 import { AppError } from 'src/middlewares/app-errors.middleware';
 import statusCode from 'http-status-codes';

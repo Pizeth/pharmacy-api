@@ -12,8 +12,8 @@ import {
 import { Throttle } from '@nestjs/throttler';
 // import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { R2Service } from 'src/configs/cloudflare-r2.service';
-import { TokenService } from 'src/services/token.service';
-import { LoggerService } from 'src/services/logger.service';
+import { TokenService } from 'src/commons/services/token.service';
+import { LoggerService } from 'src/commons/services/logger.service';
 import { Readable } from 'stream';
 
 @Controller('files')

@@ -4,18 +4,21 @@ import {
   Param,
   Post,
   Body,
+  HttpStatus,
   //   Put,
   //   Delete,
 } from '@nestjs/common';
 // import { UsersService } from './user.service';
 import { Prisma, User, User as UserModel } from '@prisma/client';
 import { PaginatedDataResult } from 'src/types/types';
-import { UsersService } from './services/users.service';
+import { UsersService } from '../services/users.service';
+import { ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
+import { CreateUserDto } from '../dto/create-user.dto';
 // import { PaginatedDataResult } from './types/types';
-
+@ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
 export class UserController {
-  constructor(private readonly userService: UsersService) {}
+  constructor(private readonly service: UsersService) {}
 
   // @Get('post/:id')
   // async getPostById(@Param('id') id: string): Promise<PostModel> {
@@ -61,27 +64,44 @@ export class UserController {
   //   });
   // }
 
+  // The controller is now incredibly clean.
+  // The global pipe handles validation automatically.
+  // Swagger knows about CreateUserDto because it's a class with generated decorators.
+  @Post()
+  @ApiCreatedResponse({
+    description: 'The user has been successfully created.',
+  })
+  async create(@Body() createUserDto: CreateUserDto) {
+    // The DTO is validated and fully typed, just like before.
+    console.log(createUserDto);
+    const result = await this.service.create(createUserDto);
+    return {
+      message: 'User created successfully!',
+      user: createUserDto,
+    };
+  }
+
   @Get(':id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
-    return this.userService.getOne({ id: Number(id) });
+    return this.service.getOne({ id: Number(id) });
   }
 
   @Get(':params')
   async getUsersByParams(
     @Param('params') params: Prisma.UserWhereUniqueInput,
   ): Promise<User | null> {
-    return this.userService.getOne(params);
+    return this.service.getOne(params);
   }
 
   @Get()
   async getAllUsers(): Promise<PaginatedDataResult<User>> {
-    return this.userService.getAll();
+    return this.service.getAll();
   }
 
   @Post()
   async signupUser(
     @Body() userData: Prisma.UserCreateInput,
   ): Promise<UserModel> {
-    return this.userService.createUser(userData);
+    return this.service.createUser(userData);
   }
 }

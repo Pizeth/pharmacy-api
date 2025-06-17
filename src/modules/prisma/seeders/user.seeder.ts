@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'src/types/seed';
-import { AuditTrail, RefreshToken, Role, User } from '@prisma/client';
-import { TokenService } from 'src/services/token.service';
-import { PasswordUtils } from 'src/utils/password-utils.service';
+import { AuditTrail, RefreshToken, Role } from '@prisma/client';
+import { TokenService } from 'src/commons/services/token.service';
+import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { RoleToken } from 'src/types/token';
 import { AuditActionType, AuditTargetType, Sex } from 'src/types/commons.enum';
 import { nanoid } from 'nanoid';

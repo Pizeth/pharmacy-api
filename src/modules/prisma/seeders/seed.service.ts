@@ -1,6 +1,6 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
 // import { ModuleRef } from '@nestjs/core';

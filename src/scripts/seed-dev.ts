@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { SeedService } from '../prisma/seeders/seed.service';
+import { SeedService } from '../modules/prisma/seeders/seed.service';
 import { AppModule } from 'src/app.module';
 
 async function seedDevelopment() {

@@ -30,6 +30,6 @@
     "webpack-hmr.config.ts",
     "env.d.ts",
     "prisma/seed.ts",
-    "src/prisma/prisma.service.ts"
+    "src/modules/prisma/services/prisma.service.ts"
   ]
 }

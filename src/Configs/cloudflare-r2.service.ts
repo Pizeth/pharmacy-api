@@ -19,9 +19,9 @@ import {
   R2UploadSuccessResponse,
   // HttpErrorStatusEnum,
 } from 'src/types/types';
-import { VirusScanService } from 'src/services/virus-scan.service';
+import { VirusScanService } from 'src/commons/services/virus-scan.service';
 import statusCodes from 'http-status-codes';
-import { LoggerService } from 'src/services/logger.service';
+import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()

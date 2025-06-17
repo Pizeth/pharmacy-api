@@ -3,11 +3,11 @@ process.env.NEST_DEBUG = 'true';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { Seeder } from '../src/prisma/seeders/seeder'; // Adjust path if needed
-import { SeederModule } from 'src/prisma/seeders/seeder.module';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { TokenService } from 'src/services/token.service';
-import { PasswordUtils } from 'src/utils/password-utils.service';
+import { Seeder } from '../src/modules/prisma/seeders/seeder'; // Adjust path if needed
+import { SeederModule } from 'src/modules/prisma/seeders/seeder.module';
+import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { TokenService } from 'src/commons/services/token.service';
+import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { ConfigService } from '@nestjs/config';
 
 const logger = new Logger('PrismaSeeder');

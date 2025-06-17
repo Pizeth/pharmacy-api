@@ -20,7 +20,7 @@ import {
   Put,
   Delete,
 } from '@nestjs/common';
-import { UsersService } from './users/services/users.service';
+import { UsersService } from './modules/users/services/users.service';
 import { Prisma, User, User as UserModel } from '@prisma/client';
 import { get } from 'http';
 import { PaginatedDataResult } from './types/types';

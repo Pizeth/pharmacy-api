@@ -1,7 +1,7 @@
 import { Module, Global } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from './services/prisma.service';
 
-// @Global() // Making this global is a robust pattern for Prisma
+@Global() // Making this global is a robust pattern for Prisma
 @Module({
   providers: [PrismaService],
   exports: [PrismaService],
