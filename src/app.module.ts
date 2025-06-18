@@ -13,7 +13,7 @@ import {
 } from 'nestjs-i18n';
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
-import { Logger } from './logs/logger';
+// import { Logger } from './logs/logger';
 import { UserModule } from './modules/users/user.module';
 
 @Module({
@@ -87,7 +87,7 @@ import { UserModule } from './modules/users/user.module';
     UserModule,
   ],
   providers: [
-    Logger,
+    // Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
