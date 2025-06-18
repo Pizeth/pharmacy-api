@@ -4,7 +4,7 @@
 /build
 
 # Logs
-logs
+# logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -37,7 +37,7 @@ lerna-debug.log*
 
 # dotenv environment variable files
 # .env
-.env.development.local
+# .env.development.local
 .env.test.local
 .env.production.local
 .env.local
