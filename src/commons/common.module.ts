@@ -7,6 +7,10 @@ import { VirusScanService } from './services/virus-scan.service';
 import { LoggerService } from './services/logger.service';
 import { HttpModule } from '@nestjs/axios';
 import { ObjectOmitter } from './services/object-utils.service';
+import { ExceptionService } from './services/exception.service';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
+import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 
 @Module({
   imports: [
@@ -24,14 +28,24 @@ import { ObjectOmitter } from './services/object-utils.service';
     PasswordUtils,
     TokenService,
     VirusScanService,
-    ObjectOmitter,
+    // ObjectOmitter,
+    ExceptionService,
     LoggerService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
   ],
   exports: [
     PasswordUtils,
     TokenService,
     VirusScanService,
-    ObjectOmitter,
+    // ObjectOmitter,
+    ExceptionService,
     LoggerService,
     HttpModule,
   ],

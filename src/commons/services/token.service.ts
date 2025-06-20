@@ -6,12 +6,14 @@ import { RefreshToken } from '@prisma/client';
 import { Request } from 'express';
 import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { TokenPayload } from 'src/types/token';
-import { AppError } from 'src/middlewares/app-errors.middleware';
+// import { AppError } from 'src/middlewares/app-errors.middleware';
 import statusCode from 'http-status-codes';
+import { AppError } from 'src/exceptions/app.exception';
 
 @Injectable()
 export class TokenService {
-  private logger = new Logger(TokenService.name);
+  private readonly logger = new Logger(TokenService.name);
+  private readonly name = TokenService.name;
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -107,6 +109,7 @@ export class TokenService {
       throw new AppError(
         'Failed to generate tokend',
         statusCode.UNPROCESSABLE_ENTITY,
+        this.name,
         error,
       );
     }
@@ -117,11 +120,12 @@ export class TokenService {
     const token = this.generateToken(payload, this.expireRefresh);
     try {
       return await this.createRefreshToken(token, payload.id);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving refresh token:', error);
       throw new AppError(
         'Failed to save refresh tokend',
         statusCode.GONE,
+        this.name,
         error,
       );
     }
@@ -175,6 +179,7 @@ export class TokenService {
         throw new AppError(
           'Authentication failed: Token has expired',
           statusCode.UNAUTHORIZED,
+          this.name,
           error,
         );
       }
@@ -188,6 +193,7 @@ export class TokenService {
         throw new AppError(
           'Authentication failed: Invalid token signature',
           statusCode.UNAUTHORIZED,
+          this.name,
           error,
         );
         // // Log the error for security monitoring
@@ -215,6 +221,7 @@ export class TokenService {
       throw new AppError(
         'Failed to fetch refresh token',
         statusCode.NOT_FOUND,
+        this.name,
         error,
       );
     }

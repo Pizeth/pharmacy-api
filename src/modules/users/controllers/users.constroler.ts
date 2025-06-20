@@ -77,7 +77,7 @@ export class UserController {
     const result = await this.service.create(createUserDto);
     return {
       message: 'User created successfully!',
-      user: createUserDto,
+      user: result,
     };
   }
 
