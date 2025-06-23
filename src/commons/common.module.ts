@@ -6,15 +6,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { VirusScanService } from './services/virus-scan.service';
 import { LoggerService } from './services/logger.service';
 import { HttpModule } from '@nestjs/axios';
-import { ObjectOmitter } from './services/object-utils.service';
+// import { ObjectOmitter } from './services/object-utils.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
+import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
+import { FileModule } from 'src/modules/files/file.module';
 
 @Module({
   imports: [
-    HttpModule,
+    // HttpModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -23,14 +25,16 @@ import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
         signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
       }),
     }),
+    FileModule, // Assuming FileModule is defined elsewhere
   ],
   providers: [
     PasswordUtils,
     TokenService,
-    VirusScanService,
+    // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
     LoggerService,
+    QrCodeServicce,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
@@ -43,11 +47,12 @@ import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
   exports: [
     PasswordUtils,
     TokenService,
-    VirusScanService,
+    // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
     LoggerService,
-    HttpModule,
+    QrCodeServicce,
+    // HttpModule,
   ],
 })
 export class CommonModule {}

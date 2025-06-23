@@ -15,6 +15,7 @@ import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 // import { Logger } from './logs/logger';
 import { UserModule } from './modules/users/user.module';
+import { FileModule } from './modules/files/file.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { UserModule } from './modules/users/user.module';
     // PrismaModule,
     // HttpModule,
     UserModule,
+    FileModule,
   ],
   providers: [
     // Logger,

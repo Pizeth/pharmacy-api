@@ -3,25 +3,26 @@ import {
   Controller,
   Get,
   Header,
+  Logger,
   Param,
   Post,
-  UnauthorizedException,
+  // UnauthorizedException,
   UploadedFile,
   // UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 // import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { R2Service } from 'src/configs/cloudflare-r2.service';
-import { TokenService } from 'src/commons/services/token.service';
-import { LoggerService } from 'src/commons/services/logger.service';
+import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
+// import { TokenService } from 'src/commons/services/token.service';
 import { Readable } from 'stream';
 
 @Controller('files')
 export class FilesController {
+  private readonly logger = new Logger(FilesController.name);
   constructor(
     private readonly r2Service: R2Service,
-    private readonly logger: LoggerService,
-    private readonly tokenService: TokenService, // Assuming this is the correct service for token generation
+    // private readonly logger: LoggerService,
+    // private readonly tokenService: TokenService, // Assuming this is the correct service for token generation
   ) {}
   @Post('upload')
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
@@ -43,20 +44,21 @@ export class FilesController {
       throw new Error(`Failed to retrieve file: ${filename}`);
     }
   }
-  @Post('generate-token')
-  generateToken(@Body() body: { filename: string }) {
-    return this.tokenService.generateToken({
-      filename: body.filename,
-    });
-  }
 
-  @Get('secure/:token')
-  async getSecureFile(@Param('token') token: string) {
-    try {
-      const filename = this.tokenService.verifyToken(token);
-      return this.r2Service.getFile(filename.username);
-    } catch (e: unknown) {
-      throw new UnauthorizedException('Invalid access token');
-    }
-  }
+  // @Post('generate-token')
+  // generateToken(@Body() body: { filename: string }) {
+  //   return this.tokenService.generateToken({
+  //     filename: body.filename,
+  //   });
+  // }
+
+  // @Get('secure/:token')
+  // async getSecureFile(@Param('token') token: string) {
+  //   try {
+  //     const filename = this.tokenService.verifyToken(token);
+  //     return this.r2Service.getFile(filename.username);
+  //   } catch (e: unknown) {
+  //     throw new UnauthorizedException('Invalid access token');
+  //   }
+  // }
 }

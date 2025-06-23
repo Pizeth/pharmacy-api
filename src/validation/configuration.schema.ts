@@ -1,4 +1,4 @@
-import { ConfigValidationHelpers as validation } from 'src/configs/config-validation-helper';
+import { ConfigValidationHelpers as validation } from 'src/commons/configs/config-validation-helper';
 import { z } from 'zod';
 
 // Define the Zod schema for your configuration

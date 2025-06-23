@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // For environment variables
 import {
   S3Client,
@@ -21,12 +21,13 @@ import {
 } from 'src/types/types';
 import { VirusScanService } from 'src/commons/services/virus-scan.service';
 import statusCodes from 'http-status-codes';
-import { LoggerService } from 'src/commons/services/logger.service';
+// import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { AppError } from 'src/exceptions/app.exception';
 
 @Injectable()
 export class R2Service implements OnModuleInit {
-  // private readonly logger = new Logger(R2Service.name);
+  private readonly logger = new Logger(R2Service.name);
   private readonly MAX_FILE_SIZE =
     Number(process.env.VIRUS_TOTAL_MAX_SIZE) || 32 * 1024 * 1024; // 32MB, adjust as needed
   private readonly EXPIRE_IN_SECONDS =
@@ -42,7 +43,7 @@ export class R2Service implements OnModuleInit {
   constructor(
     private configService: ConfigService,
     private readonly virusScanService: VirusScanService,
-    private readonly logger: LoggerService,
+    // private readonly logger: LoggerService,
   ) {
     // Load R2 configuration using a helper for required values
     this.accountId = this.getRequiredConfig('R2_ACCOUNT_ID');
@@ -220,43 +221,55 @@ export class R2Service implements OnModuleInit {
    */
 
   async uploadFile(
-    fileName: string,
-    buffer: Buffer | Readable,
-    mimetype: string,
     file: Express.Multer.File,
-    maxSizeBytes: number = this.MAX_FILE_SIZE,
-    correlationId: string,
+    fileName?: string,
+    // buffer: Buffer | Readable,
+    // mimetype: string,
+    // maxSizeBytes: number = this.MAX_FILE_SIZE,
+    // correlationId: string,
   ): Promise<R2UploadResponse> {
+    // Validate file
+    if (!file)
+      throw new AppError(
+        'No file provided',
+        HttpStatus.BAD_REQUEST,
+        R2Service.name,
+        {
+          message: 'Call upload service with empty file',
+          fileName,
+          error: 'No file provided',
+        },
+      );
     this.logger.log(
       `Starting upload for: ${file.originalname}`,
       'R2Service',
-      correlationId,
+      fileName,
     );
-    // Validate file
-    if (!file) throw new Error('No file provided');
-    if (
-      maxSizeBytes &&
-      buffer instanceof Buffer &&
-      buffer.length > maxSizeBytes
-    ) {
-      return {
-        status: statusCodes.REQUEST_TOO_LONG, // 413
-        message: `File size exceeds maximum allowed size of ${maxSizeBytes} bytes`,
-        fileName,
-        url: '',
-        error: 'File too large',
-      };
-    }
+    // if (
+    //   maxSizeBytes &&
+    //   buffer instanceof Buffer &&
+    //   buffer.length > maxSizeBytes
+    // ) {
+    //   return {
+    //     status: statusCodes.REQUEST_TOO_LONG, // 413
+    //     message: `File size exceeds maximum allowed size of ${maxSizeBytes} bytes`,
+    //     fileName,
+    //     url: '',
+    //     error: 'File too large',
+    //   };
+    // }
 
     // File size validation (32MB limit for VirusTotal free tier)
     if (file.size > this.MAX_FILE_SIZE) {
       return {
         status: statusCodes.REQUEST_TOO_LONG, // 413,
-        message: 'File too large for virus scanning',
-        fileName: file.originalname,
+        message:
+          'File size exceeds maximum allowed size of ${maxSizeBytes} bytes',
+        fileName: fileName || file.originalname,
         error: `Max size: ${this.MAX_FILE_SIZE}MB`,
       };
     }
+
     // Virus scanning with VirusTotal
     const isClean = await this.virusScanService.scanBuffer(file.buffer);
     // if (!isClean) throw new Error('File contains malware');
@@ -292,8 +305,8 @@ export class R2Service implements OnModuleInit {
       const params: PutObjectCommandInput = {
         Bucket: this.bucketName,
         Key: fileName,
-        Body: buffer,
-        ContentType: mimetype,
+        Body: file.buffer, // Use file.buffer directly
+        ContentType: file.mimetype, // Use file.mimetype directly
         // You can add ACL or other parameters if needed, e.g., ACL: 'public-read'
         // For Cloudflare R2, public access is typically managed at the bucket level or via signed URLs.
       };
@@ -309,7 +322,7 @@ export class R2Service implements OnModuleInit {
       return {
         status: statusCodes.CREATED, // 201
         message: 'File uploaded successfully',
-        fileName,
+        fileName: fileName || file.originalname,
         url: publicUrl,
       };
     } catch (error: unknown) {

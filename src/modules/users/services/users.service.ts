@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/services/prisma.service';
 import { Prisma, User } from '@prisma/client';
 import { DBHelper } from '../../helpers/services/db-helper';
@@ -6,6 +6,9 @@ import { PaginatedDataResult } from '../../../types/types';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ObjectOmitter } from 'src/commons/services/object-utils.service';
+import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
+import { AppError } from 'src/exceptions/app.exception';
+import { DateFormatter } from 'src/utils/date-time.util';
 
 @Injectable()
 export class UsersService {
@@ -14,6 +17,7 @@ export class UsersService {
     private prisma: PrismaService,
     private readonly dbHelper: DBHelper,
     private readonly passwordUtils: PasswordUtils, // Inject your service here
+    private readonly fileService: R2Service, // Assuming you have a file service for handling files
   ) {}
 
   // async user(
@@ -92,7 +96,143 @@ export class UsersService {
     });
   }
 
-  async create(createUserDto: CreateUserDto) {
+  async create(
+    createUserDto: CreateUserDto,
+    file?: Express.Multer.File,
+  ): Promise<User> {
+    let fileName = '';
+    try {
+      return this.prisma.$transaction(async (tx) => {
+        // Check unique constraints within transaction
+        const [existingUsername, existingEmail] = await Promise.all([
+          this.getOne({ username: createUserDto.username }),
+          this.getOne({ email: createUserDto.email }),
+        ]);
+
+        if (existingUsername) {
+          throw new AppError(
+            `Username ${createUserDto.username} already exists!`,
+            HttpStatus.CONFLICT,
+            UsersService.name,
+            {
+              ACTION: 'Register New User',
+              ROOT: 'Duplicate Data!',
+              FIELD: 'username',
+              CODE: 'DUPLICATE_USERNAME',
+              VALUE: createUserDto.username,
+            },
+          );
+        }
+
+        if (existingEmail) {
+          throw new AppError(
+            `Email ${createUserDto.email} already exists!`,
+            HttpStatus.CONFLICT,
+            UsersService.name,
+            {
+              ACTION: 'Register New User',
+              ROOT: 'Duplicate Data!',
+              FIELD: 'email',
+              CODE: 'DUPLICATE_EMAIL',
+              VALUE: createUserDto.email,
+            },
+          );
+        }
+
+        // Handle file upload if provided
+        if (file) {
+          const fileName =
+            createUserDto.username +
+            `_${new Date().toJSON().slice(0, 10)}_` +
+            DateFormatter.getUnixTimestamp();
+          const avatar = await this.fileService.uploadFile(file, fileName);
+          if (avatar && avatar.status === 200) {
+            fileName = avatar.fileName;
+            user.update({
+              avatar: avatar.url,
+            });
+          }
+        }
+
+        // Create user with more detailed error tracking
+        return tx.user.create({
+          data: {
+            ...user.toNew(),
+            password: this.passwordUtils.hash(data.password),
+            // Add audit trail information
+            auditTrail: {
+              create: {
+                action: 'REGISTER',
+                timestamp: new Date(),
+                ipAddress: req.ip,
+              },
+            },
+          },
+        });
+      });
+
+      return await prisma.$transaction(
+        async (tx) => {
+          // Check unique constraints within transaction
+          const [existingUsername, existingEmail] = await Promise.all([
+            UserRepo.findByUsername(data.username),
+            UserRepo.findByEmail(data.email),
+          ]);
+
+          if (existingUsername) {
+            throw new Error('Username already exists');
+          }
+
+          if (existingEmail) {
+            throw new Error('Email already exists');
+          }
+
+          const avatar = await upload.uploadFile(req, res, user.username);
+          if (avatar && avatar.status === 200) {
+            fileName = avatar.fileName;
+            user.update({
+              avatar: avatar.url,
+            });
+          }
+
+          // Create user with more detailed error tracking
+          const newUser = await tx.user.create({
+            data: {
+              ...user.toNew(),
+              password: passwordUtils.hash(data.password),
+              // Add audit trail information
+              auditTrail: {
+                create: {
+                  action: 'REGISTER',
+                  timestamp: new Date(),
+                  ipAddress: req.ip,
+                },
+              },
+            },
+          });
+
+          // console.log(await newUser);
+          return new User(newUser);
+        },
+        {
+          maxWait: 5000, // default: 2000
+          timeout: 10000, // default: 5000
+        },
+      );
+    } catch (error: unknown) {
+      if (fileName) {
+        try {
+          const deleteResponse = await upload.deleteFile(fileName);
+          console.warn(`Rolled back uploaded file: ${deleteResponse.fileName}`);
+        } catch (deleteError) {
+          console.error('Error rolling back file:', deleteError);
+        }
+      }
+      // Centralized error logging
+      // logError('User Registration', error, req);
+      throw error; // Re-throw the error for further handling
+    }
+
     // Destructure the DTO to separate the password from the rest of the data.
     // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
     const { password, ...userData } = createUserDto;
@@ -118,6 +258,83 @@ export class UsersService {
     return result;
   }
 
+  // Register a new user
+  static async register(data, req, res) {
+    let fileName = '';
+    try {
+      // Validate user data before processing
+      data.lastUpdatedBy = data.createdBy;
+      // console.log(data);
+      const user = new User(data);
+      const validationResult = user.validate();
+
+      if (!validationResult.isValid) {
+        throw new Error(validationResult.errors.join(', '));
+      }
+
+      // Transaction for atomic operations
+      return await prisma.$transaction(
+        async (tx) => {
+          // Check unique constraints within transaction
+          const [existingUsername, existingEmail] = await Promise.all([
+            UserRepo.findByUsername(data.username),
+            UserRepo.findByEmail(data.email),
+          ]);
+
+          if (existingUsername) {
+            throw new Error('Username already exists');
+          }
+
+          if (existingEmail) {
+            throw new Error('Email already exists');
+          }
+
+          const avatar = await upload.uploadFile(req, res, user.username);
+          if (avatar && avatar.status === 200) {
+            fileName = avatar.fileName;
+            user.update({
+              avatar: avatar.url,
+            });
+          }
+
+          // Create user with more detailed error tracking
+          const newUser = await tx.user.create({
+            data: {
+              ...user.toNew(),
+              password: passwordUtils.hash(data.password),
+              // Add audit trail information
+              auditTrail: {
+                create: {
+                  action: 'REGISTER',
+                  timestamp: new Date(),
+                  ipAddress: req.ip,
+                },
+              },
+            },
+          });
+
+          // console.log(await newUser);
+          return new User(newUser);
+        },
+        {
+          maxWait: 5000, // default: 2000
+          timeout: 10000, // default: 5000
+        },
+      );
+    } catch (error) {
+      if (fileName) {
+        try {
+          const deleteResponse = await upload.deleteFile(fileName);
+          console.warn(`Rolled back uploaded file: ${deleteResponse.fileName}`);
+        } catch (deleteError) {
+          console.error('Error rolling back file:', deleteError);
+        }
+      }
+      // Centralized error logging
+      logError('User Registration', error, req);
+      throw error;
+    }
+  }
   /**
    * Get a paginated list of users with basic information.
    * Demonstrates simple pagination and ordering.
