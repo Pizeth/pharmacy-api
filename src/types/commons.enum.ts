@@ -1,3 +1,5 @@
+import { HttpStatus } from '@nestjs/common';
+
 export enum Sex {
   MALE = 'Male',
   FEMALE = 'Female',
@@ -36,4 +38,65 @@ export enum AuditTargetType {
   Customer = 'Customer',
   Supplier = 'Supplier',
   // Add other models as they become auditable
+}
+
+export enum type {
+  Upload = 'upload',
+  Delete = 'delete',
+  Error = 'error',
+}
+// Common HTTP error codes;
+export enum HttpErrorStatusEnum {
+  BadRequest = HttpStatus.BAD_REQUEST,
+  Forbidden = HttpStatus.FORBIDDEN,
+  NotFound = HttpStatus.NOT_FOUND,
+  Unauthorized = HttpStatus.UNAUTHORIZED,
+  RequestTooLong = HttpStatus.PAYLOAD_TOO_LARGE,
+  InternalServerError = HttpStatus.INTERNAL_SERVER_ERROR,
+  ServiceUnavailable = HttpStatus.SERVICE_UNAVAILABLE,
+}
+
+// Enum for common error scenarios (optional)
+export enum R2ErrorCode {
+  FILE_TOO_LARGE = 'FILE_TOO_LARGE',
+  INVALID_FILE_TYPE = 'INVALID_FILE_TYPE',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  ACCESS_DENIED = 'ACCESS_DENIED',
+  FILE_NOT_FOUND = 'FILE_NOT_FOUND',
+  BUCKET_NOT_FOUND = 'BUCKET_NOT_FOUND',
+  QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
+}
+
+// Define the available avatar styles using an enum.
+export enum DiceBearStyle {
+  Adventurer = 'adventurer',
+  AdventurerNeutral = 'adventurer-neutral',
+  Avataaars = 'avataaars',
+  AvataaarsNeutral = 'avataaars-neutral',
+  BigEars = 'big-ears',
+  BigEarsNeutral = 'big-ears-neutral',
+  BigSmile = 'big-smile',
+  Bottts = 'bottts',
+  BotttsNeutral = 'bottts-neutral',
+  Croodles = 'croodles',
+  CroodlesNeutral = 'croodles-neutral',
+  Dylan = 'dylan',
+  FunEmoji = 'fun-emoji',
+  Glass = 'glass',
+  Icons = 'icons',
+  Identicon = 'identicon',
+  Initials = 'initials',
+  Lorelei = 'lorelei',
+  LoreleiNeutral = 'lorelei-neutral',
+  Micah = 'micah',
+  Miniavs = 'miniavs',
+  Notionists = 'notionists',
+  NotionistsNeutral = 'notionists-neutral',
+  OpenPeeps = 'open-peeps',
+  Personas = 'personas',
+  PixelArt = 'pixel-art',
+  PixelArtNeutral = 'pixel-art-neutral',
+  Rings = 'rings',
+  Shapes = 'shapes',
+  Thumbs = 'thumbs',
 }

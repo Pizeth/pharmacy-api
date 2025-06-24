@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request } from 'express';
+import { ClsService } from 'nestjs-cls';
 import { ExceptionData } from 'src/types/exception';
 import { UAParser } from 'ua-parser-js';
 
@@ -9,7 +9,10 @@ import { UAParser } from 'ua-parser-js';
 export class ExceptionService {
   private readonly logger = new Logger(ExceptionService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    // private readonly cls: ClsService,
+  ) {}
 
   // Helper to get a high-level status string
   displayStatus(code: number): string {
@@ -25,17 +28,19 @@ export class ExceptionService {
   }
 
   // Centralized error logging method
-  logError(request: Request, exception: unknown) {
-    const parser = new UAParser(request.headers['user-agent']);
+  logError(cls: ClsService, exception: unknown) {
+    this.logger.error('Logging error:', exception);
+    const parser = new UAParser(cls.get('userAgent'));
     const { statusCode, message, errors } =
       this.parseUnknownException(exception);
 
     const errorLog = {
       statusCode,
       timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
-      ip: request.ip,
+      correlationId: cls.get<string>('correlationId'), // <-- Add correlationId to logs
+      path: cls.get<string>('url'),
+      method: cls.get<string>('method'),
+      ip: cls.get<string>('ip'), // <-- Get IP from CLS context
       message,
       userAgent: {
         browser: parser.getBrowser(),

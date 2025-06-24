@@ -1,8 +1,11 @@
 {
+  // "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "strict": true,
     "allowJs": true,
     "module": "commonjs",
+    // "module": "ESNext",
+    // "moduleResolution": "node",
     // "module": "es2022",
     // "target": "esnext",
     "declaration": true,
@@ -26,8 +29,8 @@
   },
   "include": [
     "src/**/*",
-    "webpack-hmr.config.js",
-    "webpack-hmr.config.ts",
+    "webpack-hmr.config.cjs",
+    // "webpack-hmr.config.ts",
     "env.d.ts",
     "prisma/seed.ts",
     "src/modules/prisma/services/prisma.service.ts"

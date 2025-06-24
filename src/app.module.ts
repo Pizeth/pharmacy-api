@@ -16,6 +16,9 @@ import { configurationSchema } from './validation/configuration.schema';
 // import { Logger } from './logs/logger';
 import { UserModule } from './modules/users/user.module';
 import { FileModule } from './modules/files/file.module';
+import { ClsModule } from 'nestjs-cls';
+import { v4 as uuidv4 } from 'uuid';
+import { Request } from 'express';
 
 @Module({
   imports: [
@@ -52,6 +55,27 @@ import { FileModule } from './modules/files/file.module';
           );
           throw error; // Re-throw other unexpected errors
         }
+      },
+    }),
+    // Setup ClsModule globally.
+    ClsModule.forRoot({
+      global: true, // Make the ClsService available everywhere
+      middleware: {
+        // Mount the middleware automatically for all routes
+        mount: true,
+        // This function runs for every request
+        // Here, we can extract data from the request and store it in the context
+        // setup: (cls, req: { ip?: string; headers: Record<string, any> }) => {
+        setup: (cls, req: Request) => {
+          cls.set('ip', req.ip);
+          cls.set('userId', req.headers['x-user-id']);
+          cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
+          cls.set('userAgent', req.headers['user-agent']);
+          cls.set('url', req.url);
+          cls.set('method', req.method);
+          // If you use an auth guard that sets `req.user`, you can set it here too
+          // cls.set('user', req.user);
+        },
       },
     }),
     ThrottlerModule.forRoot([

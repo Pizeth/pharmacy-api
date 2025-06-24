@@ -1,23 +1,26 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/services/prisma.service';
-import { Prisma, User } from '@prisma/client';
+import { AuditActionType, AuditTargetType, Prisma, User } from '@prisma/client';
 import { DBHelper } from '../../helpers/services/db-helper';
 import { PaginatedDataResult } from '../../../types/types';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { ObjectOmitter } from 'src/commons/services/object-utils.service';
 import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
 import { AppError } from 'src/exceptions/app.exception';
-import { DateFormatter } from 'src/utils/date-time.util';
+import { FileUtil } from 'src/utils/file.util';
+import { ClsService } from 'nestjs-cls';
+import { ImagePlaceHolderService } from 'src/commons/services/image-placeholder.service';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   constructor(
-    private prisma: PrismaService,
+    private readonly prisma: PrismaService,
     private readonly dbHelper: DBHelper,
     private readonly passwordUtils: PasswordUtils, // Inject your service here
     private readonly fileService: R2Service, // Assuming you have a file service for handling files
+    private readonly imageService: ImagePlaceHolderService,
+    private readonly cls: ClsService,
   ) {}
 
   // async user(
@@ -99,130 +102,150 @@ export class UsersService {
   async create(
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
-  ): Promise<User> {
-    let fileName = '';
+  ): Promise<Omit<User, 'password'>> {
+    const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
-      return this.prisma.$transaction(async (tx) => {
-        // Check unique constraints within transaction
-        const [existingUsername, existingEmail] = await Promise.all([
-          this.getOne({ username: createUserDto.username }),
-          this.getOne({ email: createUserDto.email }),
-        ]);
-
-        if (existingUsername) {
-          throw new AppError(
-            `Username ${createUserDto.username} already exists!`,
-            HttpStatus.CONFLICT,
-            UsersService.name,
-            {
-              ACTION: 'Register New User',
-              ROOT: 'Duplicate Data!',
-              FIELD: 'username',
-              CODE: 'DUPLICATE_USERNAME',
-              VALUE: createUserDto.username,
-            },
-          );
-        }
-
-        if (existingEmail) {
-          throw new AppError(
-            `Email ${createUserDto.email} already exists!`,
-            HttpStatus.CONFLICT,
-            UsersService.name,
-            {
-              ACTION: 'Register New User',
-              ROOT: 'Duplicate Data!',
-              FIELD: 'email',
-              CODE: 'DUPLICATE_EMAIL',
-              VALUE: createUserDto.email,
-            },
-          );
-        }
-
-        // Handle file upload if provided
-        if (file) {
-          const fileName =
-            createUserDto.username +
-            `_${new Date().toJSON().slice(0, 10)}_` +
-            DateFormatter.getUnixTimestamp();
-          const avatar = await this.fileService.uploadFile(file, fileName);
-          if (avatar && avatar.status === 200) {
-            fileName = avatar.fileName;
-            user.update({
-              avatar: avatar.url,
-            });
-          }
-        }
-
-        // Create user with more detailed error tracking
-        return tx.user.create({
-          data: {
-            ...user.toNew(),
-            password: this.passwordUtils.hash(data.password),
-            // Add audit trail information
-            auditTrail: {
-              create: {
-                action: 'REGISTER',
-                timestamp: new Date(),
-                ipAddress: req.ip,
-              },
-            },
-          },
-        });
-      });
-
-      return await prisma.$transaction(
+      return this.prisma.$transaction(
         async (tx) => {
           // Check unique constraints within transaction
           const [existingUsername, existingEmail] = await Promise.all([
-            UserRepo.findByUsername(data.username),
-            UserRepo.findByEmail(data.email),
+            this.getOne({ username: createUserDto.username }),
+            this.getOne({ email: createUserDto.email }),
           ]);
 
           if (existingUsername) {
-            throw new Error('Username already exists');
+            throw new AppError(
+              `Username ${createUserDto.username} already exists!`,
+              HttpStatus.CONFLICT,
+              UsersService.name,
+              {
+                ACTION: 'Register New User',
+                ROOT: 'Duplicate Data!',
+                FIELD: 'username',
+                CODE: 'DUPLICATE_USERNAME',
+                VALUE: createUserDto.username,
+              },
+            );
           }
 
           if (existingEmail) {
-            throw new Error('Email already exists');
+            throw new AppError(
+              `Email ${createUserDto.email} already exists!`,
+              HttpStatus.CONFLICT,
+              UsersService.name,
+              {
+                ACTION: 'Register New User',
+                ROOT: 'Duplicate Data!',
+                FIELD: 'email',
+                CODE: 'DUPLICATE_EMAIL',
+                VALUE: createUserDto.email,
+              },
+            );
           }
 
-          const avatar = await upload.uploadFile(req, res, user.username);
-          if (avatar && avatar.status === 200) {
-            fileName = avatar.fileName;
-            user.update({
-              avatar: avatar.url,
-            });
+          // Handle file upload if provided
+          if (file) {
+            const avatar = await this.fileService.uploadFile(file, fileName);
+            createUserDto.avatar = this.imageService.generateImage(
+              avatar,
+              createUserDto.username,
+            );
           }
+
+          // Destructure the DTO to separate the password from the rest of the data.
+          // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
+          const { password, ...userData } = createUserDto;
+
+          // Use injected PasswordUtils service to hash the password.
+          const hashedPassword = await this.passwordUtils.hash(password);
 
           // Create user with more detailed error tracking
-          const newUser = await tx.user.create({
+          return tx.user.create({
             data: {
-              ...user.toNew(),
-              password: passwordUtils.hash(data.password),
+              ...userData,
+              password: hashedPassword, // Use the hashed password
               // Add audit trail information
               auditTrail: {
                 create: {
-                  action: 'REGISTER',
+                  action: AuditActionType.CREATE,
+                  targetType: AuditTargetType.User,
+                  targetId: '0', // Placeholder.
+                  userAgent: 'SYSTEM',
                   timestamp: new Date(),
-                  ipAddress: req.ip,
+                  ipAddress: this.cls.get<string>('ip') || '',
+                  description: 'DEFAULT_ADMIN_SEEDED',
                 },
               },
             },
           });
-
-          // console.log(await newUser);
-          return new User(newUser);
         },
         {
           maxWait: 5000, // default: 2000
           timeout: 10000, // default: 5000
         },
       );
+
+      // Best practice: don't return the password hash in the response.
+      // Use the omit helper function for a cleaner approach
+      // const result = ObjectOmitter.omit(newUser, 'password');
+
+      // this.logger.debug(result);
+
+      // return result;
+
+      // return await prisma.$transaction(
+      //   async (tx) => {
+      //     // Check unique constraints within transaction
+      //     const [existingUsername, existingEmail] = await Promise.all([
+      //       UserRepo.findByUsername(data.username),
+      //       UserRepo.findByEmail(data.email),
+      //     ]);
+
+      //     if (existingUsername) {
+      //       throw new Error('Username already exists');
+      //     }
+
+      //     if (existingEmail) {
+      //       throw new Error('Email already exists');
+      //     }
+
+      //     const avatar = await upload.uploadFile(req, res, user.username);
+      //     if (avatar && avatar.status === 200) {
+      //       fileName = avatar.fileName;
+      //       user.update({
+      //         avatar: avatar.url,
+      //       });
+      //     }
+
+      //     // Create user with more detailed error tracking
+      //     const newUser = await tx.user.create({
+      //       data: {
+      //         ...user.toNew(),
+      //         password: passwordUtils.hash(data.password),
+      //         // Add audit trail information
+      //         auditTrail: {
+      //           create: {
+      //             action: 'REGISTER',
+      //             timestamp: new Date(),
+      //             ipAddress: req.ip,
+      //           },
+      //         },
+      //       },
+      //     });
+
+      //     // console.log(await newUser);
+      //     return new User(newUser);
+      //   },
+      //   {
+      //     maxWait: 5000, // default: 2000
+      //     timeout: 10000, // default: 5000
+      //   },
+      // );
     } catch (error: unknown) {
+      this.logger.error('jom yeak error!', error);
       if (fileName) {
         try {
-          const deleteResponse = await upload.deleteFile(fileName);
+          const deleteResponse = await this.fileService.deleteFile(fileName);
           console.warn(`Rolled back uploaded file: ${deleteResponse.fileName}`);
         } catch (deleteError) {
           console.error('Error rolling back file:', deleteError);
@@ -233,108 +256,31 @@ export class UsersService {
       throw error; // Re-throw the error for further handling
     }
 
-    // Destructure the DTO to separate the password from the rest of the data.
-    // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
-    const { password, ...userData } = createUserDto;
+    // // Destructure the DTO to separate the password from the rest of the data.
+    // // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
+    // const { password, ...userData } = createUserDto;
 
-    // Use your injected PasswordUtils service to hash the password.
-    const hashedPassword = await this.passwordUtils.hash(password);
+    // // Use your injected PasswordUtils service to hash the password.
+    // const hashedPassword = await this.passwordUtils.hash(password);
 
-    // Create the user in the database with the hashed password.
-    const newUser = await this.prisma.user.create({
-      data: {
-        ...userData,
-        password: hashedPassword, // Use the hashed password
-        // ... any other required fields for user creation
-      },
-    });
+    // // Create the user in the database with the hashed password.
+    // const newUser = await this.prisma.user.create({
+    //   data: {
+    //     ...userData,
+    //     password: hashedPassword, // Use the hashed password
+    //     // ... any other required fields for user creation
+    //   },
+    // });
 
-    // Best practice: don't return the password hash in the response.
-    // Use the omit helper function for a cleaner approach
-    const result = ObjectOmitter.omit(newUser, 'password');
+    // // Best practice: don't return the password hash in the response.
+    // // Use the omit helper function for a cleaner approach
+    // const result = ObjectOmitter.omit(newUser, 'password');
 
-    this.logger.debug(result);
+    // this.logger.debug(result);
 
-    return result;
+    // return result;
   }
 
-  // Register a new user
-  static async register(data, req, res) {
-    let fileName = '';
-    try {
-      // Validate user data before processing
-      data.lastUpdatedBy = data.createdBy;
-      // console.log(data);
-      const user = new User(data);
-      const validationResult = user.validate();
-
-      if (!validationResult.isValid) {
-        throw new Error(validationResult.errors.join(', '));
-      }
-
-      // Transaction for atomic operations
-      return await prisma.$transaction(
-        async (tx) => {
-          // Check unique constraints within transaction
-          const [existingUsername, existingEmail] = await Promise.all([
-            UserRepo.findByUsername(data.username),
-            UserRepo.findByEmail(data.email),
-          ]);
-
-          if (existingUsername) {
-            throw new Error('Username already exists');
-          }
-
-          if (existingEmail) {
-            throw new Error('Email already exists');
-          }
-
-          const avatar = await upload.uploadFile(req, res, user.username);
-          if (avatar && avatar.status === 200) {
-            fileName = avatar.fileName;
-            user.update({
-              avatar: avatar.url,
-            });
-          }
-
-          // Create user with more detailed error tracking
-          const newUser = await tx.user.create({
-            data: {
-              ...user.toNew(),
-              password: passwordUtils.hash(data.password),
-              // Add audit trail information
-              auditTrail: {
-                create: {
-                  action: 'REGISTER',
-                  timestamp: new Date(),
-                  ipAddress: req.ip,
-                },
-              },
-            },
-          });
-
-          // console.log(await newUser);
-          return new User(newUser);
-        },
-        {
-          maxWait: 5000, // default: 2000
-          timeout: 10000, // default: 5000
-        },
-      );
-    } catch (error) {
-      if (fileName) {
-        try {
-          const deleteResponse = await upload.deleteFile(fileName);
-          console.warn(`Rolled back uploaded file: ${deleteResponse.fileName}`);
-        } catch (deleteError) {
-          console.error('Error rolling back file:', deleteError);
-        }
-      }
-      // Centralized error logging
-      logError('User Registration', error, req);
-      throw error;
-    }
-  }
   /**
    * Get a paginated list of users with basic information.
    * Demonstrates simple pagination and ordering.

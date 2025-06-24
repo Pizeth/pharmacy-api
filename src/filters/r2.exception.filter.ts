@@ -1,5 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { Response } from 'express';
+import { type } from 'src/types/commons.enum';
 import { R2ErrorResponse } from 'src/types/types';
 
 @Catch()
@@ -15,6 +16,7 @@ export class R2ExceptionFilter implements ExceptionFilter {
     // };
 
     const errorResponse: R2ErrorResponse = {
+      type: type.Error,
       status: this.getStatus(exception),
       message: this.getMessage(exception),
       fileName: 'N/A',

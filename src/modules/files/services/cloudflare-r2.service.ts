@@ -20,10 +20,10 @@ import {
   // HttpErrorStatusEnum,
 } from 'src/types/types';
 import { VirusScanService } from 'src/commons/services/virus-scan.service';
-import statusCodes from 'http-status-codes';
 // import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from 'src/exceptions/app.exception';
+import { type } from 'src/types/commons.enum';
 
 @Injectable()
 export class R2Service implements OnModuleInit {
@@ -105,21 +105,21 @@ export class R2Service implements OnModuleInit {
   private isR2UploadSuccess(
     response: R2UploadResponse,
   ): response is R2UploadSuccessResponse {
-    return response.status === statusCodes.CREATED; // 201
+    return response.status === HttpStatus.CREATED; // 201
   }
 
   private isR2DeleteSuccess(
     response: R2DeleteResponse,
   ): response is R2DeleteSuccessResponse {
-    return response.status === statusCodes.OK; // 200
+    return response.status === HttpStatus.OK; // 200
   }
 
   private isR2Error(
     response: R2UploadResponse | R2DeleteResponse | R2ErrorResponse,
   ): response is R2ErrorResponse {
     return (
-      response.status !== statusCodes.OK &&
-      response.status !== statusCodes.CREATED
+      response.status !== HttpStatus.OK &&
+      response.status !== HttpStatus.CREATED
     );
   }
 
@@ -240,11 +240,10 @@ export class R2Service implements OnModuleInit {
           error: 'No file provided',
         },
       );
-    this.logger.log(
-      `Starting upload for: ${file.originalname}`,
-      'R2Service',
-      fileName,
-    );
+
+    fileName = fileName || file.originalname;
+
+    this.logger.log(`Starting upload for: ${fileName}`, 'R2Service', fileName);
     // if (
     //   maxSizeBytes &&
     //   buffer instanceof Buffer &&
@@ -262,10 +261,11 @@ export class R2Service implements OnModuleInit {
     // File size validation (32MB limit for VirusTotal free tier)
     if (file.size > this.MAX_FILE_SIZE) {
       return {
-        status: statusCodes.REQUEST_TOO_LONG, // 413,
+        type: type.Error,
+        status: HttpStatus.PAYLOAD_TOO_LARGE, // 413,
         message:
           'File size exceeds maximum allowed size of ${maxSizeBytes} bytes',
-        fileName: fileName || file.originalname,
+        fileName: fileName,
         error: `Max size: ${this.MAX_FILE_SIZE}MB`,
       };
     }
@@ -276,10 +276,11 @@ export class R2Service implements OnModuleInit {
 
     if (!isClean) {
       return {
-        status: statusCodes.UNPROCESSABLE_ENTITY, // 422
+        type: type.Error,
+        status: HttpStatus.UNPROCESSABLE_ENTITY, // 422
         message: 'File contains potential malware',
-        fileName: file.originalname,
-        error: 'Malicious content detected',
+        fileName: fileName,
+        error: `Malicious content detected in the file ${fileName}`,
       };
     }
 
@@ -320,7 +321,8 @@ export class R2Service implements OnModuleInit {
       );
 
       return {
-        status: statusCodes.CREATED, // 201
+        type: type.Upload,
+        status: HttpStatus.CREATED, // 201
         message: 'File uploaded successfully',
         fileName: fileName || file.originalname,
         url: publicUrl,
@@ -354,7 +356,10 @@ export class R2Service implements OnModuleInit {
         errorMessage = error;
       }
       return {
-        status: s3Error?.$metadata?.httpStatusCode || 500,
+        type: type.Error,
+        status:
+          s3Error?.$metadata?.httpStatusCode ||
+          HttpStatus.INTERNAL_SERVER_ERROR, // 500
         message: s3Error?.message || 'Failed to upload file',
         fileName,
         url: '',
@@ -380,6 +385,7 @@ export class R2Service implements OnModuleInit {
 
       this.logger.log(`File deleted successfully: ${fileName}`);
       return {
+        type: type.Delete,
         status: 200,
         message: 'File deleted successfully',
         fileName,
@@ -399,18 +405,13 @@ export class R2Service implements OnModuleInit {
         errorMessage = error;
       }
       return {
+        type: type.Error,
         status: s3Error?.$metadata?.httpStatusCode || 500,
         message: s3Error?.message || 'Failed to delete file',
         fileName,
         error: `[${s3Error?.name || 'DeleteError'}] ${errorMessage}`,
       };
     }
-  }
-
-  private generateFileName(originalName: string, desireName: string): string {
-    const timestamp = Date.now();
-    const extension = originalName.split('.').pop();
-    return `${timestamp}.${extension}`;
   }
 
   /**

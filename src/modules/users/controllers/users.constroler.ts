@@ -4,7 +4,7 @@ import {
   Param,
   Post,
   Body,
-  HttpStatus,
+  Logger,
   //   Put,
   //   Delete,
 } from '@nestjs/common';
@@ -18,6 +18,7 @@ import { CreateUserDto } from '../dto/create-user.dto';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
 export class UserController {
+  private readonly logger = new Logger(UserController.name);
   constructor(private readonly service: UsersService) {}
 
   // @Get('post/:id')
@@ -73,10 +74,10 @@ export class UserController {
   })
   async create(@Body() createUserDto: CreateUserDto) {
     // The DTO is validated and fully typed, just like before.
-    console.log(createUserDto);
+    this.logger.debug(createUserDto);
     const result = await this.service.create(createUserDto);
     return {
-      message: 'User created successfully!',
+      message: '👤User ${result.username} created successfully!✔️',
       user: result,
     };
   }

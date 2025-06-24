@@ -7,7 +7,7 @@
 
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Readable } from 'stream';
-import { StatusCodes } from 'http-status-codes';
+import { HttpErrorStatusEnum, type } from './commons.enum';
 
 export interface WebpackHotModule {
   accept(callback?: (err?: any) => void): void;
@@ -116,28 +116,8 @@ export interface GetPaginatedDataParams<
 }
 
 // Define interfaces for return types
-// Common HTTP error codes;
-export enum HttpErrorStatusEnum {
-  BadRequest = StatusCodes.BAD_REQUEST,
-  Forbidden = StatusCodes.FORBIDDEN,
-  NotFound = StatusCodes.NOT_FOUND,
-  Unauthorized = StatusCodes.UNAUTHORIZED,
-  RequestTooLong = StatusCodes.REQUEST_TOO_LONG,
-  InternalServerError = StatusCodes.INTERNAL_SERVER_ERROR,
-  ServiceUnavailable = StatusCodes.SERVICE_UNAVAILABLE,
-}
 
-// Enum for common error scenarios (optional)
-export enum R2ErrorCode {
-  FILE_TOO_LARGE = 'FILE_TOO_LARGE',
-  INVALID_FILE_TYPE = 'INVALID_FILE_TYPE',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  ACCESS_DENIED = 'ACCESS_DENIED',
-  FILE_NOT_FOUND = 'FILE_NOT_FOUND',
-  BUCKET_NOT_FOUND = 'BUCKET_NOT_FOUND',
-  QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
-}
-
+// Common return types
 export interface R2UploadOptions {
   fileName: string;
   buffer: Buffer | Readable;
@@ -148,7 +128,6 @@ export interface R2UploadOptions {
 }
 // Common Base Interface (DRY principle):
 export interface R2BaseResponse {
-  // status: number;
   message: string;
   fileName: string;
   timestamp?: Date;
@@ -181,6 +160,7 @@ export interface R2PaginatedListResponse extends R2ListResponse {
 
 // Interface for successful upload response
 export interface R2UploadSuccessResponse extends R2BaseResponse {
+  type: type.Upload;
   status: StatusCodes.CREATED; // 201
   url: string;
   fileSize?: number; // Optional file size in bytes
@@ -198,15 +178,17 @@ export interface R2UploadSuccessResponse extends R2BaseResponse {
 
 // Interface for successful delete response
 export interface R2DeleteSuccessResponse extends R2BaseResponse {
+  type: type.Delete;
   status: StatusCodes.OK; // 200;
 }
 
 // Interface for error response (can be used by both upload and delete)
 export interface R2ErrorResponse extends R2BaseResponse {
+  type: type.Error;
   status: HttpErrorStatusEnum | number; // Use enum or number for status code
   error: string;
   stack?: string; // Useful for debugging in development
-  code?: string; // Cloudflare R2 specific error code
+  // code?: string; // Cloudflare R2 specific error code
   errorCode?: string; // Optional AWS/R2 specific error code
   url?: string; // Optional for delete errors
 }

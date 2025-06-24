@@ -12,18 +12,25 @@ import {
   //   HttpException,
   //   HttpStatus,
   Logger,
+  Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 // import { UAParser } from 'ua-parser-js';
 import statusCodes from 'http-status-codes';
+import { ClsService } from 'nestjs-cls';
 // import { ExceptionData } from 'src/types/exception';
 import { ExceptionService } from 'src/commons/services/exception.service';
+import { UAParser } from 'ua-parser-js';
 
+@Injectable()
 @Catch() // Using @Catch() without arguments catches all types of exceptions.
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  constructor(private readonly excService: ExceptionService) {
+  constructor(
+    private readonly excService: ExceptionService,
+    private readonly cls: ClsService,
+  ) {
     // If you have a custom exception service, you can inject it here.
     // this.exceptionService = exceptionService;
   }
@@ -32,7 +39,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-
+    const parser = new UAParser(this.cls.get('userAgent'));
     // Use the helper to get standardized error details
     const { statusCode, message, errors } =
       this.excService.parseUnknownException(exception);
@@ -44,14 +51,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusText: statusCodes.getStatusText(statusCode),
       timestamp: new Date().toISOString(),
       path: request.url,
+      method: request.method,
+      ip: request.ip,
+      correlationId: this.cls.get('correlationId'), // <-- Enrich response with correlationId
       message,
+      userAgent: {
+        browser: parser.getBrowser(),
+        os: parser.getOS(),
+        device: parser.getDevice(),
+      },
       // Include validation errors from class-validator or nestjs-zod if they exist
       // Conditionally add the 'errors' field only if it exists and is an object.
       ...(errors && typeof errors === 'object' ? { errors } : {}),
     };
 
     // Log the error using your custom logging logic
-    this.excService.logError(request, exception);
+    this.excService.logError(this.cls, exception);
 
     response.status(statusCode).json(errorResponse);
   }

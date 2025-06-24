@@ -3,16 +3,14 @@ import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from './services/token.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { VirusScanService } from './services/virus-scan.service';
 import { LoggerService } from './services/logger.service';
-import { HttpModule } from '@nestjs/axios';
-// import { ObjectOmitter } from './services/object-utils.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
 import { FileModule } from 'src/modules/files/file.module';
+import { ImagePlaceHolderService } from './services/image-placeholder.service';
 
 @Module({
   imports: [
@@ -30,6 +28,7 @@ import { FileModule } from 'src/modules/files/file.module';
   providers: [
     PasswordUtils,
     TokenService,
+    ImagePlaceHolderService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
@@ -47,11 +46,13 @@ import { FileModule } from 'src/modules/files/file.module';
   exports: [
     PasswordUtils,
     TokenService,
+    ImagePlaceHolderService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
+    FileModule,
     // HttpModule,
   ],
 })
