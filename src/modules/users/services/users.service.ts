@@ -10,6 +10,7 @@ import { AppError } from 'src/exceptions/app.exception';
 import { FileUtil } from 'src/utils/file.util';
 import { ClsService } from 'nestjs-cls';
 import { ImagePlaceHolderService } from 'src/commons/services/image-placeholder.service';
+import { type } from 'src/types/commons.enum';
 
 @Injectable()
 export class UsersService {
@@ -143,21 +144,47 @@ export class UsersService {
             );
           }
 
-          // Handle file upload if provided
-          if (file) {
-            const avatar = await this.fileService.uploadFile(file, fileName);
-            createUserDto.avatar = this.imageService.generateImage(
-              avatar,
-              createUserDto.username,
-            );
-          }
+          const placeholderImage = this.imageService.generateImage(
+            createUserDto.username,
+          );
 
-          // Destructure the DTO to separate the password from the rest of the data.
-          // The `repassword` field is not present here because the Zod schema doesn't include it in its output.
-          const { password, ...userData } = createUserDto;
+          // Handle file upload if provided
+          // if (file) {
+          //   const avatar = await this.fileService.uploadFile(file, fileName);
+          //   createUserDto.avatar =
+          //     avatar &&
+          //     avatar.type === type.Upload &&
+          //     avatar.status === HttpStatus.CREATED
+          //       ? avatar.url
+          //       : placeholderImage;
+          // } else {
+          //   createUserDto.avatar =
+          //     this.imageService.generateImage(placeholderImage);
+          // }
+
+          createUserDto.avatar = file
+            ? await this.fileService
+                .uploadFile(file, fileName)
+                .then((avatar) =>
+                  avatar &&
+                  avatar.type === type.Upload &&
+                  avatar.status === HttpStatus.CREATED
+                    ? avatar.url
+                    : placeholderImage,
+                )
+            : this.imageService.generateImage(placeholderImage);
+
+          // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+          const userData = createUserDto;
+          // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+          delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
 
           // Use injected PasswordUtils service to hash the password.
-          const hashedPassword = await this.passwordUtils.hash(password);
+          const hashedPassword = await this.passwordUtils.hash(
+            userData.password,
+          );
+
+          this.logger.debug('User data:', userData);
 
           // Create user with more detailed error tracking
           return tx.user.create({
@@ -181,7 +208,7 @@ export class UsersService {
         },
         {
           maxWait: 5000, // default: 2000
-          timeout: 10000, // default: 5000
+          timeout: 25000, // default: 5000
         },
       );
 

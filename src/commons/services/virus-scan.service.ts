@@ -1,10 +1,8 @@
-// src/services/virus-scan.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 import FormData from 'form-data';
-// import { Blob } from 'buffer'; // Node.js 18+ has Blob
 import {
   VirusTotalApiErrorResponse,
   VirusTotalReport,
@@ -42,17 +40,30 @@ export class VirusScanService {
         return this.isFileClean(report);
       }
 
-      // 3. Upload for analysis if not found
+      if (report) {
+        this.logger.debug(`Found existing report for hash: ${fileHash}`);
+        const isClean = this.isFileClean(report);
+        this.hashCache.set(fileHash, isClean);
+        return isClean;
+      }
+
+      // 3. If no report, upload the file for analysis
+      this.logger.debug(`No existing report. Uploading file for analysis...`);
       const analysisId = await this.uploadFile(buffer);
       const result = await this.waitForAnalysis(analysisId);
       this.hashCache.set(fileHash, result);
       return result;
     } catch (error: unknown) {
-      this.handleVirusTotalError(error);
-      // const errorMessage =
-      //   error instanceof Error ? error.message : 'Unknown error';
-      // this.logger.error(`VirusTotal scan failed: ${errorMessage}`);
-      // throw error;
+      // this.handleVirusTotalError(error);
+      // Any other error from the sub-methods will be caught here and re-thrown
+      // as a standard application error.
+      this.logger.error(
+        'An unrecoverable error occurred during virus scan.',
+        error,
+      );
+      throw new BadRequestException(
+        'Could not complete file scan due to an external service error.',
+      );
     }
   }
 
@@ -65,23 +76,30 @@ export class VirusScanService {
   ): Promise<VirusTotalReport | null> {
     try {
       await this.checkRateLimit();
-      // const response = await firstValueFrom<VirusTotalFileReport>(
-      //   this.httpService.get(`${this.apiUrl}/files/${fileHash}`, {
-      //     headers: { 'x-apikey': this.apiKey },
-      //   }),
-      // );
       const response = await firstValueFrom(
         this.httpService.get<VirusTotalReport>(
           `${this.apiUrl}/files/${fileHash}`,
-          {
-            headers: { 'x-apikey': this.apiKey },
-          },
+          { headers: { 'x-apikey': this.apiKey } },
         ),
       );
       return response.data;
     } catch (error: unknown) {
-      // Handle specific error cases
+      // **THE FIX**: Specifically check for a 404 Not Found error.
+      // This is an expected outcome, not a system failure.
+      if (
+        this.isAxiosError(error) &&
+        error.response?.status === statusCode.NOT_FOUND
+      ) {
+        this.logger.warn(
+          `File hash ${fileHash} not found on VirusTotal. This is expected for new files.`,
+        );
+        return null; // Return null to signal that no report was found.
+      }
+
+      // For all other errors (401, 429, 500, etc.), we treat them as
+      // unrecoverable failures and throw them to be handled by the main try-catch block.
       this.handleVirusTotalError(error);
+
       // const errMsg = this.getErrorMessage(error);
       // if (
       //   error instanceof AxiosError &&
@@ -233,7 +251,7 @@ export class VirusScanService {
     // }
 
     // Type guard to check if the report is an error response
-    const stats = !this.isApiErrorResponse
+    const stats = !this.isApiErrorResponse(report)
       ? this.isFileReportResponse(report)
         ? report.data.attributes.last_analysis_stats
         : this.isUrlAnalysisResponse(report)
@@ -257,6 +275,7 @@ export class VirusScanService {
   ): report is VirusTotalApiErrorResponse {
     // return (report as VirusTotalApiErrorResponse).error !== undefined;
     // A more robust check:
+    // this.logger.debug('virus total response', report);
     return (
       typeof (report as VirusTotalApiErrorResponse).error === 'object' &&
       (report as VirusTotalApiErrorResponse).error !== null &&
@@ -371,7 +390,7 @@ export class VirusScanService {
 
   // Centralized error handler for VirusTotal API errors
   private handleVirusTotalError(error: unknown): never {
-    this.logger.error('VirusTotal operation failed. Details:', error);
+    // this.logger.error('VirusTotal operation failed. Details:', error);
 
     if (this.isAxiosError(error)) {
       // Check if it's an AxiosError first

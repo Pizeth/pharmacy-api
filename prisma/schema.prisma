@@ -160,7 +160,7 @@ model User {
   username        String            @unique @db.VarChar(50)
   email           String            @unique @db.VarChar(50) 
   password        String        
-  avatar          String?           @db.VarChar(255)
+  avatar          String?           @db.VarChar(2500)
   profile         Profile?  
   roleId          Int               @map("role_id")
   // Relation field that links to the Role model.
@@ -183,7 +183,8 @@ model User {
   // Security Flags
   isBan           Boolean           @default(false) @map("is_ban")
   enabledFlag     Boolean           @default(true) @map("enabled_flag")
-  isLocked        Boolean           @default(false) @map("is_locked")  
+  isLocked        Boolean           @default(false) @map("is_locked")
+  isVerified      Boolean           @default(false) @map("is_verified")  
 
   // Audit and Tracking
   deletedAt       DateTime?         @map("deleted_at")

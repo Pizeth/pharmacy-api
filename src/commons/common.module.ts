@@ -5,12 +5,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
-import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
 import { FileModule } from 'src/modules/files/file.module';
 import { ImagePlaceHolderService } from './services/image-placeholder.service';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 @Module({
   imports: [
@@ -41,6 +42,10 @@ import { ImagePlaceHolderService } from './services/image-placeholder.service';
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_PIPE,
+      useClass: ZodValidationPipe,
     },
   ],
   exports: [

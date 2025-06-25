@@ -8,9 +8,9 @@
 // import { initials } from '@dicebear/collection';
 import { createAvatar, Style } from '@dicebear/core';
 import * as collections from '@dicebear/collection';
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { DiceBearStyle, type } from 'src/types/commons.enum';
-import { R2UploadResponse } from 'src/types/types';
+import { Injectable, Logger } from '@nestjs/common';
+import { DiceBearStyle } from 'src/types/commons.enum';
+import { log } from 'console';
 // import type { Style } from '@dicebear/core';
 
 // Note: We do NOT import from '@dicebear/core' at the top level,
@@ -38,7 +38,7 @@ export class ImagePlaceHolderService {
    * @returns A string containing the full SVG markup for the avatar.
    */
   generateImage(
-    avatar: R2UploadResponse,
+    // avatar: R2UploadResponse,
     seed: string,
     style: DiceBearStyle = DiceBearStyle.Initials,
   ): string {
@@ -59,25 +59,44 @@ export class ImagePlaceHolderService {
       // const selectedCollection = this.selectCollection(style, collections);
       const selectedCollection = this.selectCollection(style);
 
-      return avatar &&
-        avatar.type === type.Upload &&
-        avatar.status === HttpStatus.CREATED
-        ? avatar.url
-        : createAvatar(selectedCollection, {
-            seed,
-            radius: 50,
-            backgroundColor: [
-              'ffb300',
-              'd81b60',
-              'e53935',
-              'f4511e',
-              'fb8c00',
-              'fdd835',
-            ],
-            backgroundType: ['gradientLinear'],
-            randomizeIds: true,
-            // You can add other DiceBear options here
-          }).toDataUri();
+      const avatar = createAvatar(selectedCollection, {
+        seed,
+        radius: 50,
+        backgroundColor: [
+          'ffb300',
+          'd81b60',
+          'e53935',
+          'f4511e',
+          'fb8c00',
+          'fdd835',
+        ],
+        backgroundType: ['gradientLinear'],
+        randomizeIds: true,
+        // You can add other DiceBear options here
+      }).toDataUri();
+
+      this.logger.debug('Generated avatar:', avatar);
+      return avatar;
+
+      // return avatar &&
+      //   avatar.type === type.Upload &&
+      //   avatar.status === HttpStatus.CREATED
+      //   ? avatar.url
+      //   : createAvatar(selectedCollection, {
+      //       seed,
+      //       radius: 50,
+      //       backgroundColor: [
+      //         'ffb300',
+      //         'd81b60',
+      //         'e53935',
+      //         'f4511e',
+      //         'fb8c00',
+      //         'fdd835',
+      //       ],
+      //       backgroundType: ['gradientLinear'],
+      //       randomizeIds: true,
+      //       // You can add other DiceBear options here
+      //     }).toDataUri();
     } catch (error) {
       this.logger.error('Failed to generate DiceBear avatar', error);
       // Return a fallback or re-throw the error depending on your needs.

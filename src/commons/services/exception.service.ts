@@ -29,7 +29,7 @@ export class ExceptionService {
 
   // Centralized error logging method
   logError(cls: ClsService, exception: unknown) {
-    this.logger.error('Logging error:', exception);
+    // this.logger.error('Logging error:', exception);
     const parser = new UAParser(cls.get('userAgent'));
     const { statusCode, message, errors } =
       this.parseUnknownException(exception);
@@ -48,8 +48,9 @@ export class ExceptionService {
         device: parser.getDevice(),
       },
       // Include stack trace in development for easier debugging
-      ...(this.config.get<string>('NODE_ENV') === 'development' && {
-        stack: (errors as Error)?.stack,
+      ...(this.config.get<string>('NODE_ENV')?.toLowerCase() ===
+        'development' && {
+        stack: errors instanceof Error ? errors.stack : errors,
       }),
     };
 

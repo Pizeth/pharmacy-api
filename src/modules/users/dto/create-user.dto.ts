@@ -1,11 +1,13 @@
 // -----------------------------------------------------------------
-// 2. Define your DTO using Zod and `createZodDto`
+// Define your DTO using Zod and `createZodDto`
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 const usernameRegex = /^(?=.{5,50}$)[a-zA-Z](?!.*([_.])\1)[a-zA-Z0-9_.]*$/;
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/;
 
 // Define Zod schema the validation schema
 // You can add .openapi() to provide Swagger-specific metadata.
@@ -31,18 +33,10 @@ export const createUserSchema = z
     password: z
       .string()
       .min(10, 'Password must be at least 10 characters long.')
-      .refine(
-        (password) => {
-          // Otherwise, apply the original regex
-          return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/.test(
-            password,
-          );
-        },
-        {
-          message:
-            'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
-        },
-      )
+      .refine((password) => passwordRegex.test(password), {
+        message:
+          'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
+      })
       .openapi({
         description:
           'User password (at least 10 characters, including uppercase, lowercase, number, and special character.).',
@@ -53,8 +47,8 @@ export const createUserSchema = z
       .string()
       .min(10, 'Password must be at least 10 characters long.'),
     avatar: z.string().nullable().optional(),
-    roleId: z
-      .number()
+    roleId: z.coerce
+      .number({ invalid_type_error: 'roleId must be a number' })
       .int()
       .positive('roleId must be a positive integer.')
       .openapi({

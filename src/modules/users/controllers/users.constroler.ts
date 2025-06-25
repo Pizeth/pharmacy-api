@@ -5,6 +5,7 @@ import {
   Post,
   Body,
   Logger,
+  UseInterceptors,
   //   Put,
   //   Delete,
 } from '@nestjs/common';
@@ -12,8 +13,11 @@ import {
 import { Prisma, User, User as UserModel } from '@prisma/client';
 import { PaginatedDataResult } from 'src/types/types';
 import { UsersService } from '../services/users.service';
-import { ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto } from '../dto/create-user.dto';
+import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
+import { CreateUserDto, createUserSchema } from '../dto/create-user.dto';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { ValidateFile } from 'src/decorators/validate-upload.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
@@ -69,18 +73,65 @@ export class UserController {
   // The global pipe handles validation automatically.
   // Swagger knows about CreateUserDto because it's a class with generated decorators.
   @Post()
+  // Tell Swagger to expect a multipart/form-data request
+  @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({
     description: 'The user has been successfully created.',
   })
-  async create(@Body() createUserDto: CreateUserDto) {
+  @UseInterceptors(FileInterceptor('avatar'))
+  async create(
+    @Body(new ZodValidationPipe(createUserSchema))
+    createUserDto: CreateUserDto,
+    // Your clean, custom @ValidateFile decorator is now applied to the parameter.
+    @ValidateFile({
+      fileIsRequired: false, // Example: make the avatar optional
+      maxSize: 5 * 1024 * 1024, // 5MB
+      allowedMimeTypes: ['image/jpeg', 'image/png'],
+    })
+    file?: Express.Multer.File, // The type comes from `@types/multer`
+  ) {
     // The DTO is validated and fully typed, just like before.
     this.logger.debug(createUserDto);
-    const result = await this.service.create(createUserDto);
-    return {
-      message: '👤User ${result.username} created successfully!✔️',
-      user: result,
-    };
+    try {
+      const result = await this.service.create(createUserDto, file);
+      return {
+        message: '👤User ${result.username} created successfully!✔️',
+        user: result,
+      };
+    } catch (error: unknown) {
+      this.logger.error('Error creating user:', error);
+      // Handle the error appropriately, e.g., throw a custom exception
+      // throw error; // Or return a custom error response
+    }
   }
+
+  // @Post('with-avatar')
+  // @ApiConsumes('multipart/form-data')
+  // // The @UseInterceptors decorator is applied to the method, as required.
+  // @UseInterceptors(FileInterceptor('avatar'))
+  // async createUserWithAvatar(
+  //   // The @Body() decorator is now clean. The global pipe will handle validation.
+  //   @Body() createUserDto: CreateUserWithAvatarDto,
+
+  //   // Your clean, custom @ValidateFile decorator is applied to the parameter.
+  //   @ValidateFile({
+  //     fileIsRequired: false, // Example: make the avatar optional
+  //     maxSize: 5 * 1024 * 1024, // 5MB
+  //     allowedMimeTypes: ['image/jpeg', 'image/png'],
+  //   })
+  //   avatarFile?: Express.Multer.File,
+  // ) {
+  //   console.log('Validated Text Data:', createUserDto);
+  //   console.log('Uploaded File Info:', avatarFile);
+
+  //   // Your service logic here...
+
+  //   return {
+  //     message: 'User and avatar received successfully!',
+  //     userData: createUserDto,
+  //     fileName: avatarFile?.originalname,
+  //   };
+  // }
 
   @Get(':id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
