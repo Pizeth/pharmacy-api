@@ -39,9 +39,10 @@ async function bootstrap() {
 
   // 2. Setup Swagger as usual
   const config = new DocumentBuilder()
-    .setTitle('My API')
-    .setDescription('API documentation for my awesome app')
+    .setTitle('Pharmacy API')
+    .setDescription('API documentation for Chesda Pharmacy app')
     .setVersion('1.0')
+    .addTag('pharmacy')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

@@ -42,11 +42,7 @@ export class ExceptionService {
       method: cls.get<string>('method'),
       ip: cls.get<string>('ip'), // <-- Get IP from CLS context
       message,
-      userAgent: {
-        browser: parser.getBrowser(),
-        os: parser.getOS(),
-        device: parser.getDevice(),
-      },
+      userAgent: parser.getResult(),
       // Include stack trace in development for easier debugging
       ...(this.config.get<string>('NODE_ENV')?.toLowerCase() ===
         'development' && {

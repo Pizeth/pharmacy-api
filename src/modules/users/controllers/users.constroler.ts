@@ -6,7 +6,6 @@ import {
   Body,
   Logger,
   UseInterceptors,
-  HttpStatus,
   //   Put,
   //   Delete,
 } from '@nestjs/common';
@@ -15,11 +14,9 @@ import { Prisma, User, User as UserModel } from '@prisma/client';
 import { PaginatedDataResult } from 'src/types/types';
 import { UsersService } from '../services/users.service';
 import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
-import { CreateUserDto, createUserSchema } from '../dto/create-user.dto';
-import { ZodValidationPipe } from 'nestjs-zod';
+import { CreateUserDto } from '../dto/create-user.dto';
 import { ValidateFile } from 'src/decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { AppError } from 'src/exceptions/app.exception';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
@@ -82,13 +79,13 @@ export class UserController {
   })
   @UseInterceptors(FileInterceptor('avatar'))
   async create(
-    @Body(new ZodValidationPipe(createUserSchema))
+    @Body()
     createUserDto: CreateUserDto,
     // Your clean, custom @ValidateFile decorator is now applied to the parameter.
     @ValidateFile({
       fileIsRequired: false, // Example: make the avatar optional
-      maxSize: 5 * 1024 * 1024, // 5MB
-      allowedMimeTypes: ['image/jpeg', 'image/png'],
+      // maxSize: 5 * 1024 * 1024, // 5MB
+      // allowedMimeTypes: ['image/jpeg', 'image/png'],
     })
     file?: Express.Multer.File, // The type comes from `@types/multer`
   ) {
