@@ -6,6 +6,7 @@ import {
   Body,
   Logger,
   UseInterceptors,
+  HttpStatus,
   //   Put,
   //   Delete,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { CreateUserDto, createUserSchema } from '../dto/create-user.dto';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidateFile } from 'src/decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { AppError } from 'src/exceptions/app.exception';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
@@ -101,7 +103,15 @@ export class UserController {
     } catch (error: unknown) {
       this.logger.error('Error creating user:', error);
       // Handle the error appropriately, e.g., throw a custom exception
-      // throw error; // Or return a custom error response
+      // if (error instanceof Error) {
+      //   throw new AppError(
+      //     error.message,
+      //     HttpStatus.INTERNAL_SERVER_ERROR,
+      //     error.name,
+      //     error.stack,
+      //   );
+      // }
+      throw error; // Re-throw if it's not an instance of Error
     }
   }
 

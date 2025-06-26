@@ -159,6 +159,8 @@ export class VirusScanService {
           'Unknown 2xx response structure after file upload:',
           result,
         );
+        this.logger.debug(result);
+        // If we reach here, the response is not in the expected format.
         throw new Error(
           'Unknown successful response structure after file upload.',
         );

@@ -172,7 +172,7 @@ export class UsersService {
                     ? avatar.url
                     : placeholderImage,
                 )
-            : this.imageService.generateImage(placeholderImage);
+            : placeholderImage;
 
           // After validation succeeds, transform the object by creating a mutable copy of the validated data.
           const userData = createUserDto;
@@ -270,6 +270,7 @@ export class UsersService {
       // );
     } catch (error: unknown) {
       this.logger.error('jom yeak error!', error);
+      this.logger.debug('File name:', fileName);
       if (fileName) {
         try {
           const deleteResponse = await this.fileService.deleteFile(fileName);
