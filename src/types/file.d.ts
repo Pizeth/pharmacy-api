@@ -4,3 +4,8 @@ export interface FileValidationOptions {
   allowedMimeTypes?: string[];
   fileIsRequired?: boolean;
 }
+
+export interface AvatarResult {
+  contentType: string;
+  body: string | Buffer;
+}

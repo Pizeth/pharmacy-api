@@ -10,7 +10,7 @@ import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
 import { FileModule } from 'src/modules/files/file.module';
-import { ImagePlaceHolderService } from './services/image-placeholder.service';
+import { ImagePlaceHolderService } from '../modules/images/services/images.service';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 @Module({

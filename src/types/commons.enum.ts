@@ -100,3 +100,13 @@ export enum DiceBearStyle {
   Shapes = 'shapes',
   Thumbs = 'thumbs',
 }
+
+export enum ImageFormat {
+  SVG = 'svg',
+  PNG = 'png',
+  JPG = 'jpg',
+  JPEG = 'jpeg',
+  WEBP = 'webp',
+  AVIF = 'avif',
+  JSON = 'json',
+}

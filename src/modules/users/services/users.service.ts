@@ -9,7 +9,7 @@ import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
 import { AppError } from 'src/exceptions/app.exception';
 import { FileUtil } from 'src/utils/file.util';
 import { ClsService } from 'nestjs-cls';
-import { ImagePlaceHolderService } from 'src/commons/services/image-placeholder.service';
+import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
 import { type } from 'src/types/commons.enum';
 
 @Injectable()
