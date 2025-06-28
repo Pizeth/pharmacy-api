@@ -5,11 +5,13 @@
 // This DTO validates all the optional query parameters you can pass to the API.
 
 import { createZodDto } from 'nestjs-zod';
+import { AvailableFonts } from 'src/types/commons.enum';
 import { z } from 'zod';
 
 export const imageOptionsSchema = z
   .object({
     // General options
+    seed: z.string().optional(),
     flip: z.coerce.boolean().optional(),
     rotate: z.coerce.number().int().min(0).max(360).optional(),
     scale: z.coerce.number().int().min(0).max(200).optional(),
@@ -20,14 +22,20 @@ export const imageOptionsSchema = z
       .string()
       .regex(/^[a-fA-F0-9]{3,8}$/)
       .optional(),
-    backgroundType: z.enum(['solid', 'gradientLinear', 'random']).optional(),
+    backgroundType: z.enum(['solid', 'gradientLinear']).optional(),
     backgroundRotation: z.coerce.number().int().min(0).max(360).optional(),
-
+    translateX: z.coerce.number().int().optional(),
+    translateY: z.coerce.number().int().optional(),
+    clip: z.coerce.boolean().default(false).optional(),
+    randomizeIds: z.coerce.boolean().default(false).optional(),
     // Font options specifically for the 'initials' style
-    fontFamily: z.string().optional(),
+    fontFamily: z.nativeEnum(AvailableFonts).optional(),
     fontSize: z.coerce.number().int().min(1).max(100).optional(),
     fontWeight: z.coerce.number().int().min(100).max(900).optional(),
     bold: z.coerce.boolean().optional(),
+
+    // Metadata options
+    includeExif: z.coerce.boolean().default(false).optional(),
 
     // Add style-specific options here if needed
     // For example, for the 'adventurer' style:

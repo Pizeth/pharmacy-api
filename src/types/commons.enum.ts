@@ -110,3 +110,11 @@ export enum ImageFormat {
   AVIF = 'avif',
   JSON = 'json',
 }
+
+// **NEW**: Create an enum for your available bundled fonts.
+// The key should match what you want users to type in the query param.
+// The value should match the filename in your `src/assets/fonts` directory.
+export enum AvailableFonts {
+  OpenSans = 'OpenSans-Regular.ttf',
+  RobotoBold = 'Roboto-Bold.ttf',
+}

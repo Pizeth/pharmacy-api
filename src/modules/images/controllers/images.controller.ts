@@ -10,29 +10,37 @@ import {
   Param,
   Query,
   Res,
-  Header,
   ParseEnumPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ImagesService } from '../services/images.service';
 import { ImageOptionsDto } from '../dto/image-options.dto';
-import { DiceBearStyle } from 'src/types/commons.enum';
+import {
+  AvailableFonts,
+  DiceBearStyle,
+  ImageFormat,
+} from 'src/types/commons.enum';
 
 @ApiTags('Images')
 @Controller('images')
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) {}
 
-  // This route mirrors the official DiceBear API structure: /:style/:seed.svg
-  @Get(':style/:seed.svg')
-  @Header('Content-Type', 'image/svg+xml')
-  @Header('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
+  // This route mirrors the official DiceBear API structure: /:style/:fomart
+  @Get(':style/:format?')
   // Swagger Documentation
   @ApiParam({
     name: 'style',
     enum: DiceBearStyle,
     description: 'The avatar style to use.',
+  })
+  @ApiParam({
+    name: 'format',
+    enum: ImageFormat,
+    required: false,
+    description: 'The desired file format, Defaults to svg',
+    allowEmptyValue: true,
   })
   @ApiParam({
     name: 'seed',
@@ -51,18 +59,39 @@ export class ImagesController {
     required: false,
     description: 'Hex color without #.',
   })
+  @ApiQuery({
+    name: 'fontWeight',
+    type: 'number',
+    required: false,
+    description: 'Only for "initials" style (100-900).',
+  })
+  @ApiQuery({
+    name: 'fontFamily',
+    enum: AvailableFonts,
+    required: false,
+    description: 'Custom font for "initials" style.',
+  })
   // Use @Res({ passthrough: true }) to send a raw response body
-  getAvatar(
+  async getAvatar(
     // Use the built-in ParseEnumPipe with our new enum. This is clean and type-safe.
     @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
-    @Param('seed') seed: string,
+    @Param('format', new ParseEnumPipe(ImageFormat, { optional: true }))
+    format: ImageFormat = ImageFormat.SVG,
     // The global ZodValidationPipe will validate these options
-    @Query() options: ImageOptionsDto,
+    @Query()
+    options: ImageOptionsDto,
     @Res({ passthrough: true }) res: Response,
-  ): string {
-    const svg = this.imagesService.generateAvatar(style, seed, options);
+  ) {
+    // const svg = this.imagesService.generateAvatar(style, seed, options);
+    const { contentType, body } = await this.imagesService.generateAvatar(
+      style,
+      options,
+      format,
+    );
     // Setting Last-Modified header is also good practice for caching
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
     res.setHeader('Last-Modified', new Date().toUTCString());
-    return svg;
+    res.send(body);
   }
 }

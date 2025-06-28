@@ -9,8 +9,9 @@ import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
 import { AppError } from 'src/exceptions/app.exception';
 import { FileUtil } from 'src/utils/file.util';
 import { ClsService } from 'nestjs-cls';
-import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
-import { type } from 'src/types/commons.enum';
+// import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
+import { DiceBearStyle, type } from 'src/types/commons.enum';
+import { ImagesService } from 'src/modules/images/services/images.service';
 
 @Injectable()
 export class UsersService {
@@ -20,7 +21,7 @@ export class UsersService {
     private readonly dbHelper: DBHelper,
     private readonly passwordUtils: PasswordUtils, // Inject your service here
     private readonly fileService: R2Service, // Assuming you have a file service for handling files
-    private readonly imageService: ImagePlaceHolderService,
+    private readonly imageService: ImagesService,
     private readonly cls: ClsService,
   ) {}
 
@@ -144,10 +145,6 @@ export class UsersService {
             );
           }
 
-          const placeholderImage = this.imageService.generateImage(
-            createUserDto.username,
-          );
-
           // Handle file upload if provided
           // if (file) {
           //   const avatar = await this.fileService.uploadFile(file, fileName);
@@ -161,6 +158,11 @@ export class UsersService {
           //   createUserDto.avatar =
           //     this.imageService.generateImage(placeholderImage);
           // }
+
+          const placeholderImage = this.imageService.getUrl(
+            DiceBearStyle.Initials,
+            createUserDto.username,
+          );
 
           createUserDto.avatar = file
             ? await this.fileService

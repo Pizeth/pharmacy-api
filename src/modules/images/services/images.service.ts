@@ -155,22 +155,37 @@
 // This service encapsulates the logic for generating avatars
 // It is now part of the `ImagesModule`.
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Style } from '@dicebear/core';
 import { createAvatar } from '@dicebear/core';
 import * as collections from '@dicebear/collection';
 import { ImageOptionsDto } from '../dto/image-options.dto';
-import { DiceBearStyle, ImageFormat } from 'src/types/commons.enum';
+import {
+  AvailableFonts,
+  DiceBearStyle,
+  ImageFormat,
+} from 'src/types/commons.enum';
 import type { AvatarResult } from 'src/types/file';
-import { Avatar, toPng } from '@dicebear/converter';
+import {
+  Avatar,
+  toAvif,
+  toJpeg,
+  toPng,
+  toWebp,
+  Options as ConverterOptions,
+} from '@dicebear/converter';
+import * as fs from 'fs';
+import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class ImagesService {
+export class ImagesService implements OnModuleInit {
   private readonly logger = new Logger(ImagesService.name);
   // This property will hold all available style collections except the default export.
   private readonly availableStyles: Record<string, Style<any>>;
+  private readonly loadedFontPaths = new Map<AvailableFonts, string>(); // <-- Cache for loaded fonts
 
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     // Create a mutable copy of the imported collections object.
     const styles = { ...collections };
 
@@ -179,6 +194,68 @@ export class ImagesService {
 
     // Assign the cleaned object to the class property for use in other methods.
     this.availableStyles = styles;
+  }
+
+  // Use the onModuleInit lifecycle hook to load and verify font paths at startup.
+  onModuleInit() {
+    this.logger.log('Verifying custom font paths...');
+    for (const font of Object.values(AvailableFonts)) {
+      try {
+        // Construct path to the font file inside the `dist` directory.
+        const fontPath = path.join(__dirname, '..', 'assets', 'fonts', font);
+        // Check that the file actually exists before caching its path.
+        if (fs.existsSync(fontPath)) {
+          this.loadedFontPaths.set(font, fontPath);
+          this.logger.log(`Verified font path: ${font}`);
+        } else {
+          this.logger.error(
+            `Font file not found: ${fontPath}. It will not be available.`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(`Failed to verify font path for: ${font}`, error);
+      }
+    }
+  }
+
+  /**
+   * Generates a URL for retrieving an image with the specified style, seed, options, and format.
+   *
+   * @param style - The DiceBear style to use for the image (e.g., 'avataaars', 'bottts').
+   * @param seed - The seed value to generate a unique image.
+   * @param options - Optional image options, excluding the seed. These options are serialized as query parameters.
+   * @param format - The desired image format (e.g., SVG, PNG). Defaults to SVG.
+   * @returns The fully constructed URL as a string, including all path segments and query parameters.
+   */
+  getUrl(
+    style: DiceBearStyle,
+    seed: string,
+    options?: Omit<Partial<ImageOptionsDto>, 'seed'>, // Options don't need to include seed
+    format: ImageFormat = ImageFormat.SVG,
+  ): string {
+    const baseUrl = this.configService.get<string>('APP_BASE_URL');
+    const apiPrefix = this.configService.get<string>('API_GLOBAL_PREFIX', '');
+
+    // The format is now part of the path, just like the official API.
+    const urlPath = path.join(apiPrefix, 'images', style, format.toString());
+
+    const fullUrl = new URL(urlPath, baseUrl);
+    const queryParams = new URLSearchParams({ seed }); // Start with the seed
+
+    if (options) {
+      for (const [key, value] of Object.entries(options)) {
+        if (value !== undefined) {
+          if (Array.isArray(value)) {
+            value.forEach((v) => queryParams.append(key, String(v)));
+          } else {
+            queryParams.append(key, String(value));
+          }
+        }
+      }
+    }
+
+    fullUrl.search = queryParams.toString();
+    return fullUrl.toString();
   }
 
   /**
@@ -194,10 +271,10 @@ export class ImagesService {
    */
   async generateAvatar(
     style: DiceBearStyle,
-    seed: string,
     options: ImageOptionsDto,
     format: ImageFormat = ImageFormat.SVG, // Default to SVG format
   ): Promise<AvatarResult> {
+    // const { seed, ...styleOptions } = options; // Separate seed from other options
     try {
       if (format === ImageFormat.JSON) {
         const selectedCollection = this.selectCollection(style);
@@ -209,45 +286,43 @@ export class ImagesService {
 
       // The `createAvatar` function returns an object with a `toString()` method,
       // which is what the converter functions expect.
-      const avatarObject = this.createAvatarObject(style, seed, options);
+      const avatarObject = this.createAvatarObject(style, options);
       this.logger.debug('Generated avatar:', avatarObject.toString());
 
       if (format === ImageFormat.SVG) {
         return { contentType: 'image/svg+xml', body: avatarObject.toString() };
       }
 
-      let contentType: string;
-      let arrayBuffer: ArrayBuffer;
-
-      // Use the official @dicebear/converter functions. They take the avatar object.
-      // The `options` parameter for these functions is for fonts/EXIF, not size.
-      switch (format) {
-        case ImageFormat.PNG:
-          contentType = 'image/png';
-          arrayBuffer = await toPng(avatarObject).toArrayBuffer();
-          break;
-        case ImageFormat.JPG:
-        case ImageFormat.JPEG:
-          contentType = 'image/jpeg';
-          arrayBuffer = await (await toJpeg(avatarObject)).toArrayBuffer();
-          break;
-        case ImageFormat.WEBP:
-          contentType = 'image/webp';
-          arrayBuffer = await (await toWebp(avatarObject)).toArrayBuffer();
-          break;
-        case ImageFormat.AVIF:
-          contentType = 'image/avif';
-          arrayBuffer = await (await toAvif(avatarObject)).toArrayBuffer();
-          break;
-        default:
-          contentType = 'image/svg+xml';
-          return { contentType, body: avatarObject.toString() };
+      const converterOptions: ConverterOptions = {};
+      // If a custom fontFamily was specified, find its file path.
+      if (options.fontFamily) {
+        const fontPath = this.loadedFontPaths.get(options.fontFamily);
+        if (fontPath) {
+          // Pass the file path string, which is what the converter expects.
+          converterOptions.fonts = [fontPath];
+        } else {
+          this.logger.warn(
+            `Custom font "${options.fontFamily}" requested but not found/loaded. The converter will use its default (Noto Sans).`,
+          );
+        }
       }
 
-      // Convert the ArrayBuffer from the converter into a Node.js Buffer for the response.
-      const body = Buffer.from(arrayBuffer);
+      converterOptions.includeExif = options.includeExif; // Default value is auto set to Disable EXIF data for simplicity
 
-      return { contentType, body };
+      // If no fontFamily is specified, converterOptions.fonts will be empty,
+      // and @dicebear/converter will automatically use the default Google Font (Noto Sans).
+
+      const { contentType, body } = await this.formatConverter(
+        avatarObject,
+        format,
+        converterOptions,
+      );
+
+      return {
+        contentType,
+        // Convert the ArrayBuffer from the converter into a Node.js Buffer for the response.
+        body: Buffer.from(body),
+      };
     } catch (error) {
       this.logger.error(
         `Failed to generate DiceBear avatar with style "${style}"`,
@@ -262,32 +337,43 @@ export class ImagesService {
     }
   }
 
+  /**
+   * Converts an avatar image to the specified image format and returns the result.
+   *
+   * Uses the official `@dicebear/converter` functions to convert the avatar object
+   * to various image formats such as PNG, JPEG, WEBP, AVIF, or SVG.
+   *
+   * @param avatar - The avatar object to be converted.
+   * @param format - The desired image format for the output.
+   * @returns A promise that resolves to an `AvatarResult` containing the content type and image data.
+   */
   private async formatConverter(
     avatar: Avatar,
     format: ImageFormat,
+    options?: ConverterOptions,
   ): Promise<AvatarResult> {
     let contentType: string;
-    let arrayBuffer: ArrayBuffer;
+    let arrayBuffer: ArrayBufferLike;
 
     // Use the official @dicebear/converter functions. They take the avatar object.
     // The `options` parameter for these functions is for fonts/EXIF, not size.
     switch (format) {
       case ImageFormat.PNG:
         contentType = 'image/png';
-        arrayBuffer = await toPng(avatar).toArrayBuffer();
+        arrayBuffer = await toPng(avatar, options).toArrayBuffer();
         return { contentType, body: Buffer.from(arrayBuffer) };
       case ImageFormat.JPG:
       case ImageFormat.JPEG:
         contentType = 'image/jpeg';
-        arrayBuffer = await (await toJpeg(avatar)).toArrayBuffer();
+        arrayBuffer = await toJpeg(avatar, options).toArrayBuffer();
         return { contentType, body: Buffer.from(arrayBuffer) };
       case ImageFormat.WEBP:
         contentType = 'image/webp';
-        arrayBuffer = await (await toWebp(avatar)).toArrayBuffer();
+        arrayBuffer = await toWebp(avatar, options).toArrayBuffer();
         return { contentType, body: Buffer.from(arrayBuffer) };
       case ImageFormat.AVIF:
         contentType = 'image/avif';
-        arrayBuffer = await (await toAvif(avatar)).toArrayBuffer();
+        arrayBuffer = await toAvif(avatar, options).toArrayBuffer();
         return { contentType, body: Buffer.from(arrayBuffer) };
       default:
         contentType = 'image/svg+xml';
@@ -304,16 +390,44 @@ export class ImagesService {
    * @param options A key-value object of DiceBear options.
    * @returns A string containing the full SVG markup for the avatar.
    */
-  private createAvatarObject(
+  private createAvatarObject(style: DiceBearStyle, options: ImageOptionsDto) {
+    const selectedCollection = this.selectCollection(style);
+
+    // Create a mutable copy of the options object.
+    const styleOptions = { ...options };
+
+    // Safely delete the 'fontFamily' and includeExif key from our copy,
+    // so it's not passed directly to createAvatar,
+    // as it's a converter option, not a style option.
+    delete (styleOptions as { fontFamily?: unknown }).fontFamily;
+    delete (styleOptions as { includeExif?: unknown }).includeExif;
+    return createAvatar(selectedCollection, {
+      ...styleOptions,
+    });
+  }
+
+  /**
+   * Constructs a URL that points to our local DiceBear API endpoint.
+   * This is the method your other services should call.
+   * @param style The DiceBear style.
+   * @param seed The unique seed for the avatar.
+   * @returns A full URL string to the generated avatar.
+   */
+  getAvatarUrl(
     style: DiceBearStyle,
     seed: string,
     options: ImageOptionsDto,
-  ) {
-    const selectedCollection = this.selectCollection(style);
-    return createAvatar(selectedCollection, {
-      seed,
-      ...options,
-    });
+  ): string {
+    const baseUrl = this.configService.get<string>('APP_BASE_URL');
+    const apiPrefix = this.configService.get<string>('API_GLOBAL_PREFIX', ''); // Default to empty string
+
+    // Use encodeURIComponent to safely handle special characters in the seed.
+    const safeSeed = encodeURIComponent(seed);
+
+    // Construct the path, including the global prefix if it exists.
+    const urlPath = path.join(apiPrefix, 'images', style, `${safeSeed}.svg`);
+
+    return `${baseUrl}/${urlPath}`;
   }
 
   private selectCollection(style: DiceBearStyle): Style<any> {
