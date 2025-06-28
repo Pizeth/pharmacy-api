@@ -162,7 +162,7 @@ import * as collections from '@dicebear/collection';
 import { ImageOptionsDto } from '../dto/image-options.dto';
 import { DiceBearStyle, ImageFormat } from 'src/types/commons.enum';
 import type { AvatarResult } from 'src/types/file';
-import { toPng } from '@dicebear/converter';
+import { Avatar, toPng } from '@dicebear/converter';
 
 @Injectable()
 export class ImagesService {
@@ -210,6 +210,7 @@ export class ImagesService {
       // The `createAvatar` function returns an object with a `toString()` method,
       // which is what the converter functions expect.
       const avatarObject = this.createAvatarObject(style, seed, options);
+      this.logger.debug('Generated avatar:', avatarObject.toString());
 
       if (format === ImageFormat.SVG) {
         return { contentType: 'image/svg+xml', body: avatarObject.toString() };
@@ -223,7 +224,7 @@ export class ImagesService {
       switch (format) {
         case ImageFormat.PNG:
           contentType = 'image/png';
-          arrayBuffer = await (await toPng(avatarObject)).toArrayBuffer();
+          arrayBuffer = await toPng(avatarObject).toArrayBuffer();
           break;
         case ImageFormat.JPG:
         case ImageFormat.JPEG:
@@ -254,10 +255,48 @@ export class ImagesService {
       );
       // Return a fallback or re-throw the error depending on your needs.
       // Returning a default placeholder SVG is a safe option.
-      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#ccc"/></svg>';
+      return {
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#ccc"/></svg>',
+      };
     }
   }
 
+  private async formatConverter(
+    avatar: Avatar,
+    format: ImageFormat,
+  ): Promise<AvatarResult> {
+    let contentType: string;
+    let arrayBuffer: ArrayBuffer;
+
+    // Use the official @dicebear/converter functions. They take the avatar object.
+    // The `options` parameter for these functions is for fonts/EXIF, not size.
+    switch (format) {
+      case ImageFormat.PNG:
+        contentType = 'image/png';
+        arrayBuffer = await toPng(avatar).toArrayBuffer();
+        return { contentType, body: Buffer.from(arrayBuffer) };
+      case ImageFormat.JPG:
+      case ImageFormat.JPEG:
+        contentType = 'image/jpeg';
+        arrayBuffer = await (await toJpeg(avatar)).toArrayBuffer();
+        return { contentType, body: Buffer.from(arrayBuffer) };
+      case ImageFormat.WEBP:
+        contentType = 'image/webp';
+        arrayBuffer = await (await toWebp(avatar)).toArrayBuffer();
+        return { contentType, body: Buffer.from(arrayBuffer) };
+      case ImageFormat.AVIF:
+        contentType = 'image/avif';
+        arrayBuffer = await (await toAvif(avatar)).toArrayBuffer();
+        return { contentType, body: Buffer.from(arrayBuffer) };
+      default:
+        contentType = 'image/svg+xml';
+        return { contentType, body: avatar.toString() };
+    }
+  }
+
+  // This helper creates the avatar object. The options passed here, including `size`,
+  // will correctly configure the SVG attributes for the converters to use.
   /**
    * Generates a unique avatar SVG string.
    * @param style The DiceBear collection style.
@@ -265,19 +304,16 @@ export class ImagesService {
    * @param options A key-value object of DiceBear options.
    * @returns A string containing the full SVG markup for the avatar.
    */
-  private generateSvg(
+  private createAvatarObject(
     style: DiceBearStyle,
     seed: string,
     options: ImageOptionsDto,
-  ): string {
+  ) {
     const selectedCollection = this.selectCollection(style);
-    const { size, ...styleOptions } = options; // Exclude 'size' from DiceBear options
-    const avatar = createAvatar(selectedCollection, {
+    return createAvatar(selectedCollection, {
       seed,
-      ...styleOptions,
+      ...options,
     });
-    this.logger.debug('Generated avatar:', avatar.toString());
-    return avatar.toString();
   }
 
   private selectCollection(style: DiceBearStyle): Style<any> {
