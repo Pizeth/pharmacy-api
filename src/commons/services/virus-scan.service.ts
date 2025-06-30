@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import FormData from 'form-data';
 import {
   VirusTotalReport,
-  VirusTotalUrlAnalysisResponse,
+  VirusTotalAnalysisResponse,
 } from 'src/types/virus_total';
 import statusCode from 'http-status-codes';
 import { TotalVirusResponseHandlerService } from './totalvirus_response_handler.service';
@@ -142,50 +142,73 @@ export class VirusScanService {
       //   return result.data.id;
       // } else
 
-      if (this.responseHandler.isFileUploadResponse(result)) {
-        // Successfully uploaded, response is a FileUploadResponse object
+      // if (this.responseHandler.isFileUploadResponse(result)) {
+      //   // Successfully uploaded, response is a FileUploadResponse object
+      //   this.logger.log(
+      //     `File uploaded successfully. Analysis ID: ${result.data.id}`,
+      //   );
+      //   return result.data.id; // This is the analysis ID
+      // } else if (this.responseHandler.isApiErrorResponse(result)) {
+      //   this.logger.warn(
+      //     `VirusTotal API error (in 2xx response) during upload: ${result.error.code} - ${result.error.message}`,
+      //   );
+      //   throw new Error(
+      //     `VirusTotal API Error (${result.error.code}): ${result.error.message}`,
+      //   );
+      // } else {
+      //   this.logger.error(
+      //     'Unknown 2xx response structure after file upload:',
+      //     result,
+      //   );
+      //   this.logger.debug(result);
+      //   // If we reach here, the response is not in the expected format.
+      //   throw new Error(
+      //     'Unknown successful response structure after file upload.',
+      //   );
+      // }
+
+      // Use our new, more specific type guard.
+      if (this.responseHandler.isBareAnalysisResponse(result)) {
         this.logger.log(
           `File uploaded successfully. Analysis ID: ${result.data.id}`,
         );
-        return result.data.id; // This is the analysis ID
-      } else if (this.responseHandler.isApiErrorResponse(result)) {
-        this.logger.warn(
-          `VirusTotal API error (in 2xx response) during upload: ${result.error.code} - ${result.error.message}`,
-        );
+        return result.data.id;
+      }
+
+      // Handle other potential (but unlikely for this endpoint) success responses or errors.
+      if (this.responseHandler.isApiErrorResponse(result)) {
         throw new Error(
           `VirusTotal API Error (${result.error.code}): ${result.error.message}`,
         );
       } else {
         this.logger.error(
-          'Unknown 2xx response structure after file upload:',
+          'Unknown successful response structure after file upload:',
           result,
         );
-        this.logger.debug(result);
-        // If we reach here, the response is not in the expected format.
         throw new Error(
           'Unknown successful response structure after file upload.',
         );
       }
 
-      if (this.responseHandler.isUrlAnalysisResponse(result)) {
-        // Successfully uploaded, response is an Analysis object
-        return result.data.id; // This is the analysis ID
-      } else if (this.responseHandler.isApiErrorResponse(result)) {
-        // HTTP 2xx, but VirusTotal API returned an error in the response body
-        this.logger.warn(
-          `VirusTotal API error (in 2xx response) during upload: ${result.error.code} - ${result.error.message}`,
-        );
-        return result.error.code; // Return the error code string
-      } else {
-        // HTTP 2xx, but response body isn't a known VT success or error structure.
-        this.logger.error(
-          'Unknown 2xx response structure after file upload:',
-          result,
-        );
-        throw new Error(
-          'Unknown successful response structure after file upload.',
-        );
-      }
+      // if (this.responseHandler.isUrlAnalysisResponse(result)) {
+      //   // Successfully uploaded, response is an Analysis object
+      //   return result.data.id; // This is the analysis ID
+      // } else if (this.responseHandler.isApiErrorResponse(result)) {
+      //   // HTTP 2xx, but VirusTotal API returned an error in the response body
+      //   this.logger.warn(
+      //     `VirusTotal API error (in 2xx response) during upload: ${result.error.code} - ${result.error.message}`,
+      //   );
+      //   return result.error.code; // Return the error code string
+      // } else {
+      //   // HTTP 2xx, but response body isn't a known VT success or error structure.
+      //   this.logger.error(
+      //     'Unknown 2xx response structure after file upload:',
+      //     result,
+      //   );
+      //   throw new Error(
+      //     'Unknown successful response structure after file upload.',
+      //   );
+      // }
     } catch (error) {
       this.responseHandler.handleVirusTotalError(error);
     }
@@ -200,21 +223,34 @@ export class VirusScanService {
 
     while (Date.now() - startTime < timeout) {
       try {
-        const response = await firstValueFrom<VirusTotalUrlAnalysisResponse>(
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        await this.checkRateLimit();
+        const response = await firstValueFrom<VirusTotalAnalysisResponse>(
           this.httpService.get(`${this.apiUrl}/analyses/${analysisId}`, {
             headers: { 'x-apikey': this.apiKey },
           }),
         );
 
-        const status = this.responseHandler.isUrlAnalysisResponse(response)
-          ? response.data.attributes.status
-          : null;
-
-        if (status === 'completed') {
-          return this.isFileClean(response);
+        // Use our type guard to check for a full report with a status.
+        if (this.responseHandler.isFullAnalysisResponse(response)) {
+          const status = response.data.attributes?.status;
+          if (status === 'completed') {
+            return this.isFileClean(response);
+          }
+          this.logger.debug(
+            `Analysis for ${analysisId} is still '${status}'...`,
+          );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        // const status = this.responseHandler.isFullAnalysisResponse(response)
+        //   ? response.data.attributes?.status
+        //   : null;
+
+        // if (status === 'completed') {
+        //   return this.isFileClean(response);
+        // }
+
+        // await new Promise((resolve) => setTimeout(resolve, pollInterval));
       } catch (error) {
         this.responseHandler.handleVirusTotalError(error);
       }
@@ -239,8 +275,8 @@ export class VirusScanService {
     const stats = !this.responseHandler.isApiErrorResponse(report)
       ? this.responseHandler.isFileReportResponse(report)
         ? report.data.attributes.last_analysis_stats
-        : this.responseHandler.isUrlAnalysisResponse(report)
-          ? report.data.attributes.stats
+        : this.responseHandler.isFullAnalysisResponse(report)
+          ? report.data.attributes?.stats
           : null
       : null;
 

@@ -391,7 +391,32 @@ export class ImagesService implements OnModuleInit {
    * @returns A string containing the full SVG markup for the avatar.
    */
   private createAvatarObject(style: DiceBearStyle, options: ImageOptionsDto) {
+    // const type = this.configService.get<string>(
+    //   'APP_DEFAULT_AVATAR_FORMAT',
+    //   'image/svg+xml',
+    // ); // Default to SVG if not set
+
     const selectedCollection = this.selectCollection(style);
+
+    this.logger.debug(`Creating avatar with style: ${style}, option:`, options);
+
+    if (
+      (selectedCollection === collections.initials &&
+        options?.seed === undefined) ||
+      options.size === 0
+    ) {
+      // If the style is 'initials', we need a seed to generate initials.
+      // If no seed is provided, we can use a default value or throw an error.
+      this.logger.warn(
+        'No seed provided for "initials" style. Using default seed.',
+      );
+      const defaultStyle = this.configService.get<ImageOptionsDto>(
+        'APP_DEFAULT_AVATAR_OPTIONS',
+      ); // Default style if not set
+      return createAvatar(selectedCollection, {
+        ...defaultStyle,
+      });
+    }
 
     // Create a mutable copy of the options object.
     const styleOptions = { ...options };
@@ -413,22 +438,22 @@ export class ImagesService implements OnModuleInit {
    * @param seed The unique seed for the avatar.
    * @returns A full URL string to the generated avatar.
    */
-  getAvatarUrl(
-    style: DiceBearStyle,
-    seed: string,
-    options: ImageOptionsDto,
-  ): string {
-    const baseUrl = this.configService.get<string>('APP_BASE_URL');
-    const apiPrefix = this.configService.get<string>('API_GLOBAL_PREFIX', ''); // Default to empty string
+  // getAvatarUrl(
+  //   style: DiceBearStyle,
+  //   seed: string,
+  //   options: ImageOptionsDto,
+  // ): string {
+  //   const baseUrl = this.configService.get<string>('APP_BASE_URL');
+  //   const apiPrefix = this.configService.get<string>('API_GLOBAL_PREFIX', ''); // Default to empty string
 
-    // Use encodeURIComponent to safely handle special characters in the seed.
-    const safeSeed = encodeURIComponent(seed);
+  //   // Use encodeURIComponent to safely handle special characters in the seed.
+  //   const safeSeed = encodeURIComponent(seed);
 
-    // Construct the path, including the global prefix if it exists.
-    const urlPath = path.join(apiPrefix, 'images', style, `${safeSeed}.svg`);
+  //   // Construct the path, including the global prefix if it exists.
+  //   const urlPath = path.join(apiPrefix, 'images', style, `${safeSeed}.svg`);
 
-    return `${baseUrl}/${urlPath}`;
-  }
+  //   return `${baseUrl}/${urlPath}`;
+  // }
 
   private selectCollection(style: DiceBearStyle): Style<any> {
     if (style in this.availableStyles) {

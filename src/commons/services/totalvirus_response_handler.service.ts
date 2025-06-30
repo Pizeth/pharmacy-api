@@ -4,8 +4,7 @@ import statusCodes from 'http-status-codes';
 import {
   VirusTotalApiErrorResponse,
   VirusTotalResponse,
-  VirusTotalFileUploadResponse,
-  VirusTotalUrlAnalysisResponse,
+  VirusTotalAnalysisResponse,
 } from 'src/types/virus_total';
 
 @Injectable()
@@ -38,31 +37,62 @@ export class TotalVirusResponseHandlerService {
     ); // Specific to file attributes
   }
 
-  // Type Guard for successful file uploaded Response (VirusTotalFileUploadResponse)
-  public isFileUploadResponse(
+  private isAnylysisResponse(
     report: unknown,
-  ): report is VirusTotalFileUploadResponse {
+  ): report is VirusTotalAnalysisResponse {
+    // Check if the report is an analysis response (bare or full)
     if (this.isApiErrorResponse(report)) return false; // Exclude errors first
-    const potentialFileUploadReport = report as VirusTotalFileUploadResponse;
+    const potentialAnalysisResponse = report as VirusTotalAnalysisResponse;
     return (
-      potentialFileUploadReport.data !== undefined &&
-      potentialFileUploadReport.data.type === 'analysis'
-    ); // Specific to file upload attributes
+      potentialAnalysisResponse.data !== undefined &&
+      potentialAnalysisResponse.data.type === 'analysis' // Key differentiator
+    );
   }
 
-  // Type Guard for successful URL Analysis Response (VirusTotalUrlAnalysisResponse)
-  public isUrlAnalysisResponse(
+  // Checks if the report is a bare analysis object (from initial upload)
+  public isBareAnalysisResponse(
     report: unknown,
-  ): report is VirusTotalUrlAnalysisResponse {
+  ): report is VirusTotalAnalysisResponse {
     if (this.isApiErrorResponse(report)) return false; // Exclude errors first
-    const potentialUrlReport = report as VirusTotalUrlAnalysisResponse;
-    return (
-      potentialUrlReport.data !== undefined &&
-      potentialUrlReport.data.type === 'analysis' && // Key differentiator
-      potentialUrlReport.data.attributes !== undefined &&
-      typeof potentialUrlReport.data.attributes.status === 'string'
-    ); // Specific to URL analysis attributes
+    return this.isAnylysisResponse(report) && !report.data.attributes; // Bare analysis response
   }
+
+  // Checks if the report is a full analysis object (from polling)
+  public isFullAnalysisResponse(
+    report: unknown,
+  ): report is VirusTotalAnalysisResponse {
+    return (
+      this.isAnylysisResponse(report) &&
+      report.data.attributes !== undefined &&
+      typeof report.data.attributes.status === 'string'
+    ); // Full analysis response
+  }
+
+  // // Type Guard for successful file uploaded Response (VirusTotalFileUploadResponse)
+  // public isFileUploadResponse(
+  //   report: unknown,
+  // ): report is VirusTotalFileUploadResponse {
+  //   if (this.isApiErrorResponse(report)) return false; // Exclude errors first
+  //   const potentialFileUploadReport = report as VirusTotalFileUploadResponse;
+  //   return (
+  //     potentialFileUploadReport.data !== undefined &&
+  //     potentialFileUploadReport.data.type === 'analysis'
+  //   ); // Specific to file upload attributes
+  // }
+
+  // // Type Guard for successful URL Analysis Response (VirusTotalUrlAnalysisResponse)
+  // public isUrlAnalysisResponse(
+  //   report: unknown,
+  // ): report is VirusTotalUrlAnalysisResponse {
+  //   if (this.isApiErrorResponse(report)) return false; // Exclude errors first
+  //   const potentialUrlReport = report as VirusTotalUrlAnalysisResponse;
+  //   return (
+  //     potentialUrlReport.data !== undefined &&
+  //     potentialUrlReport.data.type === 'analysis' && // Key differentiator
+  //     potentialUrlReport.data.attributes !== undefined &&
+  //     typeof potentialUrlReport.data.attributes.status === 'string'
+  //   ); // Specific to URL analysis attributes
+  // }
 
   // private getErrorMessage1(error: unknown): string {
   //   return error instanceof AxiosError
@@ -70,19 +100,6 @@ export class TotalVirusResponseHandlerService {
   //     : error instanceof Error
   //       ? error.message
   //       : 'Unknown error';
-  // }
-
-  // private async checkRateLimit() {
-  //   const now = Date.now();
-  //   const elapsed = now - this.lastRequestTime;
-
-  //   if (elapsed < this.rateLimit) {
-  //     await new Promise((resolve) =>
-  //       setTimeout(resolve, this.rateLimit - elapsed),
-  //     );
-  //   }
-
-  //   this.lastRequestTime = Date.now();
   // }
 
   private getErrorMessage(error: unknown): string {

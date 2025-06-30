@@ -10,8 +10,8 @@ import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
 import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
 import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
 import { FileModule } from 'src/modules/files/file.module';
-import { ImagePlaceHolderService } from '../modules/images/services/images.service';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { ImagesModule } from 'src/modules/images/image.module';
 
 @Module({
   imports: [
@@ -24,12 +24,12 @@ import { ZodValidationPipe } from 'nestjs-zod';
         signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
       }),
     }),
-    FileModule, // Assuming FileModule is defined elsewhere
+    FileModule,
+    ImagesModule,
   ],
   providers: [
     PasswordUtils,
     TokenService,
-    ImagePlaceHolderService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
@@ -51,13 +51,13 @@ import { ZodValidationPipe } from 'nestjs-zod';
   exports: [
     PasswordUtils,
     TokenService,
-    ImagePlaceHolderService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
     FileModule,
+    ImagesModule,
     // HttpModule,
   ],
 })

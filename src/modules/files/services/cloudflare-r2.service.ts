@@ -105,7 +105,7 @@ export class R2Service implements OnModuleInit {
   private isR2UploadSuccess(
     response: R2UploadResponse,
   ): response is R2UploadSuccessResponse {
-    return response.status === HttpStatus.CREATED; // 201
+    return Number(response.status) === Number(HttpStatus.CREATED); // 201
   }
 
   private isR2DeleteSuccess(

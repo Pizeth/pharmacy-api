@@ -94,15 +94,21 @@ interface Links {
   // item?: string; // Depending on the endpoint, an 'item' link might exist
 }
 
+// This single interface now represents BOTH the initial file upload response
+// and the full analysis report by making `attributes` optional.
+export interface VirusTotalAnalysisResponse {
+  data: AnalysisData;
+  meta?: UrlAnalysisMeta;
+}
 // URL Analysis Report Interfaces
-export interface VirusTotalUrlAnalysisResponse {
-  data: UrlAnalysisData;
-  meta?: UrlAnalysisMeta; // Meta information might be present
-}
+// export interface VirusTotalUrlAnalysisResponse {
+//   data: UrlAnalysisData;
+//   meta?: UrlAnalysisMeta; // Meta information might be present
+// }
 
-export interface VirusTotalFileUploadResponse {
-  data: FileUploadResponse;
-}
+// export interface VirusTotalFileUploadResponse {
+//   data: FileUploadResponse;
+// }
 
 interface FileUploadResponse {
   type: 'analysis'; // For URL scan results, the type is 'analysis'
@@ -110,8 +116,8 @@ interface FileUploadResponse {
   links: AnalysisLinks;
 }
 
-interface UrlAnalysisData extends FileUploadResponse {
-  attributes: UrlAnalysisAttributes;
+interface AnalysisData extends FileUploadResponse {
+  attributes?: UrlAnalysisAttributes;
 }
 
 interface UrlAnalysisAttributes {
@@ -155,7 +161,6 @@ interface UrlInfo {
 }
 
 export type VirusTotalReport =
-  | VirusTotalResponse
-  | VirusTotalFileUploadResponse
-  | VirusTotalUrlAnalysisResponse
-  | VirusTotalApiErrorResponse;
+  | VirusTotalResponse // The report for an existing file hash
+  | VirusTotalAnalysisResponse // An analysis object (either bare or full)
+  | VirusTotalApiErrorResponse; // An error
