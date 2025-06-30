@@ -398,8 +398,6 @@ export class ImagesService implements OnModuleInit {
 
     const selectedCollection = this.selectCollection(style);
 
-    this.logger.debug(`Creating avatar with style: ${style}, option:`, options);
-
     if (
       (selectedCollection === collections.initials &&
         options?.seed === undefined) ||
@@ -413,9 +411,17 @@ export class ImagesService implements OnModuleInit {
       const defaultStyle = this.configService.get<ImageOptionsDto>(
         'APP_DEFAULT_AVATAR_OPTIONS',
       ); // Default style if not set
-      return createAvatar(selectedCollection, {
+
+      const avatar = createAvatar(selectedCollection, {
         ...defaultStyle,
       });
+
+      this.logger.debug(
+        `Creating avatar with style: ${style}, option:`,
+        avatar.toString(),
+      );
+
+      return avatar;
     }
 
     // Create a mutable copy of the options object.
