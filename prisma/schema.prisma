@@ -160,7 +160,7 @@ model User {
   username        String            @unique @db.VarChar(50)
   email           String            @unique @db.VarChar(50) 
   password        String        
-  avatar          String?           @db.VarChar(2500)
+  avatar          String?           @db.VarChar(150)
   profile         Profile?  
   roleId          Int               @map("role_id")
   // Relation field that links to the Role model.

@@ -19,6 +19,8 @@ export class VirusScanService {
   // Add rate limiting
   private readonly rateLimit =
     Number(process.env.VIRUSTOTAL_API_RATE_LIMIT) || 1500; // 15s between requests (4/min)
+  private readonly timeout =
+    Number(process.env.VIRUSTOTAL_ANALYSIS_TIMEOUT) || 180000; // 3 minutes
   private hashCache = new Map<string, boolean>();
 
   constructor(
@@ -216,12 +218,16 @@ export class VirusScanService {
 
   private async waitForAnalysis(
     analysisId: string,
-    timeout = 30000,
+    timeout = this.timeout, // Default to the configured timeout
   ): Promise<boolean> {
     const startTime = Date.now();
     const pollInterval = 5000; // 5 seconds
 
     while (Date.now() - startTime < timeout) {
+      this.logger.debug(
+        `Waiting for analysis ${analysisId} to complete...`,
+        Date.now() - startTime,
+      );
       try {
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
         await this.checkRateLimit();

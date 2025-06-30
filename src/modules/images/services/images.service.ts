@@ -184,6 +184,7 @@ export class ImagesService implements OnModuleInit {
   // This property will hold all available style collections except the default export.
   private readonly availableStyles: Record<string, Style<any>>;
   private readonly loadedFontPaths = new Map<AvailableFonts, string>(); // <-- Cache for loaded fonts
+  private defaultAvatarOptions: Partial<ImageOptionsDto> = {}; // <-- Will hold parsed defaults
 
   constructor(private readonly configService: ConfigService) {
     // Create a mutable copy of the imported collections object.
@@ -194,6 +195,7 @@ export class ImagesService implements OnModuleInit {
 
     // Assign the cleaned object to the class property for use in other methods.
     this.availableStyles = styles;
+    this.loadDefaultOptions(); // <-- Load defaults when service is instantiated
   }
 
   // Use the onModuleInit lifecycle hook to load and verify font paths at startup.
@@ -202,7 +204,14 @@ export class ImagesService implements OnModuleInit {
     for (const font of Object.values(AvailableFonts)) {
       try {
         // Construct path to the font file inside the `dist` directory.
-        const fontPath = path.join(__dirname, '..', 'assets', 'fonts', font);
+        const fontPath = path.join(
+          __dirname,
+          '..',
+          'dist',
+          'assets',
+          'fonts',
+          font,
+        );
         // Check that the file actually exists before caching its path.
         if (fs.existsSync(fontPath)) {
           this.loadedFontPaths.set(font, fontPath);
@@ -255,6 +264,7 @@ export class ImagesService implements OnModuleInit {
     }
 
     fullUrl.search = queryParams.toString();
+    this.logger.debug(`Generated URL: ${fullUrl.toString()}`);
     return fullUrl.toString();
   }
 
@@ -284,10 +294,17 @@ export class ImagesService implements OnModuleInit {
         };
       }
 
+      // Merge the loaded defaults with the user's query options.
+      // The user's options will override the defaults.
+      const finalOptions = {
+        ...this.defaultAvatarOptions,
+        ...options,
+      };
+
       // The `createAvatar` function returns an object with a `toString()` method,
       // which is what the converter functions expect.
-      const avatarObject = this.createAvatarObject(style, options);
-      this.logger.debug('Generated avatar:', avatarObject.toString());
+      const avatarObject = this.createAvatarObject(style, finalOptions);
+      // this.logger.debug('Generated avatar:', avatarObject.toString());
 
       if (format === ImageFormat.SVG) {
         return { contentType: 'image/svg+xml', body: avatarObject.toString() };
@@ -295,19 +312,43 @@ export class ImagesService implements OnModuleInit {
 
       const converterOptions: ConverterOptions = {};
       // If a custom fontFamily was specified, find its file path.
-      if (options.fontFamily) {
-        const fontPath = this.loadedFontPaths.get(options.fontFamily);
-        if (fontPath) {
-          // Pass the file path string, which is what the converter expects.
-          converterOptions.fonts = [fontPath];
+      if (finalOptions.fontFamily) {
+        let fontPaths: string[] = [];
+        if (Array.isArray(finalOptions.fontFamily)) {
+          fontPaths = finalOptions.fontFamily
+            .map((font) => this.loadedFontPaths.get(font))
+            .filter((p): p is string => !!p);
+        } else if (finalOptions.fontFamily) {
+          const fontPath = this.loadedFontPaths.get(finalOptions.fontFamily);
+          if (fontPath) {
+            fontPaths = [fontPath];
+          }
+        }
+        if (fontPaths.length > 0) {
+          // Pass the file path string(s), which is what the converter expects.
+          converterOptions.fonts = fontPaths;
         } else {
           this.logger.warn(
-            `Custom font "${options.fontFamily}" requested but not found/loaded. The converter will use its default (Noto Sans).`,
+            `Custom font "${Array.isArray(finalOptions.fontFamily) ? finalOptions.fontFamily.join(', ') : finalOptions.fontFamily}" requested but not found/loaded. The converter will use its default (Noto Sans).`,
           );
         }
       }
 
-      converterOptions.includeExif = options.includeExif; // Default value is auto set to Disable EXIF data for simplicity
+      // const converterOptions: ConverterOptions = {};
+      // // If a custom fontFamily was specified, find its file path.
+      // if (options.fontFamily) {
+      //   const fontPath = this.loadedFontPaths.get(options.fontFamily);
+      //   if (fontPath) {
+      //     // Pass the file path string, which is what the converter expects.
+      //     converterOptions.fonts = [fontPath];
+      //   } else {
+      //     this.logger.warn(
+      //       `Custom font "${options.fontFamily}" requested but not found/loaded. The converter will use its default (Noto Sans).`,
+      //     );
+      //   }
+      // }
+
+      converterOptions.includeExif = finalOptions.includeExif; // Default value is auto set to Disable EXIF data for simplicity
 
       // If no fontFamily is specified, converterOptions.fonts will be empty,
       // and @dicebear/converter will automatically use the default Google Font (Noto Sans).
@@ -334,6 +375,38 @@ export class ImagesService implements OnModuleInit {
         contentType: 'image/svg+xml',
         body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#ccc"/></svg>',
       };
+    }
+  }
+
+  /**
+   * Loads the default avatar options from the environment variable `APP_DEFAULT_AVATAR_OPTIONS`.
+   * If the environment variable is not set, logs a message and uses DiceBear defaults.
+   * Attempts to parse the environment variable as a JSON string and assigns it to `this.defaultAvatarOptions`.
+   * Logs success or error messages based on the outcome of the parsing operation.
+   *
+   * @private
+   */
+  private loadDefaultOptions() {
+    const defaultOptionsJson = this.configService.get<string>(
+      'APP_DEFAULT_AVATAR_OPTIONS',
+    );
+    if (!defaultOptionsJson) {
+      this.logger.log(
+        'No APP_DEFAULT_AVATAR_OPTIONS found in .env. Using DiceBear defaults.',
+      );
+      return;
+    }
+    try {
+      // **THE FIX**: Parse the JSON string from the .env file into an object.
+      this.defaultAvatarOptions = JSON.parse(
+        defaultOptionsJson,
+      ) as Partial<ImageOptionsDto>;
+      this.logger.log('Successfully loaded and parsed default avatar options.');
+    } catch (error) {
+      this.logger.error(
+        'Failed to parse APP_DEFAULT_AVATAR_OPTIONS. Ensure it is valid JSON.',
+        error,
+      );
     }
   }
 
@@ -391,38 +464,33 @@ export class ImagesService implements OnModuleInit {
    * @returns A string containing the full SVG markup for the avatar.
    */
   private createAvatarObject(style: DiceBearStyle, options: ImageOptionsDto) {
-    // const type = this.configService.get<string>(
-    //   'APP_DEFAULT_AVATAR_FORMAT',
-    //   'image/svg+xml',
-    // ); // Default to SVG if not set
-
     const selectedCollection = this.selectCollection(style);
 
-    if (
-      (selectedCollection === collections.initials &&
-        options?.seed === undefined) ||
-      options.size === 0
-    ) {
-      // If the style is 'initials', we need a seed to generate initials.
-      // If no seed is provided, we can use a default value or throw an error.
-      this.logger.warn(
-        'No seed provided for "initials" style. Using default seed.',
-      );
-      const defaultStyle = this.configService.get<ImageOptionsDto>(
-        'APP_DEFAULT_AVATAR_OPTIONS',
-      ); // Default style if not set
+    // if (
+    //   (selectedCollection === collections.initials &&
+    //     options?.seed === undefined) ||
+    //   options.size === 0
+    // ) {
+    //   // If the style is 'initials', we need a seed to generate initials.
+    //   // If no seed is provided, we can use a default value or throw an error.
+    //   this.logger.warn(
+    //     'No seed provided for "initials" style. Using default seed.',
+    //   );
+    //   const defaultStyle = this.configService.get<ImageOptionsDto>(
+    //     'APP_DEFAULT_AVATAR_OPTIONS',
+    //   ); // Default style if not set
 
-      const avatar = createAvatar(selectedCollection, {
-        ...defaultStyle,
-      });
+    //   const avatar = createAvatar(selectedCollection, {
+    //     ...defaultStyle,
+    //   });
 
-      this.logger.debug(
-        `Creating avatar with style: ${style}, option:`,
-        avatar.toString(),
-      );
+    //   this.logger.debug(
+    //     `Creating avatar with style: ${style}, option:`,
+    //     defaultStyle,
+    //   );
 
-      return avatar;
-    }
+    //   return avatar;
+    // }
 
     // Create a mutable copy of the options object.
     const styleOptions = { ...options };
@@ -431,7 +499,10 @@ export class ImagesService implements OnModuleInit {
     // so it's not passed directly to createAvatar,
     // as it's a converter option, not a style option.
     delete (styleOptions as { fontFamily?: unknown }).fontFamily;
-    delete (styleOptions as { includeExif?: unknown }).includeExif;
+    // delete (styleOptions as { includeExif?: unknown }).includeExif;
+    this.logger.debug(
+      `Creating avatar with style: ${style}, options: ${JSON.stringify(styleOptions)}`,
+    );
     return createAvatar(selectedCollection, {
       ...styleOptions,
     });

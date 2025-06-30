@@ -11,7 +11,6 @@ import {
   Query,
   Res,
   ParseEnumPipe,
-  Header,
   Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
@@ -97,10 +96,26 @@ export class ImagesController {
   //   res.send(body);
   // }
 
-  // This route handles requests WITHOUT a format, defaulting to SVG.
-  // This replaces the old `/:format?` route.
+  // Route 1: Handles requests WITH a format specified (e.g., .png, .jpg)
+  // This matches the official DiceBear API structure: /:style/:format like /initials/png?seed=...
+  @Get(':style/:format')
+  @ApiParam({ name: 'style', enum: DiceBearStyle })
+  @ApiParam({ name: 'format', enum: ImageFormat })
+  @ApiQuery({ name: 'seed', type: 'string', required: true })
+  async getAvatarWithFormat(
+    @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    @Param('format', new ParseEnumPipe(ImageFormat)) format: ImageFormat,
+    @Query() options: ImageOptionsDto,
+    @Res() res: Response,
+  ) {
+    // Delegate the core logic to a shared private method to avoid duplication.
+    await this.sendAvatarResponse(style, format, options, res);
+  }
+
+  // Route 2: Handles requests WITHOUT a format, defaulting to SVG.
+  // This matches the official API structure like /initials/svg?seed=...
+  // NOTE: This route MUST be defined *after* the more specific :style/:format route.
   @Get(':style')
-  @Header('Cache-Control', 'public, max-age=31536000')
   @ApiParam({ name: 'style', enum: DiceBearStyle })
   @ApiQuery({ name: 'seed', type: 'string', required: true })
   async getAvatarWithoutFormat(
@@ -111,25 +126,8 @@ export class ImagesController {
     this.logger.log(
       `Generating avatar for style: ${style} with options: ${JSON.stringify(options)}`,
     );
-    // Call the same shared method, explicitly passing SVG as the format.
+    // Call the same shared method, explicitly passing SVG as the default format.
     await this.sendAvatarResponse(style, ImageFormat.SVG, options, res);
-  }
-
-  // This route mirrors the official DiceBear API structure: /:style/:fomart
-  // This route handles requests WITH a format specified (e.g., .png, .jpg)
-  @Get(':style/:format')
-  @Header('Cache-Control', 'public, max-age=31536000')
-  @ApiParam({ name: 'style', enum: DiceBearStyle })
-  @ApiParam({ name: 'format', enum: ImageFormat })
-  @ApiQuery({ name: 'seed', type: 'string', required: true })
-  async getAvatarWithFormat(
-    @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
-    @Param('format', new ParseEnumPipe(ImageFormat)) format: ImageFormat,
-    @Query() options: ImageOptionsDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    // Delegate the core logic to a shared private method to avoid duplication.
-    await this.sendAvatarResponse(style, format, options, res);
   }
 
   // **NEW**: Private helper method to handle the response generation.
@@ -145,8 +143,14 @@ export class ImagesController {
       format,
     );
 
+    this.logger.log(
+      `Generated avatar for style: ${style}, format: ${format}, options: ${JSON.stringify(options)}, Content-Type: ${contentType}, body:`,
+      body,
+    );
+
     // Setting Last-Modified header
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Set cache control manually
     res.setHeader('Last-Modified', new Date().toUTCString());
     res.send(body);
   }

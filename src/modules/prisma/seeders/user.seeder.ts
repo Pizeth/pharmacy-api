@@ -51,6 +51,7 @@ export class UserSeeder {
             password: await this.passwordUtils.hash(superAdminData.password),
             avatar: superAdminData.avatar,
             roleId: superAdminData.roleId,
+            isVerified: true, // Assuming the super admin is always verified.
             // Using nested writes for related data.
             profile: {
               create: {

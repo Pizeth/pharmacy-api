@@ -8,7 +8,7 @@
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
       { "include": "i18n/**/*", "watchAssets": true },
-      { "include": "assets/**/*", "outDir": "dist/assets", "watchAssets": true }
+      { "include": "assets/**/*", "outDir": "dist/", "watchAssets": true }
     ],
     "watchAssets": true
   }

@@ -115,6 +115,8 @@ export enum ImageFormat {
 // The key should match what you want users to type in the query param.
 // The value should match the filename in your `src/assets/fonts` directory.
 export enum AvailableFonts {
+  NotoSans = 'NotoSans-VariableFont_wdth,wght.ttf',
+  NotoSansKhmer = 'NotoSansKhmer-VariableFont_wdth,wght.ttf',
   KantumruyPro = 'KantumruyPro-VariableFont_wght.ttf',
   OpenSans = 'OpenSans-VariableFont_wdth,wght.ttf',
   RobotoBold = 'Roboto-VariableFont_wdth,wght.ttf',
