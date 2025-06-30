@@ -64,7 +64,7 @@ export class FileValidationPipe implements PipeTransform {
     // Get validation values from options, falling back to environment variables or sane defaults.
     const maxSize =
       this.options.maxSize ||
-      Number(process.env.VIRUS_TOTAL_MAX_SIZE) ||
+      Number(process.env.VIRUSTOTAL_MAX_SIZE) ||
       32 * 1024 * 1024;
     const allowedMimeTypes = this.options.allowedMimeTypes ||
       process.env.R2_ALLOWED_MIME_TYPES?.split(',') || [

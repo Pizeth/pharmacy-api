@@ -19,7 +19,7 @@ export const configurationSchema = z.object({
   VIRUSTOTAL_API_RATE_LIMIT: validation.requiredNumber(
     'VIRUSTOTAL_API_RATE_LIMIT',
   ),
-  VIRUS_TOTAL_MAX_SIZE: validation.requiredNumber('VIRUS_TOTAL_MAX_SIZE'),
+  VIRUSTOTAL_MAX_SIZE: validation.requiredNumber('VIRUSTOTAL_MAX_SIZE'),
 
   // QR Code Properties
   QR_CODE_URL: validation.requiredUrl('QR_CODE_URL'),

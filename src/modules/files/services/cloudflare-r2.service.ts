@@ -29,7 +29,7 @@ import { type } from 'src/types/commons.enum';
 export class R2Service implements OnModuleInit {
   private readonly logger = new Logger(R2Service.name);
   private readonly MAX_FILE_SIZE =
-    Number(process.env.VIRUS_TOTAL_MAX_SIZE) || 32 * 1024 * 1024; // 32MB, adjust as needed
+    Number(process.env.VIRUSTOTAL_MAX_SIZE) || 32 * 1024 * 1024; // 32MB, adjust as needed
   private readonly EXPIRE_IN_SECONDS =
     Number(process.env.R2_EXPIRE_IN_SECONDS) || 3600; // Default to 1 hour if not set
   private r2Client!: S3Client;
