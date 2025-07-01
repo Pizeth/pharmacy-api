@@ -22,6 +22,7 @@ import {
   DiceBearStyle,
   ImageFormat,
 } from 'src/types/commons.enum';
+import { Public } from 'src/decorators/public.decorator';
 
 @ApiTags('Images')
 @Controller('images')
@@ -99,9 +100,10 @@ export class ImagesController {
   // Route 1: Handles requests WITH a format specified (e.g., .png, .jpg)
   // This matches the official DiceBear API structure: /:style/:format like /initials/png?seed=...
   @Get(':style/:format')
+  @Public()
   @ApiParam({ name: 'style', enum: DiceBearStyle })
   @ApiParam({ name: 'format', enum: ImageFormat })
-  @ApiQuery({ name: 'seed', type: 'string', required: true })
+  @ApiQuery({ name: 'seed', type: 'string', required: false })
   async getAvatarWithFormat(
     @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
     @Param('format', new ParseEnumPipe(ImageFormat)) format: ImageFormat,
@@ -116,8 +118,9 @@ export class ImagesController {
   // This matches the official API structure like /initials/svg?seed=...
   // NOTE: This route MUST be defined *after* the more specific :style/:format route.
   @Get(':style')
+  @Public()
   @ApiParam({ name: 'style', enum: DiceBearStyle })
-  @ApiQuery({ name: 'seed', type: 'string', required: true })
+  @ApiQuery({ name: 'seed', type: 'string', required: false })
   async getAvatarWithoutFormat(
     @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
     @Query() options: ImageOptionsDto,
@@ -128,6 +131,26 @@ export class ImagesController {
     );
     // Call the same shared method, explicitly passing SVG as the default format.
     await this.sendAvatarResponse(style, ImageFormat.SVG, options, res);
+  }
+
+  @Get()
+  @Public()
+  @ApiQuery({ name: 'seed', type: 'string', required: false })
+  async getAvatar(
+    // @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    @Query() options: ImageOptionsDto,
+    @Res() res: Response,
+  ) {
+    this.logger.log(
+      `Generating avatar with default style: ${DiceBearStyle.Adventurer} with options: ${JSON.stringify(options)}`,
+    );
+    // Call the same shared method, explicitly passing SVG as the default format.
+    await this.sendAvatarResponse(
+      DiceBearStyle.Adventurer,
+      ImageFormat.SVG,
+      options,
+      res,
+    );
   }
 
   // **NEW**: Private helper method to handle the response generation.

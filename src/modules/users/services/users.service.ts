@@ -15,7 +15,8 @@ import { ImagesService } from 'src/modules/images/services/images.service';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
+  private readonly context = UsersService.name;
+  private readonly logger = new Logger(this.context);
   constructor(
     private readonly prisma: PrismaService,
     private readonly dbHelper: DBHelper,
@@ -44,6 +45,44 @@ export class UsersService {
   //   }
   // }
 
+  /**
+   * Retrieves a user by email or username.
+   *
+   * Searches for a user in the database whose email (case-insensitive) or username matches the provided input.
+   * Includes related profile, role, refresh tokens, and audit trail information in the result.
+   *
+   * @param input - The email or username to search for.
+   * @returns A promise that resolves to the found {@link User} object or `null` if no user is found.
+   * @throws {AppError} If an error occurs during the database query.
+   */
+  async getUser(input: string): Promise<User | null> {
+    try {
+      return await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: input, mode: 'insensitive' } },
+            { username: input },
+          ],
+        },
+        include: {
+          profile: true,
+          role: true,
+          refreshTokens: true,
+          auditTrail: true,
+        },
+      });
+      // return user;
+    } catch (error) {
+      this.logger.error(`Error finding user ${input}:`, error);
+      throw new AppError(
+        `Error finding user that match with ${input}`,
+        HttpStatus.NOT_FOUND,
+        this.context,
+        error,
+      );
+    }
+  }
+
   async getOne(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
     try {
       const modelName = 'user';
@@ -58,8 +97,16 @@ export class UsersService {
         },
       });
     } catch (error) {
-      console.error(`Error finding user with ${JSON.stringify(where)}:`, error);
-      throw error;
+      this.logger.error(
+        `Error finding user with ${JSON.stringify(where)}:`,
+        error,
+      );
+      throw new AppError(
+        `Error finding user that match with ${JSON.stringify(where)}`,
+        HttpStatus.NOT_FOUND,
+        this.context,
+        error,
+      );
     }
   }
 

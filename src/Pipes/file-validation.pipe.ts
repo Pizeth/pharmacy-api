@@ -4,6 +4,7 @@ import {
   Injectable,
   BadRequestException,
   ArgumentMetadata,
+  Logger,
 } from '@nestjs/common';
 import type { FileValidationOptions } from 'src/types/file';
 
@@ -30,6 +31,7 @@ export class FileValidationPipe implements PipeTransform {
   //   this.options.allowedMimeTypes =
   //     this.options.allowedMimeTypes || this.allowedMimeTypes;
   // }
+  private readonly logger = new Logger(FileValidationPipe.name);
   constructor(
     private readonly options: FileValidationOptions = {},
     // We pass options directly to the transform method now
@@ -37,6 +39,8 @@ export class FileValidationPipe implements PipeTransform {
 
   transform(file: Express.Multer.File, metadata: ArgumentMetadata) {
     const { fileIsRequired = true } = this.options;
+
+    this.logger.debug('metadata:', metadata);
 
     if (!file) {
       if (fileIsRequired) {
@@ -68,6 +72,7 @@ export class FileValidationPipe implements PipeTransform {
       32 * 1024 * 1024;
     const allowedMimeTypes = this.options.allowedMimeTypes ||
       process.env.R2_ALLOWED_MIME_TYPES?.split(',') || [
+        'image/jpg',
         'image/jpeg',
         'image/png',
         'application/pdf',

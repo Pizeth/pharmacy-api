@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
-import { TokenService } from './services/token.service';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+// import { PasswordUtils } from 'src/commons/services/password-utils.service';
+// import { TokenService } from './services/token.service';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -12,24 +10,27 @@ import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
 import { FileModule } from 'src/modules/files/file.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ImagesModule } from 'src/modules/images/image.module';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     // HttpModule,
+    FileModule,
+    ImagesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
+        global: true,
         secret: config.get('SECRET_KEY'), // Or a default for seeding
         signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
       }),
     }),
-    FileModule,
-    ImagesModule,
   ],
   providers: [
-    PasswordUtils,
-    TokenService,
+    // PasswordUtils,
+    // TokenService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
@@ -49,8 +50,8 @@ import { ImagesModule } from 'src/modules/images/image.module';
     },
   ],
   exports: [
-    PasswordUtils,
-    TokenService,
+    // PasswordUtils,
+    // TokenService,
     // VirusScanService,
     // ObjectOmitter,
     ExceptionService,
@@ -58,6 +59,7 @@ import { ImagesModule } from 'src/modules/images/image.module';
     QrCodeServicce,
     FileModule,
     ImagesModule,
+    JwtModule,
     // HttpModule,
   ],
 })

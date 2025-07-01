@@ -17,6 +17,8 @@ import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ValidateFile } from 'src/decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Public } from 'src/decorators/public.decorator';
+import { Roles } from 'src/decorators/roles.decorator';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })
@@ -72,6 +74,7 @@ export class UserController {
   // The global pipe handles validation automatically.
   // Swagger knows about CreateUserDto because it's a class with generated decorators.
   @Post()
+  @Roles(['admin'])
   // Tell Swagger to expect a multipart/form-data request
   @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({
@@ -152,6 +155,7 @@ export class UserController {
     return this.service.getOne(params);
   }
 
+  @Public()
   @Get()
   async getAllUsers(): Promise<PaginatedDataResult<User>> {
     return this.service.getAll();

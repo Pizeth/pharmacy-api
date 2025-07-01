@@ -14,11 +14,12 @@ import {
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 // import { Logger } from './logs/logger';
-import { UserModule } from './modules/users/user.module';
+// import { UserModule } from './modules/users/user.module';
 import { FileModule } from './modules/files/file.module';
 import { ClsModule } from 'nestjs-cls';
 import { v4 as uuidv4 } from 'uuid';
 import { Request } from 'express';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -109,7 +110,7 @@ import { Request } from 'express';
     // }),
     // PrismaModule,
     // HttpModule,
-    UserModule,
+    AuthModule,
     FileModule,
   ],
   providers: [

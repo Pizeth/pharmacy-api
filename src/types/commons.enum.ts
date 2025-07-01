@@ -121,3 +121,15 @@ export enum AvailableFonts {
   OpenSans = 'OpenSans-VariableFont_wdth,wght.ttf',
   RobotoBold = 'Roboto-VariableFont_wdth,wght.ttf',
 }
+
+export enum SensitiveField {
+  Id = 'id',
+  Username = 'username',
+  Email = 'email',
+}
+
+export enum AccessLevel {
+  IS_PUBLIC_KEY = 'isPublic',
+  IS_PRIVATE_KEY = 'isPrivate',
+  IS_PROTECTED_KEY = 'isProtected',
+}
