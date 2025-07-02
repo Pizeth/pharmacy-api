@@ -16,7 +16,7 @@ export class PasswordUtils {
   // }
 
   async hash(password: string, salt?: number) {
-    const actualSalt = salt || this.config.get<number>('SALT', 12);
+    const actualSalt = salt || this.config.get<number>('BCRYPT_ROUNDS', 12);
     return bcrypt.hash(password, actualSalt);
   }
 
@@ -31,6 +31,8 @@ export class PasswordUtils {
 
   // Salt generating method
   getSalt(salt: number) {
-    return bcrypt.genSaltSync(!salt ? this.config.get<number>('SALT') : salt);
+    return bcrypt.genSaltSync(
+      !salt ? this.config.get<number>('BCRYPT_ROUNDS') : salt,
+    );
   }
 }

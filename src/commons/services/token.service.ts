@@ -1,5 +1,5 @@
 // src/services/access-token.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RefreshToken } from '@prisma/client';
@@ -10,15 +10,19 @@ import { Sanitized, SensitiveKey, TokenPayload } from 'src/types/token';
 import statusCode from 'http-status-codes';
 import { AppError } from 'src/exceptions/app.exception';
 import { SensitiveField } from 'src/types/commons.enum';
+import { ClsService } from 'nestjs-cls';
+import { UserDetail } from 'src/types/dto';
+import { Algorithm } from 'jsonwebtoken';
 
 @Injectable()
 export class TokenService {
   private readonly logger = new Logger(TokenService.name);
-  private readonly name = TokenService.name;
+  private readonly context = TokenService.name;
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly cls: ClsService,
   ) {
     this.logger.debug(`${this.constructor.name} initialized`);
     this.logger.debug(`PrismaService injected: ${!!prisma}`);
@@ -32,45 +36,151 @@ export class TokenService {
    * @returns The configuration value as a string.
    * @throws Error if the key is not found or is empty.
    */
-  private getRequiredConfig(key: string): string {
+  private getRequiredConfig1(
+    key: string,
+    defaultValue: string = '',
+  ): string | number | boolean | object {
     // Null-safe access
     if (!this.config) {
-      throw new Error('ConfigService is not available');
+      throw new AppError(
+        'ConfigService is not available',
+        HttpStatus.SERVICE_UNAVAILABLE,
+        this.context,
+        {
+          error: `Dependency Injection failed: ${String(this.config)}`,
+        },
+      );
     }
 
-    const value = this.config.get<string>(key);
-    if (!value) {
-      Logger.error(`Missing configuration: ${key}`, TokenService.name);
-      throw new Error(`Required configuration '${key}' is missing`);
+    // Check if value available for this key
+    const value = this.config.get<string>(key, defaultValue);
+
+    if (!value || value.length === 0) {
+      Logger.error(`Missing configuration: ${key}`, this.context);
+      throw new AppError(
+        `Required configuration '${key}' is missing`,
+        HttpStatus.NOT_IMPLEMENTED,
+        this.context,
+        { error: `Missing configuration: ${key}` },
+      );
     }
+
     return value;
   }
 
+  private getRequiredConfig<T>(
+    key: string,
+    parser: (raw: string) => T,
+    defaultValue?: T,
+  ): T {
+    // Null-safe access
+    if (!this.config) {
+      throw new AppError(
+        'ConfigService is not available',
+        HttpStatus.SERVICE_UNAVAILABLE,
+        this.context,
+        {
+          error: `Dependency Injection failed: ${String(this.config)}`,
+        },
+      );
+    }
+
+    const raw = this.config.get<string | undefined>(key);
+    if (raw == null || raw === '') {
+      if (defaultValue !== undefined) return defaultValue;
+      Logger.error(`Missing configuration: ${key}`, this.context);
+      throw new AppError(
+        `Required configuration '${key}' is missing`,
+        HttpStatus.NOT_IMPLEMENTED,
+        this.context,
+        { error: `Missing configuration: ${key}` },
+      );
+    }
+
+    try {
+      // if (key === 'JWT_REFRESH_EXPIRES_IN') {
+      //   this.logger.debug(`value is ${raw}`);
+      //   this.logger.warn(
+      //     `Value after  parse ${parser(raw) as unknown as string}`,
+      //   );
+      // }
+      return parser(raw);
+    } catch (error: unknown) {
+      throw new AppError(
+        `Failed to parse ${key}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        this.context,
+        error,
+      );
+    }
+  }
+
   // Getter methods for lazy loading configuration
-  private get expiresIn(): string {
-    return this.getRequiredConfig('EXPIRES_IN');
+  private get expiresIn(): number | string {
+    return this.getRequiredConfig(
+      'JWT_EXPIRES_IN',
+      this.parseNumberOrString.bind(this),
+    );
+  }
+
+  private get expireRefresh(): number | string {
+    return this.getRequiredConfig(
+      'JWT_REFRESH_EXPIRES_IN',
+      this.parseNumberOrString.bind(this),
+    );
   }
 
   private get secretKey(): string {
-    return this.getRequiredConfig('SECRET_KEY');
+    return this.getRequiredConfig('JWT_SECRET', String);
   }
 
   private get refreshTokenKey(): string {
-    return this.getRequiredConfig('REFRESH_TOKEN_KEY');
+    return this.getRequiredConfig('JWT_REFRESH_SECRET', String);
   }
 
-  private get expireRefresh(): string {
-    return this.getRequiredConfig('EXPIRE_REFRESH');
+  private get issuer(): string {
+    return this.getRequiredConfig('JWT_ISSUER', String);
   }
 
-  generatePayload(payload: TokenPayload, req: Request) {
+  private get audience(): string {
+    return this.getRequiredConfig('JWT_AUDIENCE', String);
+  }
+
+  private get algorithm(): Algorithm {
+    return this.getRequiredConfig(
+      'JWT_ALGORITHM',
+      (raw) => raw as Algorithm,
+      'HS256',
+    );
+  }
+
+  /**
+   * Composite parser: if it’s a valid number, return → number;
+   * otherwise, fall back to the original string.
+   */
+  private parseNumberOrString(raw: string): number | string {
+    const n = Number(raw);
+    return Number.isNaN(n) ? raw : n;
+  }
+
+  // private get algorithm(): Algorithm {
+  //   return this.getRequiredConfig('JWT_ALGORITHM', (raw) => raw as Algorithm);
+  // }
+
+  generatePayload(payload: UserDetail): TokenPayload {
+    const ip = this.cls.get<string>('ip') || '';
     return {
-      id: payload.id,
+      sub: payload.id,
       username: payload.username,
       email: payload.email,
-      roleId: payload.roleId,
-      role: payload.role,
-      ip: req.ip,
+      avatar: payload.avatar,
+      role: {
+        id: payload.role.id,
+        name: payload.role.name,
+        description: payload.role.description,
+      },
+      authMethod: payload.authMethod,
+      ip: ip,
     };
   }
 
@@ -94,23 +204,28 @@ export class TokenService {
   // }
 
   // Update generateToken to access config when needed
-  generateToken(
+  async generateToken(
     payload: TokenPayload | { filename: string },
-    expiresIn?: string,
-  ): string {
+    secret: string | Buffer = this.secretKey,
+    expiresIn: number | string = this.expiresIn,
+    issuer: string = this.issuer,
+    audience: string = this.audience,
+    algorithm: Algorithm = this.algorithm,
+  ): Promise<string> {
+    // this.logger.debug(`Expires In: ${expiresIn}`);
     try {
-      // const actualExpiresIn = expiresIn || this.config.get('EXPIRES_IN');
-      // const secretKey = this.config.get<string>('SECRET_KEY');
-
-      return this.jwtService.sign(payload, {
-        expiresIn: expiresIn || this.expiresIn,
-        secret: this.secretKey,
+      return await this.jwtService.signAsync(payload, {
+        expiresIn,
+        secret,
+        issuer,
+        audience,
+        algorithm,
       });
     } catch (error: unknown) {
       throw new AppError(
-        'Failed to generate tokend',
+        'Failed to generate token',
         statusCode.UNPROCESSABLE_ENTITY,
-        this.name,
+        this.context,
         error,
       );
     }
@@ -118,15 +233,19 @@ export class TokenService {
 
   // Generate refresh tokens
   async generateRefreshToken(payload: TokenPayload): Promise<RefreshToken> {
-    const token = this.generateToken(payload, this.expireRefresh);
+    const token = await this.generateToken(
+      payload,
+      this.refreshTokenKey,
+      this.expireRefresh,
+    );
     try {
-      return await this.createRefreshToken(token, payload.id);
+      return await this.createRefreshToken(token, payload.sub);
     } catch (error: unknown) {
       console.error('Error saving refresh token:', error);
       throw new AppError(
         'Failed to save refresh tokend',
         statusCode.GONE,
-        this.name,
+        this.context,
         error,
       );
     }
@@ -153,7 +272,7 @@ export class TokenService {
       );
 
       // Define required claims
-      const requiredClaims = ['id', 'username', 'email', 'roleId', 'ip'];
+      const requiredClaims = ['sub', 'username', 'email', 'roleId', 'ip'];
 
       // Check for undefined or null claims
       const invalidClaims = requiredClaims.filter(
@@ -165,10 +284,17 @@ export class TokenService {
 
       // If any required claims are invalid, throw an error
       if (invalidClaims.length > 0) {
-        throw new Error(
+        throw new AppError(
           `Invalid token: Undefined or null claims - ${invalidClaims.join(
             ', ',
           )}`,
+          HttpStatus.EXPECTATION_FAILED,
+          this.context,
+          {
+            errors: `Expect the following claim ${requiredClaims.join(', ')} but get ${invalidClaims.join(
+              ', ',
+            )}`,
+          },
         );
       }
 
@@ -183,7 +309,7 @@ export class TokenService {
         throw new AppError(
           'Authentication failed: Token has expired',
           statusCode.UNAUTHORIZED,
-          this.name,
+          this.context,
           error,
         );
       }
@@ -197,7 +323,7 @@ export class TokenService {
         throw new AppError(
           'Authentication failed: Invalid token signature',
           statusCode.UNAUTHORIZED,
-          this.name,
+          this.context,
           error,
         );
       }
@@ -304,7 +430,7 @@ export class TokenService {
       throw new AppError(
         'Failed to fetch refresh token',
         statusCode.NOT_FOUND,
-        this.name,
+        this.context,
         error,
       );
     }

@@ -70,13 +70,14 @@ export class UserSeeder {
             },
             refreshTokens: {
               create: {
-                token: this.token.generateToken(
+                token: await this.token.generateToken(
                   {
-                    id: 0, // Placeholder.
+                    sub: 0, // Placeholder.
                     username: superAdminData.username,
                     email: superAdminData.email,
-                    roleId: superAdminData.roleId,
                     role: this.getRoleToken(superAdminData.role),
+                    avatar: superAdminData.avatar,
+                    authMethod: superAdminData.authMethod,
                     ip: 'LOCALHOST',
                   },
                   '7d',
@@ -136,13 +137,14 @@ export class UserSeeder {
                   id: this.getSeedToken(refreshTokens, userId, expiresAt),
                 },
                 data: {
-                  token: this.token.generateToken(
+                  token: await this.token.generateToken(
                     {
-                      id: userId,
+                      sub: userId,
                       username: superAdmin.username,
                       email: superAdmin.email,
-                      roleId: superAdmin.roleId,
                       role: this.getRoleToken(superAdmin.role),
+                      avatar: superAdmin.avatar,
+                      authMethod: superAdmin.authMethod,
                       ip: 'LOCALHOST',
                     },
                     '7d',
@@ -198,7 +200,7 @@ export class UserSeeder {
       this.logger.log('🌱 Super Admin user seeded successfully:', {
         id: result.id,
         email: result.email,
-        role: result.roleId,
+        role: result.role.name,
         profile: result.profile,
         // Be careful logging tokens, even in seeds
         // refreshTokenId: adminUser.refreshTokens.length > 0 ? adminUser.refreshTokens[0].id : null
@@ -223,13 +225,13 @@ export class UserSeeder {
       return {
         id: 0,
         name: 'SUPER_ADMIN',
-        descrition: 'Super Administrator with full access',
+        description: 'Super Administrator with full access',
       };
     }
     return {
       id: role.id,
       name: role.name,
-      descrition: role.description,
+      description: role.description,
     };
   }
 
@@ -291,6 +293,7 @@ export class UserSeeder {
         'SEED_ADMIN_AVATAR',
         'https://i.pinimg.com/736x/36/08/fe/3608fede746d1d6b429e58b945a90e1a.jpg',
       ),
+      authMethod: this.config.get('SEED_ADMIN_AUTH_METHOD', 'PASSWORD'),
       profile: {
         firstName: this.config.get('SEED_ADMIN_FIRST_NAME', 'Piseth'),
         lastName: this.config.get('SEED_ADMIN_LAST_NAME', 'Mam'),

@@ -8,21 +8,22 @@
 //   | 'objectVersionId'
 // >;
 
+import { AuthMethod } from '@prisma/client';
 import { SensitiveField } from './commons.enum';
 
 interface RoleToken {
   id: number;
   name: string;
-  descrition: string | null;
+  description: string | null;
 }
 
 export interface TokenPayload {
-  id: number;
+  sub: number;
   username: string;
   email: string;
-  roleId: number;
-  avatar?: string;
+  avatar: string | null;
   role: RoleToken;
+  authMethod: AuthMethod | null;
   ip: string;
 }
 

@@ -89,6 +89,9 @@ import { PrismaModule } from '../prisma.module';
 import { logger } from 'nestjs-i18n';
 import { configurationSchema } from 'src/validation/configuration.schema';
 import { ZodError } from 'zod';
+import { ClsModule, ClsService } from 'nestjs-cls';
+import { Request } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 
 @Module({
   imports: [
@@ -132,6 +135,27 @@ import { ZodError } from 'zod';
         signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
       }),
     }),
+    // Setup ClsModule globally.
+    ClsModule.forRoot({
+      global: true, // Make the ClsService available everywhere
+      middleware: {
+        // Mount the middleware automatically for all routes
+        mount: true,
+        // This function runs for every request
+        // Here, we can extract data from the request and store it in the context
+        // setup: (cls, req: { ip?: string; headers: Record<string, any> }) => {
+        setup: (cls, req: Request) => {
+          cls.set('ip', req.ip);
+          cls.set('userId', req.headers['x-user-id']);
+          cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
+          cls.set('userAgent', req.headers['user-agent']);
+          cls.set('url', req.url);
+          cls.set('method', req.method);
+          // If you use an auth guard that sets `req.user`, you can set it here too
+          // cls.set('user', req.user);
+        },
+      },
+    }),
   ],
   providers: [
     // We define a custom factory for our main Seeder class.
@@ -142,12 +166,13 @@ import { ZodError } from 'zod';
         prisma: PrismaService,
         config: ConfigService,
         jwt: JwtService,
+        cls: ClsService,
       ) => {
         // 1. Manually create the main TokenService instance, passing in the helper instances.
-        return new TokenService(config, prisma, jwt);
+        return new TokenService(config, prisma, jwt, cls);
       },
       // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
-      inject: [PrismaService, ConfigService, JwtService],
+      inject: [PrismaService, ConfigService, JwtService, ClsService],
     },
     {
       provide: PasswordUtils,

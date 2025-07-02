@@ -123,7 +123,7 @@ export enum AvailableFonts {
 }
 
 export enum SensitiveField {
-  Id = 'id',
+  sub = 'sub',
   Username = 'username',
   Email = 'email',
 }

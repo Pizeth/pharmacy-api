@@ -12,6 +12,7 @@ import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
 import { DiceBearStyle, type } from 'src/types/commons.enum';
 import { ImagesService } from 'src/modules/images/services/images.service';
+import { UserDetail } from 'src/types/dto';
 
 @Injectable()
 export class UsersService {
@@ -55,9 +56,9 @@ export class UsersService {
    * @returns A promise that resolves to the found {@link User} object or `null` if no user is found.
    * @throws {AppError} If an error occurs during the database query.
    */
-  async getUser(input: string): Promise<User | null> {
+  async getUser(input: string): Promise<UserDetail | null> {
     try {
-      return await this.prisma.user.findFirst({
+      const result = await this.prisma.user.findFirst({
         where: {
           OR: [
             { email: { equals: input, mode: 'insensitive' } },
@@ -71,7 +72,7 @@ export class UsersService {
           auditTrail: true,
         },
       });
-      // return user;
+      return result as UserDetail | null;
     } catch (error) {
       this.logger.error(`Error finding user ${input}:`, error);
       throw new AppError(

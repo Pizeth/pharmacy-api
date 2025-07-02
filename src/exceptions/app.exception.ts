@@ -30,8 +30,8 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 export class AppError extends HttpException {
   // You can add any custom properties you need
   public readonly context?: string;
-  public readonly errorData?: unknown;
-  public readonly statusCode: number;
+  // public readonly errorData?: unknown;
+  // public readonly statusCode: number;
   //   private isOperational: boolean;
   //   private error: unknown;
   constructor(
@@ -42,9 +42,9 @@ export class AppError extends HttpException {
   ) {
     // The `super()` call passes the main message and status code to the base HttpException.
     // The response object can contain both the message and additional details.
-    super({ message, statusCode, context, errorData }, statusCode);
+    super({ message, errorData }, statusCode);
     this.context = context;
-    this.errorData = errorData;
-    this.statusCode = statusCode;
+    // this.errorData = errorData;
+    // this.statusCode = statusCode;
   }
 }

@@ -55,11 +55,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       ip: request.ip,
       correlationId: this.cls.get('correlationId'), // <-- Enrich response with correlationId
       message,
-      userAgent: {
-        browser: parser.getBrowser(),
-        os: parser.getOS(),
-        device: parser.getDevice(),
-      },
+      userAgent: parser.getResult(),
       // Include validation errors from class-validator or nestjs-zod if they exist
       // Conditionally add the 'errors' field only if it exists and is an object.
       ...(errors && typeof errors === 'object' ? { errors } : {}),

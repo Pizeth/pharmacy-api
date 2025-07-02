@@ -34,33 +34,40 @@ export class ExceptionService {
     const { statusCode, message, errors } =
       this.parseUnknownException(exception);
 
+    // this.logger.debug('Error', exception);
+
     const errorLog = {
       statusCode,
       timestamp: new Date().toISOString(),
-      correlationId: cls.get<string>('correlationId'), // <-- Add correlationId to logs
       path: cls.get<string>('url'),
       method: cls.get<string>('method'),
       ip: cls.get<string>('ip'), // <-- Get IP from CLS context
+      correlationId: cls.get<string>('correlationId'), // <-- Add correlationId to logs
       message,
       userAgent: parser.getResult(),
-      // Include stack trace in development for easier debugging
+      // Conditionally include the 'errors' field only if it exists and is an object.
+      ...(errors && typeof errors === 'object' ? { errors } : {}),
+      // Conditionally include stack trace in development for easier debugging
       ...(this.config.get<string>('NODE_ENV')?.toLowerCase() ===
         'development' && {
         stack: errors instanceof Error ? errors.stack : errors,
       }),
     };
 
-    this.logger.error('HTTP Exception:', JSON.stringify(errorLog, null, 2));
+    // this.logger.error('HTTP Exception:', JSON.stringify(errorLog, null, 3));
+    this.logger.error('HTTP Exception:', errorLog);
   }
 
   // Helper function to safely parse exception response
   parseUnknownException(exception: unknown): ExceptionData {
     if (exception instanceof HttpException) {
+      // this.logger.debug('HttpException ', exception);
       return this.parseHttpException(exception);
     }
     const statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
 
     if (exception instanceof Error) {
+      // this.logger.debug('INTERNAL_SERVER_ERROR ', exception);
       return {
         statusCode,
         message: exception.message,
@@ -68,7 +75,7 @@ export class ExceptionService {
         errors: exception.stack ? exception.stack : undefined,
       };
     }
-
+    // this.logger.debug('Unknown ', exception);
     // Fallback for non-Error, non-HttpException payloads
     return {
       statusCode,
@@ -83,6 +90,8 @@ export class ExceptionService {
 
     // 1) If the response is a plain string, that’s our message
     if (typeof response === 'string') {
+      // this.logger.debug('string', response);
+      // this.logger.debug('string', exception);
       return {
         statusCode,
         message: response,
@@ -92,14 +101,15 @@ export class ExceptionService {
 
     // 2) Otherwise we expect an object
     if (this.isErrorObject(response)) {
+      // this.logger.debug('Object', response);
       return {
         statusCode,
         message: this.getMessage(response, exception.message),
-        errors: 'errors' in response ? response.errors : undefined,
+        errors: 'errorData' in response ? response.errorData : undefined,
       };
     }
-
     // 3) Fallback for other unexpected HttpException payloads
+    // this.logger.debug('unexpected', response);
     return { statusCode, message: exception.message, errors: response };
   }
 
