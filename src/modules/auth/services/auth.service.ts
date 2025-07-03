@@ -71,7 +71,7 @@ export class AuthService {
         );
       }
 
-      if (!this.passwordUtil.compare(user.password, pass)) {
+      if (!this.passwordUtil.compare(pass, user.password)) {
         // Increment login attempts
         // await UserRepo.incrementLoginAttempts(user.toData());
         // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
@@ -100,12 +100,15 @@ export class AuthService {
       const token = await this.tokenService.generateToken(payload);
 
       // Save refresh token to database
-      const refreshToken =
-        await this.tokenService.generateRefreshToken(payload);
+      const refreshToken = await this.tokenService.generateRefreshToken(
+        payload,
+        '15 wks',
+      );
 
       // After validation succeeds, transform the object by creating a mutable copy of the validated data.
       const result = user;
       // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+      delete (result as { password?: string }).password; // Cleanly remove the repassword field
       delete (result as { repassword?: string }).repassword; // Cleanly remove the repassword field
 
       // TODO: Generate a JWT and return it here
@@ -113,6 +116,7 @@ export class AuthService {
       // const payload = { sub: user.id, username: user.username };
       return {
         // access_token: await this.jwtService.signAsync(payload),
+        user: result,
         token: token,
         refreshToken: refreshToken.token,
       };

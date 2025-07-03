@@ -8,7 +8,7 @@ export interface UserDetail extends User {
 }
 
 export interface SignedUser {
-  data?: UserDetail;
+  user?: UserDetail;
   token: string;
   refreshToken: string;
 }

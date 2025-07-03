@@ -156,12 +156,13 @@ export enum AccessLevel {
 //   y = 31_557_600_000, // Approx. 1 year = 365.25 days
 // }
 
+export enum AmbiguousUnit {
+  M = 'm',
+}
+
 // Combined configuration with aliases and multipliers
-// export const unitConfig: Record<
-//   string,
-//   { unit: UnitTime; multiplier: number }
-// > = {
-export const unitConfig = {
+const UNIT_CONFIG: Record<string, { unit: string; multiplier: number }> = {
+  // export const unitConfig = {
   // Milliseconds
   ms: { unit: 'ms', multiplier: 1 },
   millisecond: { unit: 'ms', multiplier: 1 },
@@ -201,10 +202,10 @@ export const unitConfig = {
   weeks: { unit: 'w', multiplier: 604_800_000 },
 
   // Months
-  mo: { unit: 'mo', multiplier: 2_629_746_000 },
-  m: { unit: 'mo', multiplier: 2_629_746_000 },
-  month: { unit: 'mo', multiplier: 2_629_746_000 },
-  months: { unit: 'mo', multiplier: 2_629_746_000 },
+  // mo: { unit: 'mo', multiplier: 2_629_746_000 },
+  // m: { unit: 'mo', multiplier: 2_629_746_000 },
+  // month: { unit: 'mo', multiplier: 2_629_746_000 },
+  // months: { unit: 'mo', multiplier: 2_629_746_000 },
 
   // Years
   y: { unit: 'y', multiplier: 31_557_600_000 },
@@ -218,14 +219,24 @@ export const unitConfig = {
 // export type UnitTime = 'ms' | 's' | 'min' | 'h' | 'd' | 'w' | 'mo' | 'y';
 
 // 2) Canonical keys of valid unit values for type safety
-export type UnitTime = (typeof unitConfig)[keyof typeof unitConfig]['unit'];
+export type UnitTime = (typeof UNIT_CONFIG)[keyof typeof UNIT_CONFIG]['unit'];
 // Reverse lookup table for multipliers by canonical unit
-export const unitToMultiplier: Record<UnitTime, number> = Object.values(
-  unitConfig,
+export const UNIT_MULTIPLIERS: Record<UnitTime, number> = Object.values(
+  UNIT_CONFIG,
 ).reduce(
   (map, { unit, multiplier }) => {
     if (!map[unit]) map[unit] = multiplier;
     return map;
   },
   {} as Record<UnitTime, number>,
+);
+
+export const ALIAS_MAP: Record<string, UnitTime> = Object.entries(
+  UNIT_CONFIG,
+).reduce(
+  (acc, [alias, { unit }]) => {
+    acc[alias] = unit;
+    return acc;
+  },
+  {} as Record<string, UnitTime>,
 );

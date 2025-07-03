@@ -9,7 +9,13 @@ import { Sanitized, SensitiveKey, TokenPayload } from 'src/types/token';
 // import { AppError } from 'src/middlewares/app-errors.middleware';
 import statusCode from 'http-status-codes';
 import { AppError } from 'src/exceptions/app.exception';
-import { SensitiveField, UnitMap, UnitTime } from 'src/types/commons.enum';
+import {
+  ALIAS_MAP,
+  AmbiguousUnit,
+  SensitiveField,
+  UNIT_MULTIPLIERS,
+  UnitTime,
+} from 'src/types/commons.enum';
 import { ClsService } from 'nestjs-cls';
 import { UserDetail } from 'src/types/dto';
 import { Algorithm } from 'jsonwebtoken';
@@ -120,6 +126,7 @@ export class TokenService {
     return this.getRequiredConfig(
       'JWT_EXPIRES_IN',
       this.parseNumberOrString.bind(this),
+      90000, // Default to expires in 15 mins
     );
   }
 
@@ -127,6 +134,7 @@ export class TokenService {
     return this.getRequiredConfig(
       'JWT_REFRESH_EXPIRES_IN',
       this.parseNumberOrString.bind(this),
+      '7d', // Default to expires in 7 days
     );
   }
 
@@ -206,13 +214,12 @@ export class TokenService {
   // Update generateToken to access config when needed
   async generateToken(
     payload: TokenPayload | { filename: string },
-    secret: string | Buffer = this.secretKey,
     expiresIn: number | string = this.expiresIn,
+    secret: string | Buffer = this.secretKey,
     issuer: string = this.issuer,
     audience: string = this.audience,
     algorithm: Algorithm = this.algorithm,
   ): Promise<string> {
-    // this.logger.debug(`Expires In: ${expiresIn}`);
     try {
       return await this.jwtService.signAsync(payload, {
         expiresIn,
@@ -232,22 +239,19 @@ export class TokenService {
   }
 
   // Generate refresh tokens
-  async generateRefreshToken(payload: TokenPayload): Promise<RefreshToken> {
-    const token = await this.generateToken(
-      payload,
-      this.refreshTokenKey,
-      this.expireRefresh,
-    );
+  async generateRefreshToken(
+    payload: TokenPayload,
+    expiresIn: number | string = this.expireRefresh,
+    secret: string = this.refreshTokenKey,
+  ): Promise<RefreshToken> {
     try {
-      return await this.createRefreshToken(
-        token,
-        payload.sub,
-        7 * 24 * 60 * 60 * 1000,
-      );
+      const token = await this.generateToken(payload, expiresIn, secret);
+      const expiresAt = this.getExpiresAt(expiresIn);
+      return await this.createRefreshToken(token, payload.sub, expiresAt);
     } catch (error: unknown) {
-      console.error('Failed to save the generated Refresh Token', error);
+      console.error('Failed to generated Refresh Token', error);
       throw new AppError(
-        'Failed to save the generated Refresh Token',
+        'Failed to generated Refresh Token',
         statusCode.GONE,
         this.context,
         error,
@@ -441,17 +445,17 @@ export class TokenService {
   }
 
   // Save refresh token to database
-  async createRefreshToken(
+  private async createRefreshToken(
     token: string,
     id: number,
-    expiresAt: number = 7 * 24 * 60 * 60 * 1000, // 7 days
+    expiresAt: Date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
   ) {
     try {
       return await this.prisma.refreshToken.create({
         data: {
           token: token,
           userId: id,
-          expiresAt: new Date(Date.now() + expiresAt), // 7 days
+          expiresAt: expiresAt,
         },
       });
     } catch (error: unknown) {
@@ -477,41 +481,51 @@ export class TokenService {
    * @param duration - the amount of time to add
    * @param unit - time unit ('ms' | 's' | 'm' | 'h' | 'd' | 'w' | 'mo')
    */
-  setExpiresAt(duration: number, unit: UnitTime | string): Date {
-    const now = Date.now();
+  // setExpiresAt(duration: number, unit: UnitTime | string): Date {
+  //   const now = Date.now();
 
-    // const unitMap: Record<typeof unit, number> = {
-    //   ms: 1,
-    //   s: 1000,
-    //   mn: 60_000,
-    //   h: 3_600_000,
-    //   d: 86_400_000,
-    //   w: 604_800_000,
-    //   m: 2_629_746_000, // Approx. 1 month = 30.44 days
-    //   y: 31_557_600_000, // Approx. 1 year = 365.25 days
-    // };
+  //   // const unitMap: Record<typeof unit, number> = {
+  //   //   ms: 1,
+  //   //   s: 1000,
+  //   //   mn: 60_000,
+  //   //   h: 3_600_000,
+  //   //   d: 86_400_000,
+  //   //   w: 604_800_000,
+  //   //   m: 2_629_746_000, // Approx. 1 month = 30.44 days
+  //   //   y: 31_557_600_000, // Approx. 1 year = 365.25 days
+  //   // };
 
-    const multiplier = UnitMap[unit as keyof typeof UnitMap];
-    this.logger.debug('multipler:', multiplier);
-    if (!multiplier) {
-      throw new AppError(
-        `Unsupported time format: ${unit}`,
-        HttpStatus.EXPECTATION_FAILED,
-        this.context,
-        {
-          cause: `User provided invalid time fomat ${unit}`,
-          description: `Time format must match one of the following: ${Object.values(UnitTime).join(', ')}`,
-        },
-      );
-    }
+  //   const multiplier = UnitMap[unit as keyof typeof UnitMap];
+  //   this.logger.debug('multipler:', multiplier);
+  //   if (!multiplier) {
+  //     throw new AppError(
+  //       `Unsupported time format: ${unit}`,
+  //       HttpStatus.EXPECTATION_FAILED,
+  //       this.context,
+  //       {
+  //         cause: `User provided invalid time fomat ${unit}`,
+  //         description: `Time format must match one of the following: ${Object.values(UnitTime).join(', ')}`,
+  //       },
+  //     );
+  //   }
 
-    return new Date(now + duration * multiplier);
+  //   return new Date(now + duration * multiplier);
+  // }
+
+  /**
+   * A convenience method to parse and set the expiration in one step.
+   * @param input The duration string or number to parse.
+   * @returns A future Date object.
+   */
+  getExpiresAt(input: string | number): Date {
+    const { duration, unit } = this.parseDuration(input);
+    return this.setExpiresAt(duration, unit);
   }
 
   /**
    * Parse strings like "7d", "1.5h", "3600000", or "1mo" into a { duration, unit } pair.
    */
-  parseDuration(input: string | number): {
+  private parseDuration(input: string | number): {
     duration: number;
     unit: UnitTime;
   } {
@@ -527,35 +541,98 @@ export class TokenService {
     }
 
     // Match number (including decimals) and unit
-    const match = trimmed.match(/^(\d*\.?\d+)([a-z]+)$/);
+    const match = trimmed.match(/^(\d*\.?\d+)\s*([a-z]+)$/);
     if (!match) {
-      throw new Error(
+      throw new AppError(
         `Invalid duration format: "${input}". Expected format: <number><unit> (e.g., "7d", "1.5h")`,
+        HttpStatus.EXPECTATION_FAILED,
+        this.context,
+        {
+          cause: `Provided format "${input}" is invalid, which can't be use for parsing time.`,
+          description: `Invalid duration format "${input}". Please only use Number and list of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
+        },
       );
     }
 
-    const [, numStr, rawUnit] = match;
+    const [, numStr, alias] = match;
     const duration = parseFloat(numStr);
+    // const unit = ALIAS_MAP[alias];
+    const unit = this.normalizeUnit(alias);
 
     // Look up unit in config
-    const config = unitConfig[rawUnit];
-    if (!config) {
-      throw new Error(
-        `Unknown time unit: "${rawUnit}". Supported units: ${Object.keys(unitConfig).join(', ')}`,
+    // const config = unitConfig[rawUnit];
+    if (!unit) {
+      throw new AppError(
+        `Unknown time unit: "${unit}". Supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
+        HttpStatus.EXPECTATION_FAILED,
+        this.context,
+        {
+          cause: `Provide unknown unit "${unit}", which can be use for parsing format.`,
+          description: `Unknown time unit: "${unit}". List of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
+        },
       );
     }
 
-    return { duration, unit: config.unit as UnitTime };
+    return { duration, unit };
+  }
+
+  /**
+   * Resolve unit aliases to standardized UnitTime
+   */
+  private normalizeUnit(rawUnit: string): UnitTime {
+    const unit = ALIAS_MAP[rawUnit];
+    if (!unit) {
+      // Handle ambiguous single 'm' unit
+      if (Object.values<string>(AmbiguousUnit).includes(rawUnit)) {
+        throw new AppError(
+          `Ambiguous unit "${rawUnit}". Use 'min' for minutes or 'mo' for months.`,
+          HttpStatus.EXPECTATION_FAILED,
+          this.context,
+          {
+            cause: `Provide ambiguous unit "${rawUnit}", which can cause confusion.`,
+            description: `Ambiguous unit: "${rawUnit}". List of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
+          },
+        );
+      }
+      throw new AppError(
+        `Unknown time unit: "${rawUnit}"`,
+        HttpStatus.EXPECTATION_FAILED,
+        this.context,
+        {
+          cause: `Provide unknown unit "${rawUnit}", which can't be use for normalization.`,
+          description: `Unknown time unit: "${rawUnit}". List of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
+        },
+      );
+    }
+
+    return unit;
   }
 
   /**
    * Add duration of given unit to now.
    */
-  static setExpireAt(duration: number, unit: UnitTime): Date {
-    const config = Object.values(unitConfig).find((c) => c.unit === unit);
-    if (!config) {
-      throw new Error(`Unsupported time unit: "${unit}"`);
+  private setExpiresAt(duration: number, unit: UnitTime): Date {
+    const multiplier = UNIT_MULTIPLIERS[unit];
+
+    // This check is good practice but technically redundant if UnitTime type is enforced
+    if (multiplier === undefined) {
+      throw new AppError(
+        `Unsupported time format: "${unit}"`,
+        HttpStatus.EXPECTATION_FAILED,
+        this.context,
+        {
+          cause: `User provided invalid time fomat "${unit}"`,
+          description: `Time format must match one of the following: ${Object.keys(UNIT_MULTIPLIERS).join(', ')}`,
+        },
+      );
     }
-    return new Date(Date.now() + duration * config.multiplier);
+
+    return new Date(Date.now() + duration * multiplier);
+
+    // const config = Object.values(unitConfig).find((c) => c.unit === unit);
+    // if (!config) {
+    //   throw new Error(`Unsupported time unit: "${unit}"`);
+    // }
+    // return new Date(Date.now() + duration * config.multiplier);
   }
 }
