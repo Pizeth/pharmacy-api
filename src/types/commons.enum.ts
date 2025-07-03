@@ -133,3 +133,99 @@ export enum AccessLevel {
   IS_PRIVATE_KEY = 'isPrivate',
   IS_PROTECTED_KEY = 'isProtected',
 }
+
+// export enum UnitTime {
+//   MS = 'ms',
+//   S = 's',
+//   MN = 'mn',
+//   H = 'h',
+//   D = 'd',
+//   W = 'w',
+//   M = 'm',
+//   Y = 'y',
+// }
+
+// export enum UnitMap {
+//   ms = 1,
+//   s = 1000,
+//   mn = 60_000,
+//   h = 3_600_000,
+//   d = 86_400_000,
+//   w = 604_800_000,
+//   m = 2_629_746_000, // Approx. 1 month = 30.44 days
+//   y = 31_557_600_000, // Approx. 1 year = 365.25 days
+// }
+
+// Combined configuration with aliases and multipliers
+// export const unitConfig: Record<
+//   string,
+//   { unit: UnitTime; multiplier: number }
+// > = {
+export const unitConfig = {
+  // Milliseconds
+  ms: { unit: 'ms', multiplier: 1 },
+  millisecond: { unit: 'ms', multiplier: 1 },
+  milliseconds: { unit: 'ms', multiplier: 1 },
+
+  // Seconds
+  s: { unit: 's', multiplier: 1000 },
+  sec: { unit: 's', multiplier: 1000 },
+  secs: { unit: 's', multiplier: 1000 },
+  second: { unit: 's', multiplier: 1000 },
+  seconds: { unit: 's', multiplier: 1000 },
+
+  // Minutes
+  mn: { unit: 'min', multiplier: 60_000 },
+  min: { unit: 'min', multiplier: 60_000 },
+  mins: { unit: 'min', multiplier: 60_000 },
+  minute: { unit: 'min', multiplier: 60_000 },
+  minutes: { unit: 'min', multiplier: 60_000 },
+
+  // Hours
+  h: { unit: 'h', multiplier: 3_600_000 },
+  hr: { unit: 'h', multiplier: 3_600_000 },
+  hrs: { unit: 'h', multiplier: 3_600_000 },
+  hour: { unit: 'h', multiplier: 3_600_000 },
+  hours: { unit: 'h', multiplier: 3_600_000 },
+
+  // Days
+  d: { unit: 'd', multiplier: 86_400_000 },
+  day: { unit: 'd', multiplier: 86_400_000 },
+  days: { unit: 'd', multiplier: 86_400_000 },
+
+  // Weeks
+  w: { unit: 'w', multiplier: 604_800_000 },
+  wk: { unit: 'w', multiplier: 604_800_000 },
+  wks: { unit: 'w', multiplier: 604_800_000 },
+  week: { unit: 'w', multiplier: 604_800_000 },
+  weeks: { unit: 'w', multiplier: 604_800_000 },
+
+  // Months
+  mo: { unit: 'mo', multiplier: 2_629_746_000 },
+  m: { unit: 'mo', multiplier: 2_629_746_000 },
+  month: { unit: 'mo', multiplier: 2_629_746_000 },
+  months: { unit: 'mo', multiplier: 2_629_746_000 },
+
+  // Years
+  y: { unit: 'y', multiplier: 31_557_600_000 },
+  yr: { unit: 'y', multiplier: 31_557_600_000 },
+  yrs: { unit: 'y', multiplier: 31_557_600_000 },
+  year: { unit: 'y', multiplier: 31_557_600_000 },
+  years: { unit: 'y', multiplier: 31_557_600_000 },
+};
+
+// Valid unit values for type safety
+// export type UnitTime = 'ms' | 's' | 'min' | 'h' | 'd' | 'w' | 'mo' | 'y';
+
+// 2) Canonical keys of valid unit values for type safety
+export type UnitTime = (typeof unitConfig)[keyof typeof unitConfig]['unit'];
+// Reverse lookup table for multipliers by canonical unit
+export const unitToMultiplier: Record<UnitTime, number> = Object.values(
+  unitConfig,
+).reduce(
+  (map, { unit, multiplier }) => {
+    if (!map[unit]) map[unit] = multiplier;
+    return map;
+  },
+  {} as Record<UnitTime, number>,
+);

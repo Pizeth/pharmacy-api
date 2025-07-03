@@ -9,7 +9,7 @@ import { Sanitized, SensitiveKey, TokenPayload } from 'src/types/token';
 // import { AppError } from 'src/middlewares/app-errors.middleware';
 import statusCode from 'http-status-codes';
 import { AppError } from 'src/exceptions/app.exception';
-import { SensitiveField } from 'src/types/commons.enum';
+import { SensitiveField, UnitMap, UnitTime } from 'src/types/commons.enum';
 import { ClsService } from 'nestjs-cls';
 import { UserDetail } from 'src/types/dto';
 import { Algorithm } from 'jsonwebtoken';
@@ -239,11 +239,15 @@ export class TokenService {
       this.expireRefresh,
     );
     try {
-      return await this.createRefreshToken(token, payload.sub);
+      return await this.createRefreshToken(
+        token,
+        payload.sub,
+        7 * 24 * 60 * 60 * 1000,
+      );
     } catch (error: unknown) {
-      console.error('Error saving refresh token:', error);
+      console.error('Failed to save the generated Refresh Token', error);
       throw new AppError(
-        'Failed to save refresh tokend',
+        'Failed to save the generated Refresh Token',
         statusCode.GONE,
         this.context,
         error,
@@ -436,6 +440,26 @@ export class TokenService {
     }
   }
 
+  // Save refresh token to database
+  async createRefreshToken(
+    token: string,
+    id: number,
+    expiresAt: number = 7 * 24 * 60 * 60 * 1000, // 7 days
+  ) {
+    try {
+      return await this.prisma.refreshToken.create({
+        data: {
+          token: token,
+          userId: id,
+          expiresAt: new Date(Date.now() + expiresAt), // 7 days
+        },
+      });
+    } catch (error: unknown) {
+      console.error('Error saving refresh token:', error);
+      throw error;
+    }
+  }
+
   // Remove refresh token from database
   async removeTokens(token: string) {
     try {
@@ -448,19 +472,90 @@ export class TokenService {
     }
   }
 
-  // Save refresh token to database
-  async createRefreshToken(token: string, id: number) {
-    try {
-      return await this.prisma.refreshToken.create({
-        data: {
-          token: token,
-          userId: id,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+  /**
+   * Returns a future Date object by adding `duration` of specified `unit`
+   * @param duration - the amount of time to add
+   * @param unit - time unit ('ms' | 's' | 'm' | 'h' | 'd' | 'w' | 'mo')
+   */
+  setExpiresAt(duration: number, unit: UnitTime | string): Date {
+    const now = Date.now();
+
+    // const unitMap: Record<typeof unit, number> = {
+    //   ms: 1,
+    //   s: 1000,
+    //   mn: 60_000,
+    //   h: 3_600_000,
+    //   d: 86_400_000,
+    //   w: 604_800_000,
+    //   m: 2_629_746_000, // Approx. 1 month = 30.44 days
+    //   y: 31_557_600_000, // Approx. 1 year = 365.25 days
+    // };
+
+    const multiplier = UnitMap[unit as keyof typeof UnitMap];
+    this.logger.debug('multipler:', multiplier);
+    if (!multiplier) {
+      throw new AppError(
+        `Unsupported time format: ${unit}`,
+        HttpStatus.EXPECTATION_FAILED,
+        this.context,
+        {
+          cause: `User provided invalid time fomat ${unit}`,
+          description: `Time format must match one of the following: ${Object.values(UnitTime).join(', ')}`,
         },
-      });
-    } catch (error) {
-      console.error('Error saving refresh token:', error);
-      throw error;
+      );
     }
+
+    return new Date(now + duration * multiplier);
+  }
+
+  /**
+   * Parse strings like "7d", "1.5h", "3600000", or "1mo" into a { duration, unit } pair.
+   */
+  parseDuration(input: string | number): {
+    duration: number;
+    unit: UnitTime;
+  } {
+    if (typeof input === 'number') {
+      return { duration: input, unit: 'ms' };
+    }
+
+    const trimmed = input.trim().toLowerCase();
+
+    // Pure number? Treat as milliseconds
+    if (/^\d+$/.test(trimmed)) {
+      return { duration: parseInt(trimmed, 10), unit: 'ms' };
+    }
+
+    // Match number (including decimals) and unit
+    const match = trimmed.match(/^(\d*\.?\d+)([a-z]+)$/);
+    if (!match) {
+      throw new Error(
+        `Invalid duration format: "${input}". Expected format: <number><unit> (e.g., "7d", "1.5h")`,
+      );
+    }
+
+    const [, numStr, rawUnit] = match;
+    const duration = parseFloat(numStr);
+
+    // Look up unit in config
+    const config = unitConfig[rawUnit];
+    if (!config) {
+      throw new Error(
+        `Unknown time unit: "${rawUnit}". Supported units: ${Object.keys(unitConfig).join(', ')}`,
+      );
+    }
+
+    return { duration, unit: config.unit as UnitTime };
+  }
+
+  /**
+   * Add duration of given unit to now.
+   */
+  static setExpireAt(duration: number, unit: UnitTime): Date {
+    const config = Object.values(unitConfig).find((c) => c.unit === unit);
+    if (!config) {
+      throw new Error(`Unsupported time unit: "${unit}"`);
+    }
+    return new Date(Date.now() + duration * config.multiplier);
   }
 }
