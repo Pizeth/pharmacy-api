@@ -280,7 +280,7 @@ export class TokenService {
       );
 
       // Define required claims
-      const requiredClaims = ['sub', 'username', 'email', 'roleId', 'ip'];
+      const requiredClaims = ['sub', 'username', 'email', 'role', 'ip'];
 
       // Check for undefined or null claims
       const invalidClaims = requiredClaims.filter(
@@ -556,22 +556,7 @@ export class TokenService {
 
     const [, numStr, alias] = match;
     const duration = parseFloat(numStr);
-    // const unit = ALIAS_MAP[alias];
     const unit = this.normalizeUnit(alias);
-
-    // Look up unit in config
-    // const config = unitConfig[rawUnit];
-    if (!unit) {
-      throw new AppError(
-        `Unknown time unit: "${unit}". Supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
-        HttpStatus.EXPECTATION_FAILED,
-        this.context,
-        {
-          cause: `Provide unknown unit "${unit}", which can be use for parsing format.`,
-          description: `Unknown time unit: "${unit}". List of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
-        },
-      );
-    }
 
     return { duration, unit };
   }
@@ -595,11 +580,11 @@ export class TokenService {
         );
       }
       throw new AppError(
-        `Unknown time unit: "${rawUnit}"`,
+        `Unknown time unit: "${rawUnit}". Supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
         HttpStatus.EXPECTATION_FAILED,
         this.context,
         {
-          cause: `Provide unknown unit "${rawUnit}", which can't be use for normalization.`,
+          cause: `Provide unknown unit "${rawUnit}", which can be use for parsing format.`,
           description: `Unknown time unit: "${rawUnit}". List of supported units: ${Object.keys(ALIAS_MAP).join(', ')}`,
         },
       );
@@ -628,11 +613,11 @@ export class TokenService {
     }
 
     return new Date(Date.now() + duration * multiplier);
-
-    // const config = Object.values(unitConfig).find((c) => c.unit === unit);
-    // if (!config) {
-    //   throw new Error(`Unsupported time unit: "${unit}"`);
-    // }
-    // return new Date(Date.now() + duration * config.multiplier);
   }
+
+  // const config = Object.values(unitConfig).find((c) => c.unit === unit);
+  // if (!config) {
+  //   throw new Error(`Unsupported time unit: "${unit}"`);
+  // }
+  // return new Date(Date.now() + duration * config.multiplier);
 }

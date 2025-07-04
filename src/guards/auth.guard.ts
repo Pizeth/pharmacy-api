@@ -40,7 +40,15 @@ export class AuthGuard implements CanActivate {
   private async validateRequest(request: Request): Promise<boolean> {
     const token = this.extractTokenFromHeader(request);
     if (!token) {
-      throw new UnauthorizedException();
+      throw new AppError(
+        'Authentication failed: No Auth Bearer Token provided!',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        {
+          cause: `Missing "Bearer" token from reqest header`,
+          description: `You must provide the Auth Bearer Token inside the http request header`,
+        },
+      );
     }
     try {
       const payload = await this.tokenService.verifyTokenClaims(token, request);
@@ -65,7 +73,7 @@ export class AuthGuard implements CanActivate {
         // Signature verification failed
         this.logger.error('JWT Signature Verification Failed', {
           error: error.message,
-          // ip: req.ip, // Assuming you have a method to get current IP
+          ip: request.ip, // Assuming you have a method to get current IP
         });
         throw new AppError(
           'Authentication failed: Invalid token signature',
@@ -90,6 +98,7 @@ export class AuthGuard implements CanActivate {
 
   private extractTokenFromHeader(request: Request): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    // Extract the token (assuming "Bearer TOKEN" format)
     return type === 'Bearer' ? token : undefined;
   }
 }

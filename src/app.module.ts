@@ -20,6 +20,7 @@ import { ClsModule } from 'nestjs-cls';
 import { v4 as uuidv4 } from 'uuid';
 import { Request } from 'express';
 import { AuthModule } from './modules/auth/auth.module';
+import { TimeParserModule } from './modules/time-parser/time-parser.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { AuthModule } from './modules/auth/auth.module';
     // HttpModule,
     AuthModule,
     FileModule,
+    TimeParserModule,
   ],
   providers: [
     // Logger,

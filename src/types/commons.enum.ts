@@ -202,10 +202,10 @@ const UNIT_CONFIG: Record<string, { unit: string; multiplier: number }> = {
   weeks: { unit: 'w', multiplier: 604_800_000 },
 
   // Months
-  // mo: { unit: 'mo', multiplier: 2_629_746_000 },
+  mo: { unit: 'mo', multiplier: 2_629_746_000 },
   // m: { unit: 'mo', multiplier: 2_629_746_000 },
-  // month: { unit: 'mo', multiplier: 2_629_746_000 },
-  // months: { unit: 'mo', multiplier: 2_629_746_000 },
+  month: { unit: 'mo', multiplier: 2_629_746_000 },
+  months: { unit: 'mo', multiplier: 2_629_746_000 },
 
   // Years
   y: { unit: 'y', multiplier: 31_557_600_000 },

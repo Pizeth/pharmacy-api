@@ -1,241 +1,471 @@
-// Helpers.
-const s = 1000;
-const m = s * 60;
-const h = m * 60;
-const d = h * 24;
-const w = d * 7;
-const y = d * 365.25;
+// Enhanced Duration Parser - Improved version combining best practices
 
-type Unit =
-  | 'Years'
-  | 'Year'
-  | 'Yrs'
-  | 'Yr'
-  | 'Y'
-  | 'Weeks'
-  | 'Week'
-  | 'W'
-  | 'Days'
-  | 'Day'
-  | 'D'
-  | 'Hours'
-  | 'Hour'
-  | 'Hrs'
-  | 'Hr'
-  | 'H'
-  | 'Minutes'
-  | 'Minute'
-  | 'Mins'
-  | 'Min'
-  | 'M'
-  | 'Seconds'
-  | 'Second'
-  | 'Secs'
-  | 'Sec'
-  | 's'
-  | 'Milliseconds'
-  | 'Millisecond'
-  | 'Msecs'
-  | 'Msec'
-  | 'Ms';
+// Time multipliers (in milliseconds)
+const TIME_MULTIPLIERS = {
+  ms: 1,
+  s: 1000,
+  m: 60 * 1000,
+  h: 60 * 60 * 1000,
+  d: 24 * 60 * 60 * 1000,
+  w: 7 * 24 * 60 * 60 * 1000,
+  mo: 30.44 * 24 * 60 * 60 * 1000, // Average month
+  y: 365.25 * 24 * 60 * 60 * 1000, // Average year with leap years
+} as const;
 
-type UnitAnyCase = Unit | Uppercase<Unit> | Lowercase<Unit>;
+// Base unit type
+export type UnitTime = keyof typeof TIME_MULTIPLIERS;
 
-export type StringValue =
-  | `${number}`
-  | `${number}${UnitAnyCase}`
-  | `${number} ${UnitAnyCase}`;
+// Comprehensive alias mapping with case-insensitive support
+const UNIT_ALIASES: Record<string, UnitTime> = {
+  // Milliseconds
+  ms: 'ms',
+  millisecond: 'ms',
+  milliseconds: 'ms',
+  msec: 'ms',
+  msecs: 'ms',
 
-interface Options {
+  // Seconds
+  s: 's',
+  sec: 's',
+  secs: 's',
+  second: 's',
+  seconds: 's',
+
+  // Minutes
+  min: 'm',
+  mins: 'm',
+  minute: 'm',
+  minutes: 'm',
+
+  // Hours
+  h: 'h',
+  hr: 'h',
+  hrs: 'h',
+  hour: 'h',
+  hours: 'h',
+
+  // Days
+  d: 'd',
+  day: 'd',
+  days: 'd',
+
+  // Weeks
+  w: 'w',
+  wk: 'w',
+  wks: 'w',
+  week: 'w',
+  weeks: 'w',
+
+  // Months
+  mo: 'mo',
+  month: 'mo',
+  months: 'mo',
+
+  // Years
+  y: 'y',
+  yr: 'y',
+  yrs: 'y',
+  year: 'y',
+  years: 'y',
+};
+
+// Ambiguous units that should be explicitly handled
+const AMBIGUOUS_UNITS = new Set(['m']);
+
+// Error types for better error handling
+export class DurationParseError extends Error {
+  constructor(
+    message: string,
+    public readonly input: string,
+    public readonly code: string,
+    public readonly suggestions?: string[],
+  ) {
+    super(message);
+    this.name = 'DurationParseError';
+  }
+}
+
+// Options interface
+export interface ParseOptions {
   /**
-   * Set to `true` to use verbose formatting. Defaults to `false`.
+   * How to handle ambiguous units like 'm' (minutes vs months)
+   * - 'strict': Throw error for ambiguous units
+   * - 'minutes': Interpret 'm' as minutes
+   * - 'months': Interpret 'm' as months
+   */
+  ambiguousUnit?: 'strict' | 'minutes' | 'months';
+
+  /**
+   * Maximum input length to prevent DoS attacks
+   */
+  maxLength?: number;
+
+  /**
+   * Whether to allow negative values
+   */
+  allowNegative?: boolean;
+}
+
+export interface FormatOptions {
+  /**
+   * Use long format (e.g., "1 hour" vs "1h")
    */
   long?: boolean;
+
+  /**
+   * Number of decimal places for formatting
+   */
+  precision?: number;
 }
 
-/**
- * Parse or format the given value.
- *
- * @param value - The string or number to convert
- * @param options - Options for the conversion
- * @throws Error if `value` is not a non-empty string or a number
- */
-function msFn(value: StringValue, options?: Options): number;
-function msFn(value: number, options?: Options): string;
-function msFn(value: StringValue | number, options?: Options): number | string {
-  try {
-    if (typeof value === 'string') {
-      return parse(value);
-    } else if (typeof value === 'number') {
-      return format(value, options);
+export interface ParseResult {
+  duration: number;
+  unit: UnitTime;
+  milliseconds: number;
+}
+
+export class EnhancedDurationParser {
+  private readonly defaultOptions: Required<ParseOptions> = {
+    ambiguousUnit: 'strict',
+    maxLength: 100,
+    allowNegative: false,
+  };
+
+  /**
+   * Parse a duration string or number into milliseconds
+   */
+  parse(input: string | number, options?: ParseOptions): number {
+    const opts = { ...this.defaultOptions, ...options };
+
+    if (typeof input === 'number') {
+      if (!opts.allowNegative && input < 0) {
+        throw new DurationParseError(
+          'Negative values are not allowed',
+          input.toString(),
+          'NEGATIVE_NOT_ALLOWED',
+        );
+      }
+      return input;
     }
-    throw new Error('Value provided to ms() must be a string or number.');
-  } catch (error) {
-    const message = isError(error)
-      ? `${error.message}. value=${JSON.stringify(value)}`
-      : 'An unknown error has occurred.';
-    throw new Error(message);
-  }
-}
 
-/**
- * Parse the given string and return milliseconds.
- *
- * @param str - A string to parse to milliseconds
- * @returns The parsed value in milliseconds, or `NaN` if the string can't be
- * parsed
- */
-export function parse(str: string): number {
-  if (typeof str !== 'string' || str.length === 0 || str.length > 100) {
-    throw new Error(
-      'Value provided to ms.parse() must be a string with length between 1 and 99.',
-    );
-  }
-  const match =
-    /^(?<value>-?(?:\d+)?\.?\d+) *(?<type>milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-      str,
-    );
-  // Named capture groups need to be manually typed today.
-  // https://github.com/microsoft/TypeScript/issues/32098
-  const groups = match?.groups as { value: string; type?: string } | undefined;
-  if (!groups) {
-    return NaN;
-  }
-  const n = parseFloat(groups.value);
-  const type = (groups.type || 'ms').toLowerCase() as Lowercase<Unit>;
-  switch (type) {
-    case 'years':
-    case 'year':
-    case 'yrs':
-    case 'yr':
-    case 'y':
-      return n * y;
-    case 'weeks':
-    case 'week':
-    case 'w':
-      return n * w;
-    case 'days':
-    case 'day':
-    case 'd':
-      return n * d;
-    case 'hours':
-    case 'hour':
-    case 'hrs':
-    case 'hr':
-    case 'h':
-      return n * h;
-    case 'minutes':
-    case 'minute':
-    case 'mins':
-    case 'min':
-    case 'm':
-      return n * m;
-    case 'seconds':
-    case 'second':
-    case 'secs':
-    case 'sec':
-    case 's':
-      return n * s;
-    case 'milliseconds':
-    case 'millisecond':
-    case 'msecs':
-    case 'msec':
-    case 'ms':
-      return n;
-    default:
-      // This should never occur.
-      throw new Error(
-        `The unit ${type as string} was matched, but no matching case exists.`,
+    // Validate input
+    if (typeof input !== 'string') {
+      throw new DurationParseError(
+        'Input must be a string or number',
+        String(input),
+        'INVALID_TYPE',
       );
+    }
+
+    if (input.length === 0) {
+      throw new DurationParseError(
+        'Input cannot be empty',
+        input,
+        'EMPTY_INPUT',
+      );
+    }
+
+    if (input.length > opts.maxLength) {
+      throw new DurationParseError(
+        `Input exceeds maximum length of ${opts.maxLength}`,
+        input,
+        'INPUT_TOO_LONG',
+      );
+    }
+
+    const trimmed = input.trim();
+
+    // Handle pure numbers (treat as milliseconds)
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const num = parseFloat(trimmed);
+      if (!opts.allowNegative && num < 0) {
+        throw new DurationParseError(
+          'Negative values are not allowed',
+          input,
+          'NEGATIVE_NOT_ALLOWED',
+        );
+      }
+      return num;
+    }
+
+    // Enhanced regex to handle various formats
+    const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+
+    if (!match) {
+      throw new DurationParseError(
+        'Invalid duration format',
+        input,
+        'INVALID_FORMAT',
+        ['Examples: "1h", "30m", "1.5d", "2 hours"'],
+      );
+    }
+
+    const [, numStr, unitStr] = match;
+    const num = parseFloat(numStr);
+
+    if (!isFinite(num)) {
+      throw new DurationParseError('Invalid number', input, 'INVALID_NUMBER');
+    }
+
+    if (!opts.allowNegative && num < 0) {
+      throw new DurationParseError(
+        'Negative values are not allowed',
+        input,
+        'NEGATIVE_NOT_ALLOWED',
+      );
+    }
+
+    const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+    const multiplier = TIME_MULTIPLIERS[unit];
+
+    return num * multiplier;
+  }
+
+  /**
+   * Parse with detailed result information
+   */
+  parseDetailed(input: string | number, options?: ParseOptions): ParseResult {
+    const opts = { ...this.defaultOptions, ...options };
+
+    if (typeof input === 'number') {
+      return {
+        duration: input,
+        unit: 'ms',
+        milliseconds: input,
+      };
+    }
+
+    const trimmed = input.trim();
+
+    // Handle pure numbers
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const num = parseFloat(trimmed);
+      return {
+        duration: num,
+        unit: 'ms',
+        milliseconds: num,
+      };
+    }
+
+    const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+    if (!match) {
+      throw new DurationParseError(
+        'Invalid duration format',
+        input,
+        'INVALID_FORMAT',
+      );
+    }
+
+    const [, numStr, unitStr] = match;
+    const duration = parseFloat(numStr);
+    const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+    const milliseconds = duration * TIME_MULTIPLIERS[unit];
+
+    return { duration, unit, milliseconds };
+  }
+
+  /**
+   * Format milliseconds back to human-readable string
+   */
+  format(ms: number, options?: FormatOptions): string {
+    const opts = { long: false, precision: 0, ...options };
+
+    if (typeof ms !== 'number' || !isFinite(ms)) {
+      throw new Error('Value must be a finite number');
+    }
+
+    const absMs = Math.abs(ms);
+    const sign = ms < 0 ? '-' : '';
+
+    // Find the most appropriate unit
+    const units: Array<[UnitTime, string, string]> = [
+      ['y', 'y', 'year'],
+      ['mo', 'mo', 'month'],
+      ['w', 'w', 'week'],
+      ['d', 'd', 'day'],
+      ['h', 'h', 'hour'],
+      ['m', 'm', 'minute'],
+      ['s', 's', 'second'],
+      ['ms', 'ms', 'millisecond'],
+    ];
+
+    for (const [unit, shortSuffix, longSuffix] of units) {
+      const multiplier = TIME_MULTIPLIERS[unit];
+      if (absMs >= multiplier) {
+        const value = ms / multiplier;
+        const rounded =
+          opts.precision > 0
+            ? parseFloat(value.toFixed(opts.precision))
+            : Math.round(value);
+
+        if (opts.long) {
+          const isPlural = Math.abs(rounded) !== 1;
+          return `${rounded} ${longSuffix}${isPlural ? 's' : ''}`;
+        } else {
+          return `${sign}${Math.abs(rounded)}${shortSuffix}`;
+        }
+      }
+    }
+
+    return opts.long ? `${ms} milliseconds` : `${ms}ms`;
+  }
+
+  /**
+   * Get expiration date by adding parsed duration to current time
+   */
+  getExpiresAt(input: string | number, options?: ParseOptions): Date {
+    const milliseconds = this.parse(input, options);
+    return new Date(Date.now() + milliseconds);
+  }
+
+  /**
+   * Check if a string is a valid duration format
+   */
+  isValid(input: string | number, options?: ParseOptions): boolean {
+    try {
+      this.parse(input, options);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get all supported unit aliases
+   */
+  getSupportedUnits(): string[] {
+    return Object.keys(UNIT_ALIASES).sort();
+  }
+
+  /**
+   * Normalize unit aliases to canonical units
+   */
+  private normalizeUnit(
+    alias: string,
+    ambiguousHandling: 'strict' | 'minutes' | 'months',
+  ): UnitTime {
+    // Handle ambiguous 'm' unit
+    if (alias === 'm') {
+      if (ambiguousHandling === 'strict') {
+        throw new DurationParseError(
+          'Ambiguous unit "m" - use "min" for minutes or "mo" for months',
+          alias,
+          'AMBIGUOUS_UNIT',
+          ['Use "min" for minutes', 'Use "mo" for months'],
+        );
+      }
+      return ambiguousHandling === 'minutes' ? 'm' : 'mo';
+    }
+
+    const unit = UNIT_ALIASES[alias];
+    if (!unit) {
+      const suggestions = this.getSuggestionsForUnit(alias);
+      throw new DurationParseError(
+        `Unknown unit "${alias}"`,
+        alias,
+        'UNKNOWN_UNIT',
+        suggestions,
+      );
+    }
+
+    return unit;
+  }
+
+  /**
+   * Get suggestions for similar units (basic fuzzy matching)
+   */
+  private getSuggestionsForUnit(input: string): string[] {
+    const aliases = Object.keys(UNIT_ALIASES);
+    const suggestions: string[] = [];
+
+    // Find exact prefix matches
+    for (const alias of aliases) {
+      if (alias.startsWith(input.toLowerCase())) {
+        suggestions.push(alias);
+      }
+    }
+
+    // If no prefix matches, find similar length matches
+    if (suggestions.length === 0) {
+      for (const alias of aliases) {
+        if (Math.abs(alias.length - input.length) <= 2) {
+          suggestions.push(alias);
+        }
+      }
+    }
+
+    return suggestions.slice(0, 5); // Limit suggestions
   }
 }
 
-/**
- * Parse the given StringValue and return milliseconds.
- *
- * @param value - A typesafe StringValue to parse to milliseconds
- * @returns The parsed value in milliseconds, or `NaN` if the string can't be
- * parsed
- */
-export function parseStrict(value: StringValue): number {
-  return parse(value);
+// Export a default instance for convenience
+export const durationParser = new EnhancedDurationParser();
+
+// Convenience functions that match the ms library API
+export function ms(
+  value: string | number,
+  options?: ParseOptions & FormatOptions,
+): number | string {
+  if (typeof value === 'string') {
+    return durationParser.parse(value, options);
+  } else {
+    return durationParser.format(value, options);
+  }
 }
 
-export default msFn;
+export const parse = (input: string | number, options?: ParseOptions) =>
+  durationParser.parse(input, options);
 
-/**
- * Short format for `ms`.
- */
-function fmtShort(ms: number): StringValue {
-  const msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return `${Math.round(ms / d)}d`;
-  }
-  if (msAbs >= h) {
-    return `${Math.round(ms / h)}h`;
-  }
-  if (msAbs >= m) {
-    return `${Math.round(ms / m)}m`;
-  }
-  if (msAbs >= s) {
-    return `${Math.round(ms / s)}s`;
-  }
-  return `${ms}ms`;
-}
+export const format = (ms: number, options?: FormatOptions) =>
+  durationParser.format(ms, options);
 
-/**
- * Long format for `ms`.
- */
-function fmtLong(ms: number): StringValue {
-  const msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return plural(ms, msAbs, d, 'day');
-  }
-  if (msAbs >= h) {
-    return plural(ms, msAbs, h, 'hour');
-  }
-  if (msAbs >= m) {
-    return plural(ms, msAbs, m, 'minute');
-  }
-  if (msAbs >= s) {
-    return plural(ms, msAbs, s, 'second');
-  }
-  return `${ms} ms`;
-}
+export const parseDetailed = (input: string | number, options?: ParseOptions) =>
+  durationParser.parseDetailed(input, options);
 
-/**
- * Format the given integer as a string.
- *
- * @param ms - milliseconds
- * @param options - Options for the conversion
- * @returns The formatted string
- */
-export function format(ms: number, options?: Options): string {
-  if (typeof ms !== 'number' || !isFinite(ms)) {
-    throw new Error('Value provided to ms.format() must be of type number.');
+export const isValid = (input: string | number, options?: ParseOptions) =>
+  durationParser.isValid(input, options);
+
+// Example usage and tests
+if (typeof globalThis !== 'undefined' && globalThis.console) {
+  console.log('=== Enhanced Duration Parser Examples ===');
+
+  try {
+    // Basic parsing
+    console.log('parse("1h"):', parse('1h')); // 3600000
+    console.log('parse("30m"):', parse('30m')); // 1800000
+    console.log('parse("1.5d"):', parse('1.5d')); // 129600000
+    console.log('parse("2 hours"):', parse('2 hours')); // 7200000
+
+    // Formatting
+    console.log('format(3600000):', format(3600000)); // "1h"
+    console.log(
+      'format(3600000, {long: true}):',
+      format(3600000, { long: true }),
+    ); // "1 hour"
+
+    // Detailed parsing
+    console.log('parseDetailed("1h"):', parseDetailed('1h'));
+
+    // Ambiguous unit handling
+    console.log(
+      'parse("5m", {ambiguousUnit: "minutes"}):',
+      parse('5m', { ambiguousUnit: 'minutes' }),
+    );
+
+    // Validation
+    console.log('isValid("1h"):', isValid('1h')); // true
+    console.log('isValid("invalid"):', isValid('invalid')); // false
+
+    // Get expiration date
+    const expiresAt = durationParser.getExpiresAt('1h');
+    console.log('Expires at:', expiresAt.toISOString());
+  } catch (error) {
+    if (error instanceof DurationParseError) {
+      console.error('Parse Error:', error.message);
+      console.error('Code:', error.code);
+      console.error('Suggestions:', error.suggestions);
+    } else {
+      console.error('Error:', error);
+    }
   }
-  return options?.long ? fmtLong(ms) : fmtShort(ms);
-}
-
-/**
- * Pluralization helper.
- */
-function plural(
-  ms: number,
-  msAbs: number,
-  n: number,
-  name: string,
-): StringValue {
-  const isPlural = msAbs >= n * 1.5;
-  return `${Math.round(ms / n)} ${name}${isPlural ? 's' : ''}` as StringValue;
-}
-
-/**
- * A type guard for errors.
- *
- * @param value - The value to test
- * @returns A boolean `true` if the provided value is an Error-like object
- */
-function isError(value: unknown): value is Error {
-  return typeof value === 'object' && value !== null && 'message' in value;
 }
