@@ -29,6 +29,18 @@ export class TimeParserService {
    */
   parse(input: string | number, options?: ParseOptions): number {
     const opts = { ...this.defaultParseOptions, ...options };
+    const { totalMilliseconds } = this.parseDetailed(input, opts);
+    return totalMilliseconds;
+  }
+
+  /**
+   * Parse with detailed result information
+   */
+  parseDetailed(
+    input: string | number,
+    options?: ParseOptions,
+  ): DetailedParseResult {
+    const opts = { ...this.defaultParseOptions, ...options };
 
     if (typeof input === 'number') {
       if (!opts.allowNegative && input < 0) {
@@ -38,7 +50,10 @@ export class TimeParserService {
           'NEGATIVE_NOT_ALLOWED',
         );
       }
-      return input;
+      return {
+        totalMilliseconds: input,
+        data: [{ duration: input, unit: 'ms', milliseconds: input }],
+      };
     }
 
     if (typeof input !== 'string' || input.length === 0) {
@@ -59,9 +74,7 @@ export class TimeParserService {
 
     const trimmed = input.trim();
 
-    // Handle pure numbers (treat as milliseconds)
-    // if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-    // **ENHANCEMENT**: Added support for scientific notation.
+    // Handle pure numbers and support for scientific notation (treat as milliseconds)
     if (/^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
       const num = parseFloat(trimmed);
       if (!opts.allowNegative && num < 0) {
@@ -71,187 +84,13 @@ export class TimeParserService {
           'NEGATIVE_NOT_ALLOWED',
         );
       }
-      return num;
-    }
-
-    // // Handle compound durations (e.g., "1h 30m")
-    // const components = trimmed.split(/\s+/);
-    // let totalMs = 0;
-
-    // for (const component of components) {
-    //   const match = component.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
-    //   if (!match) {
-    //     throw new DurationParseError(
-    //       `Invalid duration component: "${component}"`,
-    //       input,
-    //       'INVALID_FORMAT',
-    //       [
-    //         'Each component should be in the format: <number><unit> (e.g., "1h", "30m")',
-    //       ],
-    //     );
-    //   }
-    //   const [, numStr, unitStr] = match;
-    //   const num = parseFloat(numStr);
-    //   const unit = this.normalizeUnit(
-    //     unitStr.toLowerCase(),
-    //     opts.ambiguousUnit,
-    //   );
-    //   const multiplier = TIME_MULTIPLIERS[unit];
-    //   totalMs += num * multiplier;
-    // }
-
-    // return totalMs;
-
-    // **ENHANCEMENT**: Handle compound durations (e.g., "1h 30m", "2d 4h 30m")
-    const components = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
-    if (components.length > 1) {
-      let totalMs = 0;
-      const usedUnits = new Set<UnitTime>();
-      // let hasNegativeComponent = false;
-
-      for (let i = 0; i < components.length; i++) {
-        const component = components[i];
-
-        // Skip empty components
-        if (!component) continue;
-
-        // We can't recursively call `this.parse` as it would re-split.
-        // We parse each component individually here.
-        const match = component.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
-        if (!match) {
-          throw new DurationParseError(
-            `Invalid duration component: "${component}"`,
-            input,
-            'INVALID_FORMAT',
-            [
-              'Each component should be in the format: <number><unit> (e.g., "1h", "30m")',
-              'Examples: "1h 30m", "2d 4h 30m", "1.5h"',
-            ],
-          );
-        }
-
-        const [, numStr, unitStr] = match;
-        const duration = parseFloat(numStr);
-        if (!isFinite(duration))
-          throw new DurationParseError(
-            `Invalid number in component "${component}"`,
-            input,
-            'INVALID_NUMBER',
-          );
-
-        // Track if we have any negative values
-        // hasNegativeComponent = num < 0;
-        if (duration < 0) {
-          if (!opts.allowNegative) {
-            throw new DurationParseError(
-              'Negative values are not allowed',
-              input,
-              'NEGATIVE_NOT_ALLOWED',
-            );
-          }
-          // Only allow negative in the first component for compound durations
-          if (i > 0) {
-            throw new DurationParseError(
-              'Negative values only allowed on first component',
-              input,
-              'INVALID_NEGATIVE_POSITION',
-            );
-          }
-        }
-
-        const unit = this.normalizeUnit(
-          unitStr.toLowerCase(),
-          opts.ambiguousUnit,
-        );
-
-        // Check for duplicate units
-        if (usedUnits.has(unit)) {
-          throw new DurationParseError(
-            `Duplicate unit "${unitStr}" in compound duration`,
-            input,
-            'DUPLICATE_UNIT',
-            [
-              'Each unit should appear only once',
-              'Example: "1h 30m" not "1h 2h"',
-            ],
-          );
-        }
-        usedUnits.add(unit);
-
-        totalMs += duration * TIME_MULTIPLIERS[unit];
-      }
-      return totalMs;
-    }
-
-    // Enhanced regex to handle various formats
-    const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
-    if (!match) {
-      throw new DurationParseError(
-        'Invalid duration format',
-        input,
-        'INVALID_FORMAT',
-        ['Examples of valid format: "1h", "30m", "1.5d", "2 hours"'],
-      );
-    }
-
-    const [, numStr, unitStr] = match;
-    const num = parseFloat(numStr);
-
-    if (!isFinite(num)) {
-      throw new DurationParseError('Invalid number', input, 'INVALID_NUMBER');
-    }
-
-    if (!opts.allowNegative && num < 0) {
-      throw new DurationParseError(
-        'Negative values are not allowed',
-        input,
-        'NEGATIVE_NOT_ALLOWED',
-      );
-    }
-
-    const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
-    const multiplier = TIME_MULTIPLIERS[unit];
-    const result = num * multiplier;
-
-    // **ENHANCEMENT**: Boundary case handling for safe integers.
-    if (Math.abs(result) > Number.MAX_SAFE_INTEGER) {
-      throw new DurationParseError(
-        'Value exceeds safe integer limit',
-        input,
-        'VALUE_TOO_LARGE',
-      );
-    }
-    return result;
-  }
-
-  /**
-   * Parse with detailed result information
-   */
-  parseDetailed(
-    input: string | number,
-    options?: ParseOptions,
-  ): DetailedParseResult {
-    const opts = { ...this.defaultParseOptions, ...options };
-
-    if (typeof input === 'number') {
-      return {
-        totalMilliseconds: input,
-        components: [{ duration: input, unit: 'ms', milliseconds: input }],
-      };
-    }
-
-    const trimmed = input.trim();
-
-    // Handle pure numbers
-    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-      const num = parseFloat(trimmed);
       return {
         totalMilliseconds: num,
-        components: [{ duration: num, unit: 'ms', milliseconds: num }],
+        data: [{ duration: num, unit: 'ms', milliseconds: num }],
       };
     }
 
-    // Handle compound durations - return array of components
+    // Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
     const components = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
     if (components.length > 1) {
       const results: ParseResult[] = [];
@@ -264,102 +103,96 @@ export class TimeParserService {
         // Skip empty components
         if (!component) continue;
 
-        // We can't recursively call `this.parse` as it would re-split.
-        // We parse each component individually here.
-        const match = component.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
-        if (!match) {
-          throw new DurationParseError(
-            `Invalid duration component: "${component}"`,
-            input,
-            'INVALID_FORMAT',
-            [
-              'Each component should be in the format: <number><unit> (e.g., "1h", "30m")',
-              'Examples: "1h 30m", "2d 4h 30m", "1.5h"',
-            ],
-          );
-        }
-
-        const [, numStr, unitStr] = match;
-        const duration = parseFloat(numStr);
-        if (!isFinite(duration))
-          throw new DurationParseError(
-            `Invalid number in component "${component}"`,
-            input,
-            'INVALID_NUMBER',
-          );
-
-        // Track if we have any negative values
-        // hasNegativeComponent = num < 0;
-        if (duration < 0) {
-          if (!opts.allowNegative) {
-            throw new DurationParseError(
-              'Negative values are not allowed',
-              input,
-              'NEGATIVE_NOT_ALLOWED',
-            );
-          }
-          // Only allow negative in the first component for compound durations
-          if (i > 0) {
-            throw new DurationParseError(
-              'Negative values only allowed on first component',
-              input,
-              'INVALID_NEGATIVE_POSITION',
-            );
-          }
-        }
-
-        const unit = this.normalizeUnit(
-          unitStr.toLowerCase(),
-          opts.ambiguousUnit,
-        );
-
-        // Check for duplicate units
-        if (usedUnits.has(unit)) {
-          throw new DurationParseError(
-            `Duplicate unit "${unitStr}" in compound duration`,
-            input,
-            'DUPLICATE_UNIT',
-            [
-              'Each unit should appear only once',
-              'Example: "1h 30m" not "1h 2h"',
-            ],
-          );
-        }
-        usedUnits.add(unit);
-
-        const milliseconds = duration * TIME_MULTIPLIERS[unit];
-        results.push({ duration, unit, milliseconds });
-        totalMilliseconds += milliseconds;
+        // Parse each component individually here.
+        const data = this.parseSingleComponent(trimmed, opts, i, usedUnits);
+        usedUnits.add(data.unit);
+        results.push(data);
+        totalMilliseconds += data.milliseconds;
       }
 
-      return { totalMilliseconds, components: results };
+      return { totalMilliseconds, data: results };
     }
 
-    // Single component
-    const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+    // Single component with enhanced regex to handle various formats
+    const data = this.parseSingleComponent(trimmed, opts);
+    return {
+      totalMilliseconds: data.milliseconds,
+      data: [data],
+    };
+  }
+
+  private parseSingleComponent(
+    input: string,
+    opts: Required<ParseOptions>,
+    index: number = 0,
+    usedUnits: Set<UnitTime> = new Set<UnitTime>(),
+  ): ParseResult {
+    // Enhanced regex to handle various formats
+    const match = input.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
     if (!match) {
       throw new DurationParseError(
         'Invalid duration format',
         input,
         'INVALID_FORMAT',
+        ['Examples of valid format: "1h", "30m", "1.5d", "2 hours"'],
       );
     }
 
     const [, numStr, unitStr] = match;
     const duration = parseFloat(numStr);
+
+    if (!isFinite(duration))
+      throw new DurationParseError(
+        `Invalid number in format "${input}"`,
+        input,
+        'INVALID_NUMBER',
+      );
+
+    // Track if we have any negative values
+    if (duration < 0) {
+      if (!opts.allowNegative) {
+        throw new DurationParseError(
+          'Negative values are not allowed',
+          input,
+          'NEGATIVE_NOT_ALLOWED',
+        );
+      }
+      // Only allow negative in the first component for compound durations
+      if (index > 0) {
+        throw new DurationParseError(
+          'Negative values only allowed on first component',
+          input,
+          'INVALID_NEGATIVE_POSITION',
+        );
+      }
+    }
+
     const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+
+    // Check for duplicate units
+    if (usedUnits.has(unit)) {
+      throw new DurationParseError(
+        `Duplicate unit "${unitStr}" in compound duration`,
+        input,
+        'DUPLICATE_UNIT',
+        ['Each unit should appear only once', 'Example: "1h 30m" not "1h 2h"'],
+      );
+    }
+
+    // const multiplier = TIME_MULTIPLIERS[unit];
     const milliseconds = duration * TIME_MULTIPLIERS[unit];
 
-    return {
-      totalMilliseconds: milliseconds,
-      components: [{ duration, unit, milliseconds }],
-    };
-  }
+    // Boundary case handling for safe integers.
+    if (Math.abs(milliseconds) > Number.MAX_SAFE_INTEGER) {
+      throw new DurationParseError(
+        'Value exceeds safe integer limit',
+        input,
+        'VALUE_TOO_LARGE',
+      );
+    }
 
-  private _parseString(
-    input: string,
-    opts: Required<ParseOptions>,
-  ): DetailedParseResult {}
+    return { duration, unit, milliseconds };
+  }
 
   /**
    * Format milliseconds back to human-readable string
@@ -372,7 +205,7 @@ export class TimeParserService {
     }
 
     const absMs = Math.abs(ms);
-    // **ENHANCEMENT**: Explicit handling for zero.
+    // Explicit handling for zero.
     if (absMs === 0) {
       return opts.long ? '0 milliseconds' : '0ms';
     }
@@ -451,8 +284,7 @@ export class TimeParserService {
     alias: string,
     ambiguousHandling: 'strict' | 'minutes' | 'months',
   ): UnitTime {
-    // Handle ambiguous 'm' unit
-    // if (alias === 'm') {
+    // Handle ambiguous unit
     if (Array.from(AMBIGUOUS_UNITS).includes(alias)) {
       if (ambiguousHandling === 'strict') {
         throw new DurationParseError(
@@ -467,7 +299,7 @@ export class TimeParserService {
 
     const unit = UNIT_ALIASES[alias];
     if (!unit) {
-      // **ENHANCEMENT**: Use advanced suggestion logic.
+      // Use advanced suggestion logic.
       const suggestions = this.getSuggestionsForUnit(alias);
       throw new DurationParseError(
         `Unknown unit "${alias}"`,
@@ -500,10 +332,6 @@ export class TimeParserService {
   private levenshteinDistance(a: string, b: string): number {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
-
-    // const matrix = Array(b.length + 1)
-    //   .fill(null)
-    //   .map(() => Array(a.length + 1).fill(null));
 
     // Create more explicit, and type-safe 2D array using Array.from to avoid unsafe assignments.
     // We fill the inner arrays with 0, as they will hold numbers.
@@ -545,6 +373,161 @@ export function ms(
   }
 }
 
+// if (typeof input === 'number') {
+//   if (!opts.allowNegative && input < 0) {
+//     throw new DurationParseError(
+//       'Negative values are not allowed',
+//       input.toString(),
+//       'NEGATIVE_NOT_ALLOWED',
+//     );
+//   }
+//   return input;
+// }
+
+// if (typeof input !== 'string' || input.length === 0) {
+//   throw new DurationParseError(
+//     'Input must be a non-empty string',
+//     String(input),
+//     'INVALID_TYPE',
+//   );
+// }
+
+// if (input.length > opts.maxLength) {
+//   throw new DurationParseError(
+//     `Input exceeds maximum length of ${opts.maxLength}`,
+//     input,
+//     'INPUT_TOO_LONG',
+//   );
+// }
+
+// const trimmed = input.trim();
+
+// // Handle pure numbers (treat as milliseconds)
+// if (/^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
+//   const num = parseFloat(trimmed);
+//   if (!opts.allowNegative && num < 0) {
+//     throw new DurationParseError(
+//       'Negative values are not allowed',
+//       input,
+//       'NEGATIVE_NOT_ALLOWED',
+//     );
+//   }
+//   return num;
+// }
+
+// // **ENHANCEMENT**: Handle compound durations (e.g., "1h 30m", "2d 4h 30m")
+// const components = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
+// if (components.length > 1) {
+//   let totalMs = 0;
+//   const usedUnits = new Set<UnitTime>();
+//   // let hasNegativeComponent = false;
+
+//   for (let i = 0; i < components.length; i++) {
+//     const component = components[i];
+
+//     // Skip empty components
+//     if (!component) continue;
+
+//     // We can't recursively call `this.parse` as it would re-split.
+//     // We parse each component individually here.
+//     const match = component.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+//     if (!match) {
+//       throw new DurationParseError(
+//         `Invalid duration component: "${component}"`,
+//         input,
+//         'INVALID_FORMAT',
+//         [
+//           'Each component should be in the format: <number><unit> (e.g., "1h", "30m")',
+//           'Examples: "1h 30m", "2d 4h 30m", "1.5h"',
+//         ],
+//       );
+//     }
+
+//     const [, numStr, unitStr] = match;
+//     const duration = parseFloat(numStr);
+//     if (!isFinite(duration))
+//       throw new DurationParseError(
+//         `Invalid number in component "${component}"`,
+//         input,
+//         'INVALID_NUMBER',
+//       );
+
+//     // Track if we have any negative values
+//     if (duration < 0) {
+//       if (!opts.allowNegative) {
+//         throw new DurationParseError(
+//           'Negative values are not allowed',
+//           input,
+//           'NEGATIVE_NOT_ALLOWED',
+//         );
+//       }
+//       // Only allow negative in the first component for compound durations
+//       if (i > 0) {
+//         throw new DurationParseError(
+//           'Negative values only allowed on first component',
+//           input,
+//           'INVALID_NEGATIVE_POSITION',
+//         );
+//       }
+//     }
+
+//     const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+
+//     // Check for duplicate units
+//     if (usedUnits.has(unit)) {
+//       throw new DurationParseError(
+//         `Duplicate unit "${unitStr}" in compound duration`,
+//         input,
+//         'DUPLICATE_UNIT',
+//         ['Each unit should appear only once', 'Example: "1h 30m" not "1h 2h"'],
+//       );
+//     }
+//     usedUnits.add(unit);
+
+//     totalMs += duration * TIME_MULTIPLIERS[unit];
+//   }
+//   return totalMs;
+// }
+
+// // Enhanced regex to handle various formats
+// const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+// if (!match) {
+//   throw new DurationParseError(
+//     'Invalid duration format',
+//     input,
+//     'INVALID_FORMAT',
+//     ['Examples of valid format: "1h", "30m", "1.5d", "2 hours"'],
+//   );
+// }
+
+// const [, numStr, unitStr] = match;
+// const num = parseFloat(numStr);
+
+// if (!isFinite(num)) {
+//   throw new DurationParseError('Invalid number', input, 'INVALID_NUMBER');
+// }
+
+// if (!opts.allowNegative && num < 0) {
+//   throw new DurationParseError(
+//     'Negative values are not allowed',
+//     input,
+//     'NEGATIVE_NOT_ALLOWED',
+//   );
+// }
+
+// const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+// const multiplier = TIME_MULTIPLIERS[unit];
+// const result = num * multiplier;
+
+// // **ENHANCEMENT**: Boundary case handling for safe integers.
+// if (Math.abs(result) > Number.MAX_SAFE_INTEGER) {
+//   throw new DurationParseError(
+//     'Value exceeds safe integer limit',
+//     input,
+//     'VALUE_TOO_LARGE',
+//   );
+// }
+
 /**
  * Get suggestions for similar units (basic fuzzy matching)
  */
@@ -569,4 +552,104 @@ export function ms(
 //   }
 
 //   return suggestions.slice(0, 5); // Limit suggestions
+// }
+
+// const match = component.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+// if (!match) {
+//   throw new DurationParseError(
+//     `Invalid duration format: "${component}"`,
+//     input,
+//     'INVALID_FORMAT',
+//     [
+//       'Each component should be in the format: <number><unit> (e.g., "1h", "30m")',
+//       // 'Examples: "1h 30m", "2d 4h 30m", "1.5h"',
+//       'Examples of valid format: "1h", "30m", "1.5d", "2 hours"',
+//     ],
+//   );
+// }
+
+// const [, numStr, unitStr] = match;
+// const duration = parseFloat(numStr);
+
+// if (!isFinite(duration))
+//   throw new DurationParseError(
+//     `Invalid number in component "${component}"`,
+//     input,
+//     'INVALID_NUMBER',
+//   );
+
+// // Track if we have any negative values
+// // hasNegativeComponent = num < 0;
+// if (duration < 0) {
+//   if (!opts.allowNegative) {
+//     throw new DurationParseError(
+//       'Negative values are not allowed',
+//       input,
+//       'NEGATIVE_NOT_ALLOWED',
+//     );
+//   }
+//   // Only allow negative in the first component for compound durations
+//   if (i > 0) {
+//     throw new DurationParseError(
+//       'Negative values only allowed on first component',
+//       input,
+//       'INVALID_NEGATIVE_POSITION',
+//     );
+//   }
+// }
+
+// const unit = this.normalizeUnit(
+//   unitStr.toLowerCase(),
+//   opts.ambiguousUnit,
+// );
+
+// // Check for duplicate units
+// if (usedUnits.has(unit)) {
+//   throw new DurationParseError(
+//     `Duplicate unit "${unitStr}" in compound duration`,
+//     input,
+//     'DUPLICATE_UNIT',
+//     [
+//       'Each unit should appear only once',
+//       'Example: "1h 30m" not "1h 2h"',
+//     ],
+//   );
+// }
+
+// const match = trimmed.match(/^(-?\d*\.?\d+)\s*([a-zA-Z]+)$/);
+// if (!match) {
+//   throw new DurationParseError(
+//     'Invalid duration format',
+//     input,
+//     'INVALID_FORMAT',
+//     ['Examples of valid format: "1h", "30m", "1.5d", "2 hours"'],
+//   );
+// }
+
+// const [, numStr, unitStr] = match;
+// const duration = parseFloat(numStr);
+
+// if (!isFinite(duration)) {
+//   throw new DurationParseError('Invalid number', input, 'INVALID_NUMBER');
+// }
+
+// if (!opts.allowNegative && duration < 0) {
+//   throw new DurationParseError(
+//     'Negative values are not allowed',
+//     input,
+//     'NEGATIVE_NOT_ALLOWED',
+//   );
+// }
+
+// const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
+// const multiplier = TIME_MULTIPLIERS[unit];
+// const milliseconds = duration * multiplier;
+
+// // Boundary case handling for safe integers.
+// if (Math.abs(milliseconds) > Number.MAX_SAFE_INTEGER) {
+//   throw new DurationParseError(
+//     'Value exceeds safe integer limit',
+//     input,
+//     'VALUE_TOO_LARGE',
+//   );
 // }
