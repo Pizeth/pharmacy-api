@@ -124,5 +124,5 @@ export interface ParseResult {
 // **NEW**: The result for the detailed parse method
 export interface DetailedParseResult {
   totalMilliseconds: number;
-  components: ParseResult[];
+  data: ParseResult[];
 }
