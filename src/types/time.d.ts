@@ -73,6 +73,17 @@ export const UNIT_ALIASES: Record<string, UnitTime> = {
   years: 'y',
 };
 
+export const LONG_NAMES: Record<UnitTime, string> = {
+  ms: 'millisecond',
+  s: 'second',
+  m: 'minute',
+  h: 'hour',
+  d: 'day',
+  w: 'week',
+  mo: 'month',
+  y: 'year',
+};
+
 // Ambiguous units that should be explicitly handled
 export const AMBIGUOUS_UNITS = new Set(['m']);
 
@@ -124,5 +135,5 @@ export interface ParseResult {
 // **NEW**: The result for the detailed parse method
 export interface DetailedParseResult {
   totalMilliseconds: number;
-  data: ParseResult[];
+  data: ParseResult | ParseResult[];
 }

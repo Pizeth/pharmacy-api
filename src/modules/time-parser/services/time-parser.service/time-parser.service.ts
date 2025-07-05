@@ -2,7 +2,8 @@
 // The Duration Parser Service
 // Location: src/modules/time-parser/services/time-parser.service.ts
 // -----------------------------------------------------------------
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Duration } from 'luxon';
 import { DurationParseError } from 'src/exceptions/duration-parse.exception';
 import {
   TIME_MULTIPLIERS,
@@ -13,10 +14,13 @@ import {
   ParseResult,
   AMBIGUOUS_UNITS,
   DetailedParseResult,
+  LONG_NAMES,
 } from 'src/types/time';
 
 @Injectable()
 export class TimeParserService {
+  private readonly context = TimeParserService.name;
+  private readonly logger = new Logger(this.context);
   private readonly defaultParseOptions: Required<ParseOptions> = {
     ambiguousUnit: 'strict',
     maxLength: 100,
@@ -52,7 +56,7 @@ export class TimeParserService {
       }
       return {
         totalMilliseconds: input,
-        data: [{ duration: input, unit: 'ms', milliseconds: input }],
+        data: { duration: input, unit: 'ms', milliseconds: input },
       };
     }
 
@@ -74,13 +78,39 @@ export class TimeParserService {
 
     const trimmed = input.trim();
 
+    // ISO‑8601
+    if (/^P/i.test(trimmed)) {
+      const duration = Duration.fromISO(trimmed);
+      this.logger.debug('duration', duration);
+
+      if (!duration.isValid)
+        throw new DurationParseError(
+          `Invalid ISO format: ${trimmed}`,
+          trimmed,
+          'INVALID_ISO',
+        );
+
+      const milliseconds = duration.as('milliseconds');
+      if (!opts.allowNegative && milliseconds < 0)
+        throw new DurationParseError(
+          'Negative ISO not allowed',
+          trimmed,
+          'NEG_ISO',
+        );
+
+      return {
+        totalMilliseconds: milliseconds,
+        data: { duration, unit: 'ms', milliseconds: milliseconds },
+      };
+    }
+
     // Handle pure numbers and support for scientific notation (treat as milliseconds)
     if (/^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
       const num = parseFloat(trimmed);
       if (!opts.allowNegative && num < 0) {
         throw new DurationParseError(
           'Negative values are not allowed',
-          input,
+          trimmed,
           'NEGATIVE_NOT_ALLOWED',
         );
       }
@@ -198,7 +228,7 @@ export class TimeParserService {
    * Format milliseconds back to human-readable string
    */
   format(ms: number, options?: FormatOptions): string {
-    const opts = { long: false, precision: 0, ...options };
+    const opts = { long: false, precision: 0, preferredUnits: [], ...options };
 
     if (typeof ms !== 'number' || !isFinite(ms)) {
       throw new Error('Value must be a finite number');
@@ -212,7 +242,24 @@ export class TimeParserService {
 
     const sign = ms < 0 ? '-' : '';
 
-    // Find the most appropriate unit
+    // If preferredUnits are provided, try to use them in order
+    if (opts.preferredUnits.length > 0) {
+      for (const unit of opts.preferredUnits) {
+        const multiplier = TIME_MULTIPLIERS[unit];
+        if (absMs >= multiplier && absMs % multiplier === 0) {
+          const value = ms / multiplier;
+          if (opts.long) {
+            const isPlural = Math.abs(value) !== 1;
+            const unitName = LONG_NAMES[unit];
+            return `${value} ${unitName}${isPlural ? 's' : ''}`;
+          } else {
+            return `${sign}${Math.abs(value)}${unit}`;
+          }
+        }
+      }
+    }
+
+    // Fallback to default behavior, Find the most appropriate unit
     const units: Array<[UnitTime, string, string]> = [
       ['y', 'y', 'year'],
       ['mo', 'mo', 'month'],
