@@ -100,7 +100,11 @@ export class TimeParserService {
 
       return {
         totalMilliseconds: milliseconds,
-        data: { duration, unit: 'ms', milliseconds: milliseconds },
+        data: {
+          duration: milliseconds,
+          unit: 'ms',
+          milliseconds: milliseconds,
+        },
       };
     }
 
@@ -121,20 +125,20 @@ export class TimeParserService {
     }
 
     // Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
-    const components = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
-    if (components.length > 1) {
+    const components1 = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
+    if (components1.length > 1) {
       const results: ParseResult[] = [];
       let totalMilliseconds = 0;
       const usedUnits = new Set<UnitTime>();
 
-      for (let i = 0; i < components.length; i++) {
-        const component = components[i];
+      for (let i = 0; i < components1.length; i++) {
+        const component = components1[i];
 
         // Skip empty components
         if (!component) continue;
 
         // Parse each component individually here.
-        const data = this.parseSingleComponent(trimmed, opts, i, usedUnits);
+        const data = this.parseComponent(component, opts, i, usedUnits);
         usedUnits.add(data.unit);
         results.push(data);
         totalMilliseconds += data.milliseconds;
@@ -143,15 +147,60 @@ export class TimeParserService {
       return { totalMilliseconds, data: results };
     }
 
+    // 2) Compound durations (e.g. "1h 30m", "2d 4h")
+    const components = trimmed.split(/\s+/);
+    if (components.length > 1) {
+      const results: ParseResult[] = [];
+      const usedUnits = new Set<UnitTime>();
+      let dominantUnit: UnitTime = 'ms';
+      // let hasNegative = false;
+
+      const totalMilliseconds = components.reduce((sum, component, index) => {
+        // Skip empty components
+        if (!component) return sum;
+        // const ms = this.parseComponent(component, opts, index, usedUnits);
+        // if (ms < 0) hasNegative = true;
+        // return sum + ms;
+        // Parse each component individually here.
+        const data = this.parseComponent(component, opts, index, usedUnits);
+        usedUnits.add(data.unit);
+        results.push(data);
+
+        // track unit of largest single‑chunk multiplier
+        const thisUnit = Array.from(usedUnits).pop()!; // last added
+        if (TIME_MULTIPLIERS[thisUnit] > TIME_MULTIPLIERS[dominantUnit]) {
+          dominantUnit = thisUnit;
+        }
+
+        return (sum += data.milliseconds);
+      }, 0);
+
+      // if (hasNegative && !opts.allowNegative) {
+      //   throw new DurationParseError(
+      //     'Negative values not allowed',
+      //     raw,
+      //     'NEGATIVE_NOT_ALLOWED',
+      //   );
+      // }
+      return {
+        totalMilliseconds,
+        dominantUnit: {
+          duration: totalMilliseconds / TIME_MULTIPLIERS[dominantUnit],
+          unit: dominantUnit,
+        },
+        data: results,
+      };
+    }
+
     // Single component with enhanced regex to handle various formats
-    const data = this.parseSingleComponent(trimmed, opts);
+    const data = this.parseComponent(trimmed, opts);
     return {
       totalMilliseconds: data.milliseconds,
       data: [data],
     };
   }
 
-  private parseSingleComponent(
+  private parseComponent(
     input: string,
     opts: Required<ParseOptions>,
     index: number = 0,
@@ -179,23 +228,25 @@ export class TimeParserService {
       );
 
     // Track if we have any negative values
-    if (duration < 0) {
-      if (!opts.allowNegative) {
-        throw new DurationParseError(
-          'Negative values are not allowed',
-          input,
-          'NEGATIVE_NOT_ALLOWED',
-        );
-      }
-      // Only allow negative in the first component for compound durations
-      if (index > 0) {
-        throw new DurationParseError(
-          'Negative values only allowed on first component',
-          input,
-          'INVALID_NEGATIVE_POSITION',
-        );
-      }
-    }
+    this.checkNegativeAllowed(input, duration, opts.allowNegative, index);
+
+    // if (duration < 0) {
+    //   if (!opts.allowNegative) {
+    //     throw new DurationParseError(
+    //       'Negative values are not allowed',
+    //       input,
+    //       'NEGATIVE_NOT_ALLOWED',
+    //     );
+    //   }
+    //   // Only allow negative in the first component for compound durations
+    //   if (index > 0) {
+    //     throw new DurationParseError(
+    //       'Negative values only allowed on first component',
+    //       input,
+    //       'INVALID_NEGATIVE_POSITION',
+    //     );
+    //   }
+    // }
 
     const unit = this.normalizeUnit(unitStr.toLowerCase(), opts.ambiguousUnit);
 
@@ -322,6 +373,31 @@ export class TimeParserService {
    */
   getSupportedUnits(): string[] {
     return Object.keys(UNIT_ALIASES).sort();
+  }
+
+  private checkNegativeAllowed(
+    input: string,
+    duration: number,
+    allowNegative: boolean,
+    position: number = 0,
+  ): void {
+    if (duration >= 0) return;
+
+    if (!allowNegative) {
+      throw new DurationParseError(
+        'Negative values are not allowed',
+        input,
+        'NEGATIVE_NOT_ALLOWED',
+      );
+    }
+
+    if (position > 0) {
+      throw new DurationParseError(
+        'Negative values only allowed on first component',
+        input,
+        'INVALID_NEGATIVE_POSITION',
+      );
+    }
   }
 
   /**

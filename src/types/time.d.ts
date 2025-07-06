@@ -132,8 +132,10 @@ export interface ParseResult {
   milliseconds: number;
 }
 
+export type DominantUnit = Omit<ParseResult, 'milliseconds'>;
 // **NEW**: The result for the detailed parse method
 export interface DetailedParseResult {
   totalMilliseconds: number;
+  dominantUnit?: DominantUnit;
   data: ParseResult | ParseResult[];
 }
