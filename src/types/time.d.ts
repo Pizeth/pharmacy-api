@@ -125,6 +125,25 @@ export interface FormatOptions {
   preferredUnits?: UnitTime[];
 }
 
+// Define plural categories based on Intl.PluralRules
+type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+
+// Localization for a single unit, requiring 'other' as a fallback
+interface UnitLocalization {
+  other: string;
+  zero?: string;
+  one?: string;
+  two?: string;
+  few?: string;
+  many?: string;
+}
+
+// Configuration for localization, including locale and unit mappings
+interface LocalizationConfig {
+  locale: string;
+  units: Record<UnitTime, UnitLocalization>;
+}
+
 // The result for a single parsed component
 export interface ParseResult {
   duration: number;

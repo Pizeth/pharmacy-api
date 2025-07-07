@@ -4,6 +4,8 @@
 // -----------------------------------------------------------------
 import { Injectable, Logger } from '@nestjs/common';
 import { Duration } from 'luxon';
+import path from 'path';
+import fs from 'fs';
 import { DurationParseError } from 'src/exceptions/duration-parse.exception';
 import {
   TIME_MULTIPLIERS,
@@ -15,17 +17,81 @@ import {
   AMBIGUOUS_UNITS,
   DetailedParseResult,
   LONG_NAMES,
+  LocalizationConfig,
+  PluralCategory,
 } from 'src/types/time';
 
 @Injectable()
+/**
+ * Service for parsing, formatting, and localizing human-readable time durations.
+ *
+ * The `TimeParserService` provides robust utilities to:
+ * - Parse duration strings (e.g., "1h 30m", "2d", ISO-8601, numbers) into milliseconds.
+ * - Format milliseconds into human-readable strings, with support for localization and pluralization.
+ * - Handle ambiguous units (e.g., "m" for minutes or months) with configurable strategies.
+ * - Support compound durations, negative values (optionally), and safe integer boundaries.
+ * - Add or load localization data for different languages at runtime.
+ * - Suggest corrections for unknown or mistyped units.
+ * - Validate duration strings and retrieve supported units.
+ * - Calculate expiration dates or intervals based on parsed durations.
+ *
+ * Features:
+ * - ISO-8601 duration support.
+ * - Customizable parsing and formatting options.
+ * - Intelligent error handling with suggestions and detailed error codes.
+ * - Caching and merging of localization files for efficient lookups.
+ *
+ * Example usage:
+ * ```typescript
+ * const parser = new TimeParserService();
+ * const ms = parser.parse('2h 30m'); // 9000000
+ * const str = parser.format(ms, { long: true }); // "2 hours"
+ * const localized = parser.format(ms, { locale: 'fr', long: true }); // "2 heures"
+ * ```
+ */
 export class TimeParserService {
   private readonly context = TimeParserService.name;
   private readonly logger = new Logger(this.context);
+
+  /**
+   * Lazily build a precompute sorted units for efficient formatting [unit, multiplier] tuple list
+   * from TIME_MULTIPLIERS. Sorted descending (largest unit first).
+   */
+  private readonly sortedUnits: [UnitTime, number][] = (
+    Object.entries(TIME_MULTIPLIERS) as [UnitTime, number][]
+  ).sort(([, a], [, b]) => b - a);
+
+  // Default Parse option
   private readonly defaultParseOptions: Required<ParseOptions> = {
     ambiguousUnit: 'strict',
     maxLength: 100,
     allowNegative: false,
   };
+
+  // Default English localization
+  private readonly defaultLocalization: LocalizationConfig = {
+    locale: 'en',
+    units: {
+      ms: { one: 'millisecond', other: 'milliseconds' },
+      s: { one: 'second', other: 'seconds' },
+      m: { one: 'minute', other: 'minutes' },
+      h: { one: 'hour', other: 'hours' },
+      d: { one: 'day', other: 'days' },
+      w: { one: 'week', other: 'weeks' },
+      mo: { one: 'month', other: 'months' },
+      y: { one: 'year', other: 'years' },
+    },
+  };
+
+  // Cache for loaded localizations
+  private localizationCache: Record<string, LocalizationConfig> = {};
+  private localesPath: string;
+
+  constructor(localesPath: string = path.join(__dirname, 'src/i18n')) {
+    this.localesPath = localesPath;
+    // Preload default localization
+    this.localizationCache['en'] = this.defaultLocalization;
+  }
 
   /**
    * Parse a duration string or number into milliseconds.
@@ -125,42 +191,16 @@ export class TimeParserService {
     }
 
     // Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
-    const components1 = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
-    if (components1.length > 1) {
-      const results: ParseResult[] = [];
-      let totalMilliseconds = 0;
-      const usedUnits = new Set<UnitTime>();
-
-      for (let i = 0; i < components1.length; i++) {
-        const component = components1[i];
-
-        // Skip empty components
-        if (!component) continue;
-
-        // Parse each component individually here.
-        const data = this.parseComponent(component, opts, i, usedUnits);
-        usedUnits.add(data.unit);
-        results.push(data);
-        totalMilliseconds += data.milliseconds;
-      }
-
-      return { totalMilliseconds, data: results };
-    }
-
-    // 2) Compound durations (e.g. "1h 30m", "2d 4h")
     const components = trimmed.split(/\s+/);
     if (components.length > 1) {
       const results: ParseResult[] = [];
       const usedUnits = new Set<UnitTime>();
       let dominantUnit: UnitTime = 'ms';
-      // let hasNegative = false;
 
       const totalMilliseconds = components.reduce((sum, component, index) => {
         // Skip empty components
         if (!component) return sum;
-        // const ms = this.parseComponent(component, opts, index, usedUnits);
-        // if (ms < 0) hasNegative = true;
-        // return sum + ms;
+
         // Parse each component individually here.
         const data = this.parseComponent(component, opts, index, usedUnits);
         usedUnits.add(data.unit);
@@ -172,16 +212,9 @@ export class TimeParserService {
           dominantUnit = thisUnit;
         }
 
-        return (sum += data.milliseconds);
+        return sum + data.milliseconds;
       }, 0);
 
-      // if (hasNegative && !opts.allowNegative) {
-      //   throw new DurationParseError(
-      //     'Negative values not allowed',
-      //     raw,
-      //     'NEGATIVE_NOT_ALLOWED',
-      //   );
-      // }
       return {
         totalMilliseconds,
         dominantUnit: {
@@ -276,71 +309,48 @@ export class TimeParserService {
   }
 
   /**
-   * Format milliseconds back to human-readable string
+   * Formats a duration in milliseconds into a localized string
    */
-  format(ms: number, options?: FormatOptions): string {
-    const opts = { long: false, precision: 0, preferredUnits: [], ...options };
+  format(
+    ms: number,
+    options: FormatOptions & { locale?: string } = {},
+  ): string {
+    const opts = {
+      long: false,
+      precision: 0,
+      preferredUnits: [],
+      locale: 'en',
+      ...options,
+    };
 
+    // Validate input
     if (typeof ms !== 'number' || !isFinite(ms)) {
       throw new Error('Value must be a finite number');
     }
 
+    // Load localization
+    const localization = this.getLocalization(opts.locale);
+
     const absMs = Math.abs(ms);
+
     // Explicit handling for zero.
     if (absMs === 0) {
-      return opts.long ? '0 milliseconds' : '0ms';
+      return opts.long ? this.formatLong(absMs, 'ms', localization) : '0ms';
     }
 
-    const sign = ms < 0 ? '-' : '';
+    // Find the most appropriate unit
+    const [unit, roundedValue, sign] = this.findBestUnit(
+      absMs,
+      opts.preferredUnits,
+      opts.precision,
+    );
 
-    // If preferredUnits are provided, try to use them in order
-    if (opts.preferredUnits.length > 0) {
-      for (const unit of opts.preferredUnits) {
-        const multiplier = TIME_MULTIPLIERS[unit];
-        if (absMs >= multiplier && absMs % multiplier === 0) {
-          const value = ms / multiplier;
-          if (opts.long) {
-            const isPlural = Math.abs(value) !== 1;
-            const unitName = LONG_NAMES[unit];
-            return `${value} ${unitName}${isPlural ? 's' : ''}`;
-          } else {
-            return `${sign}${Math.abs(value)}${unit}`;
-          }
-        }
-      }
+    if (!opts.long) {
+      return `${sign}${Math.abs(roundedValue)}${unit}`;
     }
 
-    // Fallback to default behavior, Find the most appropriate unit
-    const units: Array<[UnitTime, string, string]> = [
-      ['y', 'y', 'year'],
-      ['mo', 'mo', 'month'],
-      ['w', 'w', 'week'],
-      ['d', 'd', 'day'],
-      ['h', 'h', 'hour'],
-      ['m', 'm', 'minute'],
-      ['s', 's', 'second'],
-      ['ms', 'ms', 'millisecond'],
-    ];
-
-    for (const [unit, shortSuffix, longSuffix] of units) {
-      const multiplier = TIME_MULTIPLIERS[unit];
-      if (absMs >= multiplier) {
-        const value = ms / multiplier;
-        const rounded =
-          opts.precision > 0
-            ? parseFloat(value.toFixed(opts.precision))
-            : Math.round(value);
-
-        if (opts.long) {
-          const isPlural = Math.abs(rounded) !== 1;
-          return `${rounded} ${longSuffix}${isPlural ? 's' : ''}`;
-        } else {
-          return `${sign}${Math.abs(rounded)}${shortSuffix}`;
-        }
-      }
-    }
-
-    return opts.long ? `${ms} milliseconds` : `${ms}ms`;
+    // Handle long format with localization
+    return this.formatLong(roundedValue, unit, localization);
   }
 
   /**
@@ -373,6 +383,73 @@ export class TimeParserService {
    */
   getSupportedUnits(): string[] {
     return Object.keys(UNIT_ALIASES).sort();
+  }
+
+  private formatLong(
+    value: number,
+    unit: UnitTime,
+    localization: LocalizationConfig,
+  ): string {
+    // Check and assign the sign to value
+    const sign = value < 0 ? '-' : '';
+
+    const pluralRules = new Intl.PluralRules(localization.locale);
+    const pluralCategory = pluralRules.select(value) as PluralCategory;
+
+    // Get unit localization
+    const unitLocalization = localization.units[unit];
+    if (!unitLocalization) {
+      throw new Error(`Missing localization for unit: ${unit}`);
+    }
+
+    // Get localized unit name
+    const localeUnit =
+      unitLocalization[pluralCategory] || unitLocalization.other;
+
+    if (!localeUnit) {
+      throw new Error(
+        `No '${pluralCategory}' or 'other' form for unit: ${unit}`,
+      );
+    }
+
+    // Explicit handling for zero.
+    if (value === 0) {
+      return `${value} ${localeUnit}`;
+    }
+
+    return `${sign}${value} ${localeUnit}`;
+  }
+
+  private findBestUnit(
+    absMs: number,
+    preferredUnits: UnitTime[],
+    precision: number,
+  ): [UnitTime, number, '-' | ''] {
+    const sign = absMs < 0 ? '-' : '';
+    // Predefined unit search order
+    const searchOrder = this.sortedUnits;
+
+    // Use preferred units if specified
+    const unitsToSearch =
+      preferredUnits.length > 0
+        ? searchOrder.filter(([unit]) => preferredUnits.includes(unit))
+        : searchOrder;
+
+    // Find the largest unit that fits
+    for (const [unit, multiplier] of unitsToSearch) {
+      if (absMs >= multiplier) {
+        // Calculate the count for the selected unit
+        const value = absMs / multiplier;
+        const roundedValue =
+          precision >= 0
+            ? parseFloat(value.toFixed(precision))
+            : Math.round(value);
+        return [unit, roundedValue, sign];
+      }
+    }
+
+    // Return default in millisecond
+    return ['ms', Math.round(absMs), sign];
   }
 
   private checkNegativeAllowed(
@@ -457,7 +534,7 @@ export class TimeParserService {
     if (b.length === 0) return a.length;
 
     // Create more explicit, and type-safe 2D array using Array.from to avoid unsafe assignments.
-    // We fill the inner arrays with 0, as they will hold numbers.
+    // Fill the inner arrays with 0, as they will hold numbers.
     const matrix: number[][] = Array.from(
       { length: b.length + 1 },
       (): number[] => Array.from<number>({ length: a.length + 1 }).fill(0),
@@ -478,6 +555,70 @@ export class TimeParserService {
     }
 
     return matrix[b.length][a.length];
+  }
+
+  /**
+   * Load localization with caching and fallbacks
+   */
+  private getLocalization(locale: string): LocalizationConfig {
+    // Return cached if available
+    if (this.localizationCache[locale]) {
+      return this.localizationCache[locale];
+    }
+
+    try {
+      const filePath = path.join(this.localesPath, `${locale}/${locale}.json`);
+      const data = fs.readFileSync(filePath, 'utf8');
+      const config: LocalizationConfig = JSON.parse(data) as LocalizationConfig;
+
+      // Validate structure
+      if (!config.locale || !config.units) {
+        throw new Error('Invalid localization file structure');
+      }
+
+      // Merge with default to ensure all units are present
+      const mergedConfig: LocalizationConfig = {
+        ...this.defaultLocalization,
+        ...config,
+        units: {
+          ...this.defaultLocalization.units,
+          ...config.units,
+        },
+      };
+
+      this.localizationCache[locale] = mergedConfig;
+      return mergedConfig;
+    } catch (error) {
+      console.warn(
+        `Failed to load localization for "${locale}", falling back to default.`,
+        error,
+      );
+
+      // Fallback strategies
+      if (locale.includes('-')) {
+        const baseLocale = locale.split('-')[0];
+        if (baseLocale !== locale && baseLocale !== 'en') {
+          return this.getLocalization(baseLocale);
+        }
+      }
+
+      // Fallback to default local 'en'
+      return this.defaultLocalization;
+    }
+  }
+
+  /**
+   * Add a localization at runtime
+   */
+  public addLocalization(config: LocalizationConfig): void {
+    this.localizationCache[config.locale] = {
+      ...this.defaultLocalization,
+      ...config,
+      units: {
+        ...this.defaultLocalization.units,
+        ...config.units,
+      },
+    };
   }
 }
 
@@ -775,4 +916,211 @@ export function ms(
 //     input,
 //     'VALUE_TOO_LARGE',
 //   );
+// }
+
+// Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
+// const components = trimmed.split(/\s+/).filter((c) => c.length > 0); // Filter out empty strings
+// if (components.length > 1) {
+//   const results: ParseResult[] = [];
+//   let totalMilliseconds = 0;
+//   const usedUnits = new Set<UnitTime>();
+
+//   for (let i = 0; i < components.length; i++) {
+//     const component = components[i];
+
+//     // Skip empty components
+//     if (!component) continue;
+
+//     // Parse each component individually here.
+//     const data = this.parseComponent(component, opts, i, usedUnits);
+//     usedUnits.add(data.unit);
+//     results.push(data);
+//     totalMilliseconds += data.milliseconds;
+//   }
+
+//   return { totalMilliseconds, data: results };
+// }
+
+/**
+ * Format milliseconds back to human-readable string
+ */
+export function format(ms: number, options?: FormatOptions): string {
+  const opts = {
+    long: false,
+    precision: 0,
+    preferredUnits: [],
+    ...options,
+  };
+
+  if (typeof ms !== 'number' || !isFinite(ms)) {
+    throw new Error('Value must be a finite number');
+  }
+
+  const absMs = Math.abs(ms);
+  // Explicit handling for zero.
+  if (absMs === 0) {
+    return opts.long ? '0 milliseconds' : '0ms';
+  }
+
+  const sign = ms < 0 ? '-' : '';
+
+  // If preferredUnits are provided, try to use them in order
+  if (opts.preferredUnits.length > 0) {
+    for (const unit of opts.preferredUnits) {
+      const multiplier = TIME_MULTIPLIERS[unit];
+      if (absMs >= multiplier && absMs % multiplier === 0) {
+        const value = ms / multiplier;
+        if (opts.long) {
+          const isPlural = Math.abs(value) !== 1;
+          const unitName = LONG_NAMES[unit];
+          return `${value} ${unitName}${isPlural ? 's' : ''}`;
+        } else {
+          return `${sign}${Math.abs(value)}${unit}`;
+        }
+      }
+    }
+  }
+
+  // Fallback to default behavior, Find the most appropriate unit
+  const units: Array<[UnitTime, string, string]> = [
+    ['y', 'y', 'year'],
+    ['mo', 'mo', 'month'],
+    ['w', 'w', 'week'],
+    ['d', 'd', 'day'],
+    ['h', 'h', 'hour'],
+    ['m', 'm', 'minute'],
+    ['s', 's', 'second'],
+    ['ms', 'ms', 'millisecond'],
+  ];
+
+  for (const [unit, shortSuffix, longSuffix] of units) {
+    const multiplier = TIME_MULTIPLIERS[unit];
+    if (absMs >= multiplier) {
+      const value = ms / multiplier;
+      const rounded =
+        opts.precision > 0
+          ? parseFloat(value.toFixed(opts.precision))
+          : Math.round(value);
+
+      if (opts.long) {
+        const isPlural = Math.abs(rounded) !== 1;
+        return `${rounded} ${longSuffix}${isPlural ? 's' : ''}`;
+      } else {
+        return `${sign}${Math.abs(rounded)}${shortSuffix}`;
+      }
+    }
+  }
+
+  return opts.long ? `${ms} milliseconds` : `${ms}ms`;
+}
+
+/**
+ * Formats a duration in milliseconds into a string with localized units
+ * @param ms Duration in milliseconds
+ * @param options Formatting options, including optional locale
+ * @returns Formatted duration string
+ */
+// public formatLocale(
+//   ms: number,
+//   options?: FormatOptions & { locale?: string },
+// ): string {
+//   const opts = {
+//     long: false,
+//     precision: 0,
+//     preferredUnits: [],
+//     locale: 'en',
+//     ...options,
+//   };
+
+//   // Load localization based on locale
+//   const localization = this.loadLocalization(opts.locale);
+
+//   // Validate input
+//   if (typeof ms !== 'number' || !isFinite(ms)) {
+//     throw new Error('Value must be a finite number');
+//   }
+
+//   const absMs = Math.abs(ms);
+//   const sign = ms < 0 ? '-' : '';
+
+//   // Filter units based on preferredUnits if provided
+//   // let availableUnits = this.units;
+//   // if (opts.preferredUnits.length > 0) {
+//   //   availableUnits = this.units.filter(([unit]) =>
+//   //     opts.preferredUnits.includes(unit),
+//   //   );
+//   // }
+//   const availableUnits =
+//     opts.preferredUnits.length > 0
+//       ? this.sortedUnits.filter(([unit]) =>
+//           opts.preferredUnits.includes(unit),
+//         )
+//       : this.sortedUnits;
+
+//   // Find the largest unit that fits
+//   let selectedUnit: UnitTime = 'ms';
+//   let multiplier = 1;
+//   for (const [unit, mult] of availableUnits) {
+//     if (absMs >= mult) {
+//       selectedUnit = unit;
+//       multiplier = mult;
+//       break;
+//     }
+//   }
+
+//   // Calculate the count for the selected unit
+//   const count = ms / multiplier;
+//   const value =
+//     opts.precision > 0
+//       ? parseFloat(count.toFixed(opts.precision))
+//       : Math.round(count);
+
+//   if (opts.long) {
+//     // Determine plural category using Intl.PluralRules
+//     const pluralRules = new Intl.PluralRules(localization.locale);
+//     const category = pluralRules.select(value) as PluralCategory;
+
+//     // Get unit localization
+//     const unitLocalization = localization.units[selectedUnit];
+//     if (!unitLocalization) {
+//       throw new Error(`No localization for unit: ${selectedUnit}`);
+//     }
+
+//     // Select the appropriate localized name, falling back to 'other'
+//     const unitName = unitLocalization[category] || unitLocalization['other'];
+//     if (!unitName) {
+//       throw new Error(
+//         `No '${category}' or 'other' form for unit: ${selectedUnit}`,
+//       );
+//     }
+
+//     return `${value} ${unitName}`;
+//   } else {
+//     return `${sign}${Math.abs(value)}${selectedUnit}`;
+//   }
+// }
+
+/**
+ * Loads the localization config from a JSON file based on the locale
+ * @param locale The locale to load (e.g., 'en', 'fr')
+ * @returns The LocalizationConfig for the locale
+ */
+// function loadLocalization(locale: string): LocalizationConfig {
+//   if (this.localizationCache[locale]) {
+//     return this.localizationCache[locale];
+//   }
+
+//   try {
+//     const filePath = path.join(__dirname, 'locales', `${locale}.json`);
+//     const data = fs.readFileSync(filePath, 'utf8');
+//     const config: LocalizationConfig = JSON.parse(data) as LocalizationConfig;
+//     this.localizationCache[locale] = config;
+//     return config;
+//   } catch (error) {
+//     console.warn(
+//       `Failed to load localization for "${locale}", falling back to default.`,
+//       error,
+//     );
+//     return this.defaultLocalization;
+//   }
 // }

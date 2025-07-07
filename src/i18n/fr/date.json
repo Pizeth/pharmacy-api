@@ -1,0 +1,13 @@
+{
+  "locale": "fr",
+  "units": {
+    "ms": { "one": "milliseconde", "other": "millisecondes" },
+    "s": { "one": "seconde", "other": "secondes" },
+    "m": { "one": "minute", "other": "minutes" },
+    "h": { "one": "heure", "other": "heures" },
+    "d": { "one": "jour", "other": "jours" },
+    "w": { "one": "semaine", "other": "semaines" },
+    "mo": { "one": "mois", "other": "mois" },
+    "y": { "one": "an", "other": "ans" }
+  }
+}
