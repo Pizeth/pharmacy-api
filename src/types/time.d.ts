@@ -87,6 +87,15 @@ export const LONG_NAMES: Record<UnitTime, string> = {
 // Ambiguous units that should be explicitly handled
 export const AMBIGUOUS_UNITS = new Set(['m']);
 
+// Configuration interface
+export interface TimeParserConfig {
+  maxInputLength?: number;
+  maxCacheSize?: number;
+  defaultLocale?: string;
+  enableSuggestions?: boolean;
+  localesPath?: string;
+}
+
 // Options interface
 export interface ParseOptions {
   /**
@@ -152,7 +161,8 @@ export interface ParseResult {
 }
 
 export type DominantUnit = Omit<ParseResult, 'milliseconds'>;
-// **NEW**: The result for the detailed parse method
+
+// The result for the detailed parse method
 export interface DetailedParseResult {
   totalMilliseconds: number;
   dominantUnit?: DominantUnit;
