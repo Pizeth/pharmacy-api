@@ -115,6 +115,8 @@ export interface ParseOptions {
    * Whether to allow negative values
    */
   allowNegative?: boolean;
+  strictNegativePosition?: boolean;
+  mergeDuplicates?: boolean;
 }
 
 export interface FormatOptions {
@@ -132,6 +134,11 @@ export interface FormatOptions {
    * Preferred units in order of precedence
    */
   preferredUnits?: UnitTime[];
+
+  /**
+   * Option for multi-unit output and sorted preferredUnits by size.
+   */
+  compound?: boolean;
 }
 
 // Define plural categories based on Intl.PluralRules
@@ -166,5 +173,5 @@ export type DominantUnit = Omit<ParseResult, 'milliseconds'>;
 export interface DetailedParseResult {
   totalMilliseconds: number;
   dominantUnit?: DominantUnit;
-  data: ParseResult | ParseResult[];
+  data: ParseResult[];
 }
