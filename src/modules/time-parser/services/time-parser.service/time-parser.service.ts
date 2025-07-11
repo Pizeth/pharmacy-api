@@ -576,16 +576,16 @@ export class TimeParserService implements OnModuleInit {
     return `${sign}${value} ${localeUnit}`;
   }
 
-  private formatLong(
-    value: number,
-    unit: UnitTime,
-    localization: Record<string, string>,
-  ): string {
-    const key = value === 1 ? `${unit}_singular` : `${unit}_plural`;
-    const template =
-      localization[key] || (value === 1 ? `${unit}` : `${unit}s`);
-    return `${value} ${template}`;
-  }
+  // private formatLong(
+  //   value: number,
+  //   unit: UnitTime,
+  //   localization: Record<string, string>,
+  // ): string {
+  //   const key = value === 1 ? `${unit}_singular` : `${unit}_plural`;
+  //   const template =
+  //     localization[key] || (value === 1 ? `${unit}` : `${unit}s`);
+  //   return `${value} ${template}`;
+  // }
 
   private findBestUnit(
     input: number,
@@ -607,16 +607,61 @@ export class TimeParserService implements OnModuleInit {
         : searchOrder;
 
     // Find the largest unit that fits
+    let remaining = Math.abs(input);
+    const parts: [UnitTime, number][] = [];
     for (const [unit, multiplier] of unitsToSearch) {
-      if (input >= multiplier) {
-        // Calculate the count for the selected unit
-        const value = input / multiplier;
+      if (remaining < multiplier) continue;
+
+      if (options.compound) {
+        // compound: take as many of this unit as you can
+        const count = Math.floor(remaining / multiplier);
+        remaining -= count * multiplier;
+        parts.push([unit, count]);
+        // continue to next unit until remaining < smallest multiplier
+      } else {
+        // non-compound: just compute once and break
+        const value = remaining / multiplier;
+
         const roundedValue =
-          options.precision >= 0
+          options.precision != null
             ? parseFloat(value.toFixed(options.precision))
             : Math.round(value);
-        return [unit, roundedValue /*sign*/];
+
+        parts.push([unit, roundedValue]);
+        break;
       }
+      // if (input >= multiplier) {
+      //   // Calculate the count for the selected unit
+      //   const value = input / multiplier;
+      //   const roundedValue =
+      //     options.precision >= 0
+      //       ? parseFloat(value.toFixed(options.precision))
+      //       : Math.round(value);
+      //   return [unit, roundedValue /*sign*/];
+      // }
+    }
+
+    // if nothing matched (input was 0 or less than smallest unit), force one 0-amount
+    if (parts.length === 0) {
+      const [smallestUnit] = this.sortedUnits[this.sortedUnits.length - 1];
+      parts.push([smallestUnit, 0]);
+    }
+
+    // —— now format ——
+    if (options.long) {
+      // long form: “1 hour 30 minutes” or “2 days”
+      return (
+        sign +
+        parts
+          .map(([u, v]) => this.formatLong(v, u, localization))
+          .join(options.compound ? ' ' : '')
+      );
+    } else {
+      // short form: “1.5h” or “2d”
+      const [[u, v]] = parts; // only the first part matters
+      const numStr =
+        options.precision != null ? v.toFixed(options.precision) : String(v);
+      return sign + numStr + u;
     }
 
     // Return default in millisecond
