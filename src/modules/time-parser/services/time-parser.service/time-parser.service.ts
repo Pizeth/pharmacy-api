@@ -228,49 +228,35 @@ export class TimeParserService implements OnModuleInit {
 
     // Explicit handling for zero.
     if (absMs === 0) {
-      return opts.long ? this.formatLong(absMs, 'ms', localization) : '0ms';
+      return opts.long ? this.formatLong('ms', absMs, localization) : '0ms';
     }
 
     // Find the most appropriate unit
-    const [unit, roundedValue /*, sign*/] = this.findBestUnit(absMs, opts);
+    // const [unit, roundedValue /*, sign*/] = this.findBestUnit(absMs, opts);
+    const result = this.findBestUnit(absMs, opts);
 
-    // Handle long format with localization
-    return opts.long
-      ? this.formatLong(roundedValue, unit, localization)
-      : `${sign}${Math.abs(roundedValue)}${unit}`;
-  }
-
-  public format(milliseconds: number, options: FormatOptions = {}): string {
-    const opts = {
-      locale: 'en',
-      long: false,
-      precision: -1,
-      preferredUnits: [],
-      compound: false,
-      ...options,
-    };
-    const localization = this.getLocalization(opts.locale);
-    const absMs = Math.abs(milliseconds);
-    const sign = milliseconds < 0 ? '-' : '';
-
-    if (opts.long && opts.compound) {
-      let remainingMs = absMs;
-      const parts: string[] = [];
-      for (const [unit, multiplier] of this.sortedUnits) {
-        if (remainingMs >= multiplier) {
-          const value = Math.floor(remainingMs / multiplier);
-          remainingMs -= value * multiplier;
-          const formatted = this.formatLong(value, unit, localization);
-          parts.push(formatted);
-        }
-      }
-      return sign + parts.join(' ');
+    if (result.length === 1) {
+      const [unit, value] = result[result.length - 1];
+      // Handle long format with localization
+      return opts.long
+        ? `${sign}${this.formatLong(unit, value, localization)}`
+        : `${sign}${Math.abs(value)}${unit}`;
+    } else {
+      // const parts: string[] = [];
+      // for (const [unit, value] of result) {
+      //   parts.push(this.formatLong(value, unit, localization));
+      // }
+      // return sign + parts.join(' ');
+      return `${sign} 
+        ${result
+          .map(([unit, value]) => this.formatLong(unit, value, localization))
+          .join(options.compound ? ' ' : '')}`;
     }
 
-    const [unit, roundedValue] = this.findBestUnit(absMs, opts);
-    return opts.long
-      ? sign + this.formatLong(roundedValue, unit, localization)
-      : `${sign}${roundedValue}${unit}`;
+    // Handle long format with localization
+    // return opts.long
+    //   ? this.formatLong(roundedValue, unit, localization)
+    //   : `${sign}${Math.abs(roundedValue)}${unit}`;
   }
 
   // =============== Helpers ===============
@@ -472,9 +458,9 @@ export class TimeParserService implements OnModuleInit {
       return sum + result.milliseconds;
     }, 0);
 
-    const [dominantUnit1] = this.sortedUnits.find(
-      ([_, multiplier]) => totalMilliseconds >= multiplier,
-    ) || ['ms', 1];
+    // const [dominantUnit] = this.sortedUnits.find(
+    //   ([_, multiplier]) => totalMilliseconds >= multiplier,
+    // ) || ['ms', 1];
 
     return {
       totalMilliseconds,
@@ -540,12 +526,12 @@ export class TimeParserService implements OnModuleInit {
   }
 
   private formatLong(
-    value: number,
     unit: UnitTime,
+    value: number,
     localization: LocalizationConfig,
   ): string {
     // Check and assign the sign to value
-    const sign = value < 0 ? '-' : '';
+    // const sign = value < 0 ? '-' : '';
 
     // Get cached plural rules
     const pluralRules = this.getPluralRules(localization.locale);
@@ -573,7 +559,7 @@ export class TimeParserService implements OnModuleInit {
       );
     }
 
-    return `${sign}${value} ${localeUnit}`;
+    return `${value} ${localeUnit}`;
   }
 
   // private formatLong(
@@ -592,7 +578,7 @@ export class TimeParserService implements OnModuleInit {
     // preferredUnits: UnitTime[],
     // precision: number,
     options: Required<FormatOptions>,
-  ): [UnitTime, number /*'-' | ''*/] {
+  ): [UnitTime, number][] {
     // const sign = input < 0 ? '-' : '';
     // const absMs = Math.abs(input);
     // Predefined unit search order
@@ -639,33 +625,34 @@ export class TimeParserService implements OnModuleInit {
       //       : Math.round(value);
       //   return [unit, roundedValue /*sign*/];
       // }
+      return parts;
     }
 
     // if nothing matched (input was 0 or less than smallest unit), force one 0-amount
-    if (parts.length === 0) {
-      const [smallestUnit] = this.sortedUnits[this.sortedUnits.length - 1];
-      parts.push([smallestUnit, 0]);
-    }
+    // if (parts.length === 0) {
+    //   const [smallestUnit] = this.sortedUnits[this.sortedUnits.length - 1];
+    //   parts.push([smallestUnit, 0]);
+    // }
 
-    // —— now format ——
-    if (options.long) {
-      // long form: “1 hour 30 minutes” or “2 days”
-      return (
-        sign +
-        parts
-          .map(([u, v]) => this.formatLong(v, u, localization))
-          .join(options.compound ? ' ' : '')
-      );
-    } else {
-      // short form: “1.5h” or “2d”
-      const [[u, v]] = parts; // only the first part matters
-      const numStr =
-        options.precision != null ? v.toFixed(options.precision) : String(v);
-      return sign + numStr + u;
-    }
+    // // —— now format ——
+    // if (options.long) {
+    //   // long form: “1 hour 30 minutes” or “2 days”
+    //   return (
+    //     sign +
+    //     parts
+    //       .map(([u, v]) => this.formatLong(v, u, localization))
+    //       .join(options.compound ? ' ' : '')
+    //   );
+    // } else {
+    //   // short form: “1.5h” or “2d”
+    //   const [[u, v]] = parts; // only the first part matters
+    //   const numStr =
+    //     options.precision != null ? v.toFixed(options.precision) : String(v);
+    //   return sign + numStr + u;
+    // }
 
     // Return default in millisecond
-    return ['ms', Math.round(input) /*sign*/];
+    return [['ms', Math.round(input)]];
   }
 
   // =============== SECURITY & PERFORMANCE =============== //

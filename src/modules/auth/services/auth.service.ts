@@ -102,7 +102,7 @@ export class AuthService {
       // Save refresh token to database
       const refreshToken = await this.tokenService.generateRefreshToken(
         payload,
-        '15 wks',
+        '1hour 5mn',
       );
 
       // After validation succeeds, transform the object by creating a mutable copy of the validated data.

@@ -19,6 +19,7 @@ import {
 import { ClsService } from 'nestjs-cls';
 import { UserDetail } from 'src/types/dto';
 import { Algorithm } from 'jsonwebtoken';
+import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
 
 @Injectable()
 export class TokenService {
@@ -28,6 +29,7 @@ export class TokenService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly timeService: TimeParserService,
     private readonly cls: ClsService,
   ) {
     this.logger.debug(`${this.constructor.name} initialized`);
@@ -241,12 +243,13 @@ export class TokenService {
   // Generate refresh tokens
   async generateRefreshToken(
     payload: TokenPayload,
-    expiresIn: number | string = this.expireRefresh,
+    duration: number | string = this.expireRefresh,
     secret: string = this.refreshTokenKey,
   ): Promise<RefreshToken> {
     try {
+      const expiresIn = this.timeService.getExpiresIn(duration);
+      const expiresAt = this.timeService.getExpiresAt(duration);
       const token = await this.generateToken(payload, expiresIn, secret);
-      const expiresAt = this.getExpiresAt(expiresIn);
       return await this.createRefreshToken(token, payload.sub, expiresAt);
     } catch (error: unknown) {
       console.error('Failed to generated Refresh Token', error);
