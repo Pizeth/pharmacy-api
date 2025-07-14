@@ -73,7 +73,22 @@ export const UNIT_ALIASES: Record<string, UnitTime> = {
   years: 'y',
 };
 
-export const LONG_NAMES: Record<UnitTime, string> = {
+// export const LONG_NAMES: Record<UnitTime, string> = {
+//   ms: 'millisecond',
+//   s: 'second',
+//   m: 'minute',
+//   h: 'hour',
+//   d: 'day',
+//   w: 'week',
+//   mo: 'month',
+//   y: 'year',
+// };
+
+// For Intl.RelativeTimeFormat support
+export const RELATIVE_TIME_UNITS: Record<
+  UnitTime,
+  Intl.RelativeTimeFormatUnit
+> = {
   ms: 'millisecond',
   s: 'second',
   m: 'minute',
@@ -94,6 +109,9 @@ export interface TimeParserConfig {
   defaultLocale?: string;
   enableSuggestions?: boolean;
   localesPath?: string;
+  parseOptions?: ParseOptions;
+  formatOptions?: FormatOptions;
+  localizationConfig?: LocalizationConfig;
 }
 
 // Options interface
@@ -139,6 +157,21 @@ export interface FormatOptions {
    * Option for multi-unit output and sorted preferredUnits by size.
    */
   compound?: boolean;
+
+  /**
+   * Option for localization
+   */
+  locale?: string;
+
+  /**
+   * Option for using Intl.RelativeTimeFormat for Localized Output via Web API
+   */
+  useIntl?: boolean;
+
+  /**
+   * Option for custom serparator. e.g., ", ", " and ", etc.
+   */
+  separator?: string;
 }
 
 // Define plural categories based on Intl.PluralRules
