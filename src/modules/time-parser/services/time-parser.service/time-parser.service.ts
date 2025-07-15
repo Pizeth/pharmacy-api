@@ -270,19 +270,9 @@ export class TimeParserService implements OnModuleInit {
           : `${sign}${this.formatLong(unit, value, localization)}`
         : `${sign}${Math.abs(value)}${unit}`;
     } else {
-      // const parts: string[] = [];
-      // for (const [unit, value] of result) {
-      //   parts.push(this.formatLong(value, unit, localization));
-      // }
-      // return sign + parts.join(' ');
       return `${sign} 
         ${this.formatCompound(result, localization, opts)}`;
     }
-
-    // Handle long format with localization
-    // return opts.long
-    //   ? this.formatLong(roundedValue, unit, localization)
-    //   : `${sign}${Math.abs(roundedValue)}${unit}`;
   }
 
   // =============== Helpers ===============
@@ -572,7 +562,7 @@ export class TimeParserService implements OnModuleInit {
       .map(([unit, value]) => {
         return options.long
           ? this.formatLong(unit, value, localization)
-          : `${value}${unit}`;
+          : `${Math.abs(value)}${unit}`;
       })
       .join(options.compound ? separator : '');
   }
@@ -629,6 +619,7 @@ export class TimeParserService implements OnModuleInit {
     // Find the largest unit that fits
     let remaining = Math.abs(input);
     const parts: [UnitTime, number][] = [];
+
     for (const [unit, multiplier] of unitsToSearch) {
       if (remaining < multiplier) continue;
 
@@ -642,10 +633,11 @@ export class TimeParserService implements OnModuleInit {
         // non-compound: just compute once and break
         const value = remaining / multiplier;
 
+        // Make precision handling more explicit
         const roundedValue =
-          options.precision != null
-            ? parseFloat(value.toFixed(options.precision))
-            : Math.round(value);
+          options.precision === undefined || options.precision < 0
+            ? Math.round(value)
+            : parseFloat(value.toFixed(options.precision));
 
         parts.push([unit, roundedValue]);
         break;
@@ -659,11 +651,16 @@ export class TimeParserService implements OnModuleInit {
       //       : Math.round(value);
       //   return [unit, roundedValue /*sign*/];
       // }
-      return parts;
     }
 
     // Return default in millisecond
-    return [['ms', Math.round(input)]];
+    // return [['ms', Math.round(input)]];
+
+    // Fallback to milliseconds if no suitable unit found
+    if (parts.length === 0) {
+      parts.push(['ms', Math.round(input)]);
+    }
+    return parts;
   }
 
   private formatWithIntl(
@@ -678,6 +675,38 @@ export class TimeParserService implements OnModuleInit {
       /* fallback to use localize with long format */
       return this.format(value, { useIntl: false });
     }
+  }
+
+  private formatWithIntl(
+    value: number,
+    unit: UnitTime,
+    locale: string,
+  ): string {
+    try {
+      const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+      // Map internal units to Intl units
+      const intlUnit = this.mapToIntlUnit(unit);
+      return rtf.format(value, intlUnit);
+    } catch (error) {
+      this.logger.warn(`Intl formatting failed for ${unit}`, error);
+      // Fallback to localized format
+      const localization = this.getLocalization(locale);
+      return this.formatLong(unit, value, localization);
+    }
+  }
+
+  private mapToIntlUnit(unit: UnitTime): Intl.RelativeTimeFormatUnit {
+    const mapping: Record<UnitTime, Intl.RelativeTimeFormatUnit> = {
+      s: 'second',
+      m: 'minute',
+      h: 'hour',
+      d: 'day',
+      w: 'week',
+      mo: 'month',
+      y: 'year',
+      ms: 'second', // Fallback for milliseconds
+    };
+    return mapping[unit] || 'second';
   }
 
   // =============== SECURITY & PERFORMANCE =============== //
@@ -836,6 +865,17 @@ export class TimeParserService implements OnModuleInit {
     }
 
     return num;
+  }
+
+  private isValidLocalization(
+    config: LocalizationConfig,
+  ): [valid: boolean, unit?: string] {
+    for (const unit of Object.keys(TIME_MULTIPLIERS) as UnitTime[]) {
+      if (!config.units[unit] || !config.units[unit].other) {
+        return [false, unit];
+      }
+    }
+    return [true];
   }
 
   /**
@@ -1008,6 +1048,14 @@ export class TimeParserService implements OnModuleInit {
   private processLocaleData(data: string, locale: string): LocalizationConfig {
     // Validate JSON structure
     const config = this.parseLocalizationFile(data);
+
+    // Ensure all UnitTime keys have an "other" plural form
+    const [valid, unit] = this.isValidLocalization(config);
+    if (!valid) {
+      throw new Error(
+        `Missing "other" form for unit "${unit}" in locale "${config.locale}"`,
+      );
+    }
 
     // Merge with default to ensure all units are present
     const mergedConfig = this.mergeLocalizationConfig(config);

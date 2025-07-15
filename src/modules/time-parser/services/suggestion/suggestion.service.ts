@@ -71,4 +71,45 @@ export class SuggestionService {
     }
     cache.set(key, value);
   }
+
+  // Precompute trigrams for all aliases
+  // const aliasTrigrams = new Map<string, Set<string>>();
+  // for (const alias of Object.keys(UNIT_ALIASES)) {
+  //   const trigrams = this.getTrigrams(alias);
+  //   aliasTrigrams.set(alias, trigrams);
+  // }
+
+  // Function to get trigrams of a string
+  private getTrigrams(str: string): Set<string> {
+    const trigrams = new Set<string>();
+    for (let i = 0; i < str.length - 2; i++) {
+      trigrams.add(str.slice(i, i + 3));
+    }
+    return trigrams;
+  }
+
+  // Function to compute trigram similarity
+  private trigramSimilarity(input: string, alias: string): number {
+    const inputTrigrams = this.getTrigrams(input);
+    const aliasTrigrams = aliasTrigrams.get(alias)!;
+    let matches = 0;
+    for (const trigram of inputTrigrams) {
+      if (aliasTrigrams.has(trigram)) matches++;
+    }
+    return matches / Math.max(inputTrigrams.size, aliasTrigrams.size);
+  }
+
+  // In getSuggestionsForUnit, use trigram similarity
+  private getSuggestionsForUnit(input: string): string[] {
+    const aliases = Object.keys(UNIT_ALIASES);
+    return aliases
+      .map((alias) => ({
+        alias,
+        similarity: this.trigramSimilarity(input, alias),
+      }))
+      .filter((item) => item.similarity > 0.5) // Adjust threshold as needed
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 5)
+      .map((item) => item.alias);
+  }
 }
