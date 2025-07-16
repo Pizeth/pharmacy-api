@@ -4,7 +4,7 @@ import { LRUCache } from 'lru-cache';
 import { CacheOptions, CacheStats } from 'src/types/cache';
 
 @Injectable()
-export class LRUCacheService<K extends {} = string, V = unknown> {
+export class LRUCacheService<K = string, V = unknown> {
   // private readonly cache: LRUCache<string, T>;
   private readonly cache: LRUCache<K, V>;
   private hits = 0;

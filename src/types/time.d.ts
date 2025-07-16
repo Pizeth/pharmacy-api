@@ -86,8 +86,8 @@ export const UNIT_ALIASES: Record<string, UnitTime> = {
 
 // Supported For Intl.RelativeTimeFormat units
 type RelativeTimeUnit = Exclude<Intl.RelativeTimeFormatUnit, 'quarter'>;
-const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit | null> = {
-  ms: null, // Not supported
+const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit> = {
+  ms: 'second', // Fallback for milliseconds
   s: 'second',
   m: 'minute',
   h: 'hour',
@@ -97,16 +97,16 @@ const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit | null> = {
   y: 'year',
 };
 
-const mapping: Record<UnitTime, Intl.RelativeTimeFormatUnit> = {
-  s: 'second',
-  m: 'minute',
-  h: 'hour',
-  d: 'day',
-  w: 'week',
-  mo: 'month',
-  y: 'year',
-  ms: 'second', // Fallback for milliseconds
-};
+// const mapping: Record<UnitTime, Intl.RelativeTimeFormatUnit> = {
+//   s: 'second',
+//   m: 'minute',
+//   h: 'hour',
+//   d: 'day',
+//   w: 'week',
+//   mo: 'month',
+//   y: 'year',
+//   ms: 'second', // Fallback for milliseconds
+// };
 
 // Ambiguous units that should be explicitly handled
 export const AMBIGUOUS_UNITS = new Set(['m']);

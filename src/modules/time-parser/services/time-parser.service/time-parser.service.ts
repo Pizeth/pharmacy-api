@@ -19,7 +19,9 @@ import {
   LocalizationConfig,
   PluralCategory,
   TimeParserConfig,
+  RELATIVE_TIME_UNITS,
 } from 'src/types/time';
+import { SuggestionEngine } from 'src/utils/levenshtein/suggestion.engine';
 
 @Injectable()
 /**
@@ -53,6 +55,10 @@ export class TimeParserService implements OnModuleInit {
   private readonly context = TimeParserService.name;
   private readonly logger = new Logger(this.context);
   private readonly useLocale: boolean;
+  // matches +/– integers, decimals (.5 or 1. or 1.5), optional exponent
+  private readonly SCI_NOTATION =
+    /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE]([+-]?\d+))?$/;
+  private readonly SAFE_EXPONENT = 15;
 
   // Configuration
   private readonly config: Required<TimeParserConfig>;
@@ -64,7 +70,7 @@ export class TimeParserService implements OnModuleInit {
   private readonly defaultLocalization: LocalizationConfig = {
     locale: 'en',
     units: {
-      ms: { one: 'millisecond', other: 'milliseconds' },
+      ms: { zero: 'just now', one: 'millisecond', other: 'milliseconds' },
       s: { one: 'second', other: 'seconds' },
       m: { one: 'minute', other: 'minutes' },
       h: { one: 'hour', other: 'hours' },
@@ -108,6 +114,7 @@ export class TimeParserService implements OnModuleInit {
   private readonly pluralRulesCache = new Map<string, Intl.PluralRules>();
 
   private localesPath: string;
+  private suggestionEngine: SuggestionEngine;
 
   // constructor(localesPath: string = path.join(__dirname, 'src/i18n')) {
   constructor(
@@ -115,6 +122,9 @@ export class TimeParserService implements OnModuleInit {
     preload: boolean = false,
     useLocale: boolean = true,
   ) {
+    // Initialize suggestion engine with all unit aliases
+    this.suggestionEngine = new SuggestionEngine(Object.keys(UNIT_ALIASES));
+
     /**
      * Lazily build a precompute sorted units once for efficient formatting [unit, multiplier] tuple list
      * from TIME_MULTIPLIERS. Sorted descending (largest unit first).
@@ -229,12 +239,6 @@ export class TimeParserService implements OnModuleInit {
     options: FormatOptions & { locale?: string } = {},
   ): string {
     const opts = {
-      // long: false,
-      // precision: -1,
-      // preferredUnits: [],
-      // compound: false,
-      // locale: this.config.defaultLocale,
-      // useIntl: true,
       ...this.defaultFormatOptions,
       ...options,
     };
@@ -255,6 +259,7 @@ export class TimeParserService implements OnModuleInit {
 
     // Explicit handling for zero.
     if (absMs === 0) {
+      // now → formatLong handles zero
       return opts.long ? this.formatLong('ms', absMs, localization) : '0ms';
     }
 
@@ -266,7 +271,7 @@ export class TimeParserService implements OnModuleInit {
       // Handle long format with localization use Intl.RelativeTimeFormat if requested
       return opts.long
         ? opts.useIntl && typeof Intl.RelativeTimeFormat === 'function'
-          ? this.formatWithIntl(value, unit, opts.locale)
+          ? this.formatWithIntl(unit, value, opts.locale)
           : `${sign}${this.formatLong(unit, value, localization)}`
         : `${sign}${Math.abs(value)}${unit}`;
     } else {
@@ -290,10 +295,8 @@ export class TimeParserService implements OnModuleInit {
     return Math.floor(this.parse(input, options) / 1000);
   }
 
-  public convert(value: number, fromUnit: UnitTime, toUnit: UnitTime): number {
-    const fromMultiplier = TIME_MULTIPLIERS[fromUnit];
-    const toMultiplier = TIME_MULTIPLIERS[toUnit];
-    return (value * fromMultiplier) / toMultiplier;
+  convert(value: number, fromUnit: UnitTime, toUnit: UnitTime): number {
+    return (value * TIME_MULTIPLIERS[fromUnit]) / TIME_MULTIPLIERS[toUnit];
   }
 
   // =============== PUBLIC UTILITIES =============== //
@@ -506,7 +509,7 @@ export class TimeParserService implements OnModuleInit {
     usedUnits: Set<UnitTime> = new Set<UnitTime>(),
   ): ParseResult {
     // Enhanced regex to handle scientific notation and various formats in components
-    const match = input.match(/^(-?\d*\.?\d+(?:e[+-]?\d+)?)\s*([a-zA-Z]+)$/);
+    const match = input.match(this.SCI_NOTATION);
     if (!match) {
       throw new DurationParseError(
         `Invalid duration format at position ${index}: "${input}"`,
@@ -572,11 +575,7 @@ export class TimeParserService implements OnModuleInit {
     value: number,
     localization: LocalizationConfig,
   ): string {
-    // Get cached plural rules
-    const pluralRules = this.getPluralRules(localization.locale);
-    const pluralCategory = pluralRules.select(value) as PluralCategory;
-
-    // Get unit localization
+    // 1) Look up the unit’s localization map
     const unitLocalization = localization.units[unit];
     if (!unitLocalization) {
       throw new DurationParseError(
@@ -586,10 +585,20 @@ export class TimeParserService implements OnModuleInit {
       );
     }
 
-    // Get localized unit name
+    // 2) Zero‐value override (e.g. "now")
+    if (value === 0 && unitLocalization.zero) {
+      return unitLocalization.zero;
+    }
+
+    // 3) Figure out the plural category for this value
+    const pluralRules = this.getPluralRules(localization.locale);
+    const pluralCategory = pluralRules.select(value) as PluralCategory;
+
+    // 4) Pick the right localized unit name, falling back to `other`
     const localeUnit =
       unitLocalization[pluralCategory] || unitLocalization.other;
 
+    // 5) Check if the unit has a plural form
     if (!localeUnit) {
       throw new DurationParseError(
         `No '${pluralCategory}' or 'other' form for unit: ${unit}`,
@@ -663,50 +672,66 @@ export class TimeParserService implements OnModuleInit {
     return parts;
   }
 
-  private formatWithIntl(
-    value: number,
-    unit: UnitTime,
-    locale: string,
-  ): string {
-    try {
-      const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-      return rtf.format(value, unit as Intl.RelativeTimeFormatUnit);
-    } catch {
-      /* fallback to use localize with long format */
-      return this.format(value, { useIntl: false });
-    }
-  }
+  // private findBestIntlCompatibleUnit(
+  //   ms: number,
+  //   options: Required<FormatOptions>,
+  // ): UnitTime {
+  //   // Filter out milliseconds and prioritize preferred units
+  //   const candidates = (
+  //     options.preferredUnits.length
+  //       ? options.preferredUnits
+  //       : (Object.keys(RELATIVE_TIME_UNITS) as UnitTime[])
+  //   ).filter((unit) => RELATIVE_TIME_UNITS[unit] !== null);
+
+  //   // Find largest compatible unit
+  //   for (const unit of candidates) {
+  //     if (ms >= TIME_MULTIPLIERS[unit]) {
+  //       return unit;
+  //     }
+  //   }
+
+  //   // If no compatible unit found (very small value), use seconds
+  //   return 's';
+  // }
 
   private formatWithIntl(
-    value: number,
     unit: UnitTime,
+    value: number,
     locale: string,
   ): string {
+    // Handle sub-millisecond values
+    if (unit === 'ms' && value < 1) {
+      return this.format(value, {
+        locale,
+        long: true,
+        useIntl: false,
+        precision: 4,
+      });
+    }
+
+    const intlUnit = RELATIVE_TIME_UNITS[unit];
+
+    if (!intlUnit) {
+      return this.format(value, {
+        locale,
+        long: true,
+        useIntl: false,
+        precision: value < 1 ? 2 : 0, // Show decimals for sub-millisecond values
+      });
+    }
+
     try {
-      const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-      // Map internal units to Intl units
-      const intlUnit = this.mapToIntlUnit(unit);
-      return rtf.format(value, intlUnit);
+      const relativeTimeFormatter = new Intl.RelativeTimeFormat(locale, {
+        numeric: 'auto',
+        style: 'long',
+      });
+      return relativeTimeFormatter.format(value, intlUnit);
     } catch (error) {
-      this.logger.warn(`Intl formatting failed for ${unit}`, error);
-      // Fallback to localized format
-      const localization = this.getLocalization(locale);
-      return this.formatLong(unit, value, localization);
+      this.logger.warn(`Intl formatting failed for unit: ${unit}`, error);
+      const localizationConfig = this.getLocalization(locale);
+      // Fallback to localized with long format
+      return this.formatLong(unit, value, localizationConfig);
     }
-  }
-
-  private mapToIntlUnit(unit: UnitTime): Intl.RelativeTimeFormatUnit {
-    const mapping: Record<UnitTime, Intl.RelativeTimeFormatUnit> = {
-      s: 'second',
-      m: 'minute',
-      h: 'hour',
-      d: 'day',
-      w: 'week',
-      mo: 'month',
-      y: 'year',
-      ms: 'second', // Fallback for milliseconds
-    };
-    return mapping[unit] || 'second';
   }
 
   // =============== SECURITY & PERFORMANCE =============== //
@@ -821,11 +846,64 @@ export class TimeParserService implements OnModuleInit {
     }
   }
 
+  static validateDurationInput(
+    input: string | number,
+    options: Required<ParseOptions>,
+  ): void {
+    if (typeof input === 'string') {
+      // Length check
+      if (input.length > options.maxLength) {
+        throw new DurationParseError(
+          `Input exceeds max length of ${options.maxLength}`,
+          input,
+          'INPUT_TOO_LONG',
+        );
+      }
+
+      // Security checks
+      if (/[<>{}[\]\\]/.test(input)) {
+        throw new DurationParseError(
+          'Input contains unsafe characters',
+          input,
+          'MALICIOUS_INPUT',
+        );
+      }
+
+      // Ambiguous unit check
+      if (options.ambiguousUnit === 'strict' && /m/.test(input)) {
+        throw new DurationParseError(
+          'Strict mode: Ambiguous unit "m" requires explicit "min" or "mo"',
+          input,
+          'AMBIGUOUS_UNIT',
+        );
+      }
+    }
+  }
+
   private validateNumber(
     input: string,
     options: Required<ParseOptions>,
     position: number = 0,
   ): number {
+    const m = input.match(this.SCI_NOTATION);
+    if (!m) {
+      throw new DurationParseError(
+        'Invalid numeric format',
+        input,
+        'INVALID_FORMAT',
+      );
+    }
+
+    // m[1] is the exponent (e.g. "+20" or "-5"), or `undefined`
+    const expPart = m[1];
+    if (expPart && Math.abs(parseInt(expPart, 10)) > this.SAFE_EXPONENT) {
+      throw new DurationParseError(
+        `Exponent of ${expPart} exceeds safe‐integer limit ±${this.SAFE_EXPONENT}`,
+        input,
+        'EXCESSIVE_EXPONENT',
+      );
+    }
+
     const num = parseFloat(input);
 
     if (!isFinite(num))
@@ -859,7 +937,7 @@ export class TimeParserService implements OnModuleInit {
     if (position > 0 && options.strictNegativePosition) {
       throw new DurationParseError(
         'Negative values only allowed on first component',
-        input,
+        `Component ${input} at position ${position}`,
         'INVALID_NEGATIVE_POSITION',
       );
     }
@@ -958,6 +1036,11 @@ export class TimeParserService implements OnModuleInit {
     // Check if levenshtein distance already cached
     if (this.levenshteinCache.has(key)) {
       return this.levenshteinCache.get(key)!;
+    }
+
+    // Early termination if length difference exceeds threshold
+    if (Math.abs(a.length - b.length) > threshold) {
+      return threshold + 1;
     }
 
     if (a.length === 0) return b.length;
