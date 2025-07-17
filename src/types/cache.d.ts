@@ -33,3 +33,29 @@ export interface CacheOptions<K, V> extends Omit<LRUCacheOptions<K, V>, 'ttl'> {
    */
   backgroundPruneInterval?: number;
 }
+
+// Interface for cache configuration
+export interface CacheConfig {
+  maxSize: number;
+  ttl?: number; // Time to live in milliseconds
+  useLibrary?: boolean; // Whether to use lru-cache library or custom implementation
+}
+
+// Cache wrapper interface for consistency
+export interface CacheWrapper<K, V> {
+  get(key: K): V | undefined;
+  set(key: K, value: V, opts?: { ttl?: number }): void;
+  has(key: K): boolean;
+  delete(key: K): boolean;
+  clear(): void;
+  prune(): void;
+  dispose(): void;
+  stats(): CacheStats;
+  size: number;
+}
+
+// NestJS Injectable decorator support
+export interface CacheModuleOptions {
+  defaultConfig?: EnhancedCacheOptions<any, any>;
+  isGlobal?: boolean;
+}

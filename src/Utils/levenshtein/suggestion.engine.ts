@@ -1,6 +1,6 @@
 // src/utils/levenshtein/suggestion.engine.ts
 import { TrieEngine } from './trie.engine';
-import { LevenshteinUtils } from './levenshtein.utils';
+import { LevenshteinUtils } from './levenshtein.util';
 
 export class SuggestionEngine {
   private trie = new TrieEngine();

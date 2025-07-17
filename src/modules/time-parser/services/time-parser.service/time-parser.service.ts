@@ -1002,26 +1002,34 @@ export class TimeParserService implements OnModuleInit {
       return this.suggestionCache.get(input)!;
     }
 
-    const aliases = Object.keys(UNIT_ALIASES);
-    const inputLower = input.toLowerCase();
+    if (this.suggestionCache.has(input)) {
+      return this.suggestionCache.get(input)!;
+    }
 
-    // const suggestions = this.sortedUnits.find(
-    //   ([u]) => this.levenshteinDistance(inputLower, u) <= 2,
-    // )?.[0];
-
-    const suggestions = aliases
-      .map((alias) => ({
-        alias,
-        // Calculate Levenshtein distance for similarity scoring
-        score: this.levenshteinDistance(inputLower, alias),
-      }))
-      .sort((a, b) => a.score - b.score) // Sort by best score (lowest distance)
-      .slice(0, 5) // Take the top 5 suggestions
-      .map((item) => item.alias);
-
-    // Add the suggestion to cache to improve performance
-    this.addToCache(this.suggestionCache, input, suggestions);
+    const suggestions = this.suggestionEngine.getSuggestions(input);
+    this.suggestionCache.set(input, suggestions);
     return suggestions;
+
+    // const aliases = Object.keys(UNIT_ALIASES);
+    // const inputLower = input.toLowerCase();
+
+    // // const suggestions = this.sortedUnits.find(
+    // //   ([u]) => this.levenshteinDistance(inputLower, u) <= 2,
+    // // )?.[0];
+
+    // const suggestions = aliases
+    //   .map((alias) => ({
+    //     alias,
+    //     // Calculate Levenshtein distance for similarity scoring
+    //     score: this.levenshteinDistance(inputLower, alias),
+    //   }))
+    //   .sort((a, b) => a.score - b.score) // Sort by best score (lowest distance)
+    //   .slice(0, 5) // Take the top 5 suggestions
+    //   .map((item) => item.alias);
+
+    // // Add the suggestion to cache to improve performance
+    // this.addToCache(this.suggestionCache, input, suggestions);
+    // return suggestions;
   }
 
   // Levenshtein distance implementation.
