@@ -32,6 +32,11 @@ export interface CacheOptions<K, V> extends Omit<LRUCacheOptions<K, V>, 'ttl'> {
    * to purge stale entries in the background.
    */
   backgroundPruneInterval?: number;
+
+  /**
+   * Option to choose whether to use lru-cache library or custom implementation
+   */
+  useLibrary?: boolean;
 }
 
 // Interface for cache configuration
@@ -56,6 +61,6 @@ export interface CacheWrapper<K, V> {
 
 // NestJS Injectable decorator support
 export interface CacheModuleOptions {
-  defaultConfig?: EnhancedCacheOptions<any, any>;
+  defaultConfig?: CacheOptions<any, any>;
   isGlobal?: boolean;
 }

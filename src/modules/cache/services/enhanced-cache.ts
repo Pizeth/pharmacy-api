@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { LRUCache } from 'lru-cache';
+import type { Options } from 'lru-cache';
 import { CacheOptions, CacheWrapper } from 'src/types/cache';
 
 // Enhanced cache implementation
-export class EnhancedCache<K = string, V = unknown>
+export class EnhancedCache<K extends {}, V extends {}>
   implements CacheWrapper<K, V>
 {
   private readonly cache: LRUCache<K, V>;
@@ -19,14 +21,43 @@ export class EnhancedCache<K = string, V = unknown>
       ...lruOpts
     } = options;
 
-    this.cache = new LRUCache<K, V>({
-      ttl: defaultTTL,
+    // this.cache = new LRUCache<K, V>({
+    //   ttl: defaultTTL,
+    //   maxSize,
+    //   sizeCalculation,
+    //   ...lruOpts,
+    //   updateAgeOnGet: true,
+    //   updateAgeOnHas: false,
+    // });
+
+    // this.cache = new LRUCache<K, V>({
+    //   maxSize,
+    //   sizeCalculation,
+    //   ...lruOpts,
+    //   // Conditionally add ttl options only if defaultTTL is a number
+    //   ...(defaultTTL != null && { ttl: defaultTTL, ttlAutopurge: true }),
+    //   updateAgeOnGet: true,
+    //   updateAgeOnHas: false,
+    // });
+
+    // 1. Create a base options object with an explicit type
+    const lruCacheOptions: Options<K, V, unknown> = {
       maxSize,
       sizeCalculation,
       ...lruOpts,
       updateAgeOnGet: true,
       updateAgeOnHas: false,
-    });
+    };
+
+    // 2. Use a standard 'if' block to add TTL properties.
+    //    TypeScript knows inside this block that defaultTTL is a 'number'.
+    if (defaultTTL != null) {
+      lruCacheOptions.ttl = defaultTTL;
+      lruCacheOptions.ttlAutopurge = true;
+    }
+
+    // 3. Pass the fully constructed, correctly-typed options object.
+    this.cache = new LRUCache<K, V>(lruCacheOptions);
 
     if (backgroundPruneInterval != null) {
       this.pruneTimer = setInterval(
