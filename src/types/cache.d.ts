@@ -1,31 +1,22 @@
-import { LRUCacheOptions } from 'lru-cache';
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+import type { LRUCache } from 'lru-cache';
 
-export interface CacheStats {
+export interface CacheStats<K> {
   hits: number;
   misses: number;
   size: number; // current total size or item count
   itemCount: number; // number of entries
-  keys: string[]; // current keys in LRU order (newest→oldest)
+  keys: IterableIterator<K>; // current keys in LRU order (newest→oldest)
   hitRate: number; // hits / (hits + misses)
 }
 
-export interface CacheOptions<K, V> extends Omit<LRUCacheOptions<K, V>, 'ttl'> {
+type LRUCacheOptions<K, V> = LRUCache.Options<K, V, unknown>;
+export interface CacheOptions<K, V>
+  extends Omit<LRUCache.OptionsBase<K, V, unknown>, 'ttl'> {
   /**
    * Default TTL (ms) for every entry unless overridden in `set()`.
    */
   defaultTTL?: number;
-
-  /**
-   * Maximum aggregate size of all entries. Works only if
-   * you also supply `sizeCalculation`.
-   */
-  maxSize?: number;
-
-  /**
-   * Calculator fn that returns the “weight” of a single item.
-   * Combined with `maxSize` to evict by total weight.
-   */
-  sizeCalculation?: (value: V, key: K) => number;
 
   /**
    * If given, calls `cache.prune()` every `interval` ms
@@ -43,20 +34,28 @@ export interface CacheOptions<K, V> extends Omit<LRUCacheOptions<K, V>, 'ttl'> {
 export interface CacheConfig {
   maxSize: number;
   ttl?: number; // Time to live in milliseconds
-  useLibrary?: boolean; // Whether to use lru-cache library or custom implementation
+  useLibrary: true; // Whether to use lru-cache library or custom implementation
 }
 
-// Cache wrapper interface for consistency
+// Cache wrapper interface for consistency and LRU-Cache compartible
 export interface CacheWrapper<K, V> {
   get(key: K): V | undefined;
   set(key: K, value: V, opts?: { ttl?: number }): void;
   has(key: K): boolean;
   delete(key: K): boolean;
   clear(): void;
-  prune(): void;
+  purgeStale(): void;
+  // info(key: K): LRUCache.Entry<V> | undefined;
+  keys(): IterableIterator<K>;
+  // Require Properties
+  readonly size: number;
+  readonly calculatedSize?: number;
+}
+
+// Extra cache methods for advanced usage
+export interface AdvancedCacheWrapper<K, V> extends CacheWrapper<K, V> {
   dispose(): void;
-  stats(): CacheStats;
-  size: number;
+  stats(): CacheStats<K>;
 }
 
 // NestJS Injectable decorator support
@@ -64,3 +63,9 @@ export interface CacheModuleOptions {
   defaultConfig?: CacheOptions<any, any>;
   isGlobal?: boolean;
 }
+
+// A type for a function that knows how to create a specific cache instance.
+// This is the key to the type-safe pattern.
+type CacheProvider<K extends {}, V extends {}> = (
+  config?: Partial<CacheOptions<K, V>>,
+) => AdvancedCacheWrapper<K, V>;

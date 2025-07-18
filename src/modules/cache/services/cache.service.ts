@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 import { CacheOptions } from 'src/types/cache';
-import { CentralizedCacheManager } from './lru-cache.service';
+import { CentralizedCacheManager } from './centralized-cache-manager.service';
 
 // Enhanced Cache Service for easier usage
 export class CacheService {
@@ -10,7 +11,7 @@ export class CacheService {
   }
 
   // Cache function with automatic key generation and TTL support
-  public async cacheFunction<T>(
+  public async cacheFunction<T extends {}>(
     cacheName: string,
     key: string,
     fn: () => Promise<T> | T,
@@ -36,7 +37,7 @@ export class CacheService {
   }
 
   // Enhanced direct cache access methods
-  public set<T>(
+  public set<T extends {}>(
     cacheName: string,
     key: string,
     value: T,
@@ -48,7 +49,7 @@ export class CacheService {
     this.cacheManager.addToCache(cacheName, key, value, { ttl: options?.ttl });
   }
 
-  public get<T>(
+  public get<T extends {}>(
     cacheName: string,
     key: string,
     config?: Partial<CacheOptions<string, T>>,

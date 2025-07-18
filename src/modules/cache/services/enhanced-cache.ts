@@ -1,67 +1,81 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { LRUCache } from 'lru-cache';
-import type { Options } from 'lru-cache';
-import { CacheOptions, CacheWrapper } from 'src/types/cache';
+import {
+  AdvancedCacheWrapper,
+  CacheOptions,
+  CacheStats,
+  CacheWrapper,
+  LRUCacheOptions,
+} from 'src/types/cache';
+import { SimpleCache } from '../customs/simple.cache';
 
 // Enhanced cache implementation
 export class EnhancedCache<K extends {}, V extends {}>
-  implements CacheWrapper<K, V>
+  implements AdvancedCacheWrapper<K, V>
 {
-  private readonly cache: LRUCache<K, V>;
+  private readonly cache: CacheWrapper<K, V>;
   private hits = 0;
   private misses = 0;
   private pruneTimer?: NodeJS.Timeout;
 
   constructor(options: CacheOptions<K, V>) {
+    // Destructure all properties needed for logic
     const {
       defaultTTL,
       maxSize,
       sizeCalculation,
+      max,
       backgroundPruneInterval,
+      useLibrary, // Ignored
+      // The rest operator collects all other valid pass-through LRUCache options
       ...lruOpts
     } = options;
 
-    // this.cache = new LRUCache<K, V>({
-    //   ttl: defaultTTL,
-    //   maxSize,
-    //   sizeCalculation,
-    //   ...lruOpts,
-    //   updateAgeOnGet: true,
-    //   updateAgeOnHas: false,
-    // });
+    if (useLibrary) {
+      // Library-backed LRU
+      const baseConfig = {
+        ...lruOpts,
+        updateAgeOnGet: true,
+        updateAgeOnHas: false,
+      };
+      // Logic correctly builds a valid options object in a type-safe way
+      const finalOptions: LRUCacheOptions<K, V> =
+        defaultTTL != null
+          ? {
+              ...baseConfig,
+              ttl: defaultTTL,
+              ttlAutopurge: true,
+              // Optionally include other limits if they are also provided.
+              ...(max != null && { max }),
+              ...(maxSize != null &&
+                sizeCalculation != null && { maxSize, sizeCalculation }),
+            }
+          : maxSize != null
+            ? {
+                ...baseConfig,
+                maxSize,
+                // `sizeCalculation` is only valid with `maxSize`.
+                ...(sizeCalculation != null && { sizeCalculation }),
+                ...(max != null && { max }),
+              }
+            : {
+                ...baseConfig,
+                max: max != null ? max : 1000,
+              };
 
-    // this.cache = new LRUCache<K, V>({
-    //   maxSize,
-    //   sizeCalculation,
-    //   ...lruOpts,
-    //   // Conditionally add ttl options only if defaultTTL is a number
-    //   ...(defaultTTL != null && { ttl: defaultTTL, ttlAutopurge: true }),
-    //   updateAgeOnGet: true,
-    //   updateAgeOnHas: false,
-    // });
-
-    // 1. Create a base options object with an explicit type
-    const lruCacheOptions: Options<K, V, unknown> = {
-      maxSize,
-      sizeCalculation,
-      ...lruOpts,
-      updateAgeOnGet: true,
-      updateAgeOnHas: false,
-    };
-
-    // 2. Use a standard 'if' block to add TTL properties.
-    //    TypeScript knows inside this block that defaultTTL is a 'number'.
-    if (defaultTTL != null) {
-      lruCacheOptions.ttl = defaultTTL;
-      lruCacheOptions.ttlAutopurge = true;
+      this.cache = new LRUCache<K, V>(finalOptions);
+    } else {
+      if (maxSize || sizeCalculation) {
+        throw new Error(
+          'Map fallback does not support maxSize or sizeCalculation',
+        );
+      }
+      this.cache = new SimpleCache<K, V>(defaultTTL);
     }
-
-    // 3. Pass the fully constructed, correctly-typed options object.
-    this.cache = new LRUCache<K, V>(lruCacheOptions);
 
     if (backgroundPruneInterval != null) {
       this.pruneTimer = setInterval(
-        () => this.cache.prune(),
+        () => this.cache.purgeStale(),
         backgroundPruneInterval,
       );
     }
@@ -79,6 +93,7 @@ export class EnhancedCache<K extends {}, V extends {}>
 
   set(key: K, value: V, opts?: { ttl?: number }): void {
     if (opts?.ttl != null) {
+      // per‐item ttl override
       this.cache.set(key, value, { ttl: opts.ttl });
     } else {
       this.cache.set(key, value);
@@ -93,14 +108,24 @@ export class EnhancedCache<K extends {}, V extends {}>
     return this.cache.delete(key);
   }
 
+  /**
+   * Remove all items from the cache, and reset the hit and miss counters.
+   */
   clear(): void {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
   }
 
-  prune(): void {
-    this.cache.prune();
+  /**
+   * Manually trigger a cache purge of expired items.
+   *
+   * Call this method to immediately remove all expired items from the cache.
+   * This is not necessary unless you have disabled the automatic pruning that
+   * occurs every {@link backgroundPruneInterval} milliseconds.
+   */
+  purgeStale(): void {
+    this.cache.purgeStale();
   }
 
   dispose(): void {
@@ -110,20 +135,30 @@ export class EnhancedCache<K extends {}, V extends {}>
     }
   }
 
-  stats(): CacheStats {
+  keys(): IterableIterator<K> {
+    return this.cache.keys();
+  }
+
+  stats(): CacheStats<K> {
     const itemCount = this.cache.size;
-    const size = (this.cache as any).calculatedSize ?? itemCount;
+    const size = this.cache.calculatedSize ?? itemCount;
     const total = this.hits + this.misses;
     return {
       hits: this.hits,
       misses: this.misses,
       size,
       itemCount,
-      keys: Array.from(this.cache.keys()),
+      // keys: Array.from(this.cache.keys()),
+      keys: this.keys(),
       hitRate: total > 0 ? this.hits / total : 0,
     };
   }
 
+  /**
+   * Returns the number of items in the cache.
+   *
+   * @returns the number of items in the cache
+   */
   get size(): number {
     return this.cache.size;
   }
