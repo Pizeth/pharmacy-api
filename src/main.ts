@@ -1,5 +1,5 @@
 // **CRITICAL STEP**: The import of the patch file MUST be the very first line.
-import './zod-patch'; // <-- This executes the patch immediately.
+// import './zod-patch'; // <-- This executes the patch immediately.
 import { NestFactory } from '@nestjs/core';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
@@ -34,9 +34,6 @@ async function bootstrap() {
   // 1. Use the global ZodValidationPipe from `nestjs-zod`
   app.useGlobalPipes(new ZodValidationPipe());
 
-  // // 2. Patch NestJS Swagger to understand Zod schemas
-  // patchNestJsSwagger();
-
   // 2. Setup Swagger as usual
   const config = new DocumentBuilder()
     .setTitle('Pharmacy API')
@@ -47,6 +44,13 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
+
+  // Serve static OpenAPI JSON
+  // app.use(
+  //   '/api-docs/json',
+  //   swaggerUi.serveFiles(openApiSpec),
+  //   swaggerUi.setup(openApiSpec),
+  // );
 
   // await app.listen(process.env.PORT ?? 3000);
   await app.listen(process.env.PORT || 3000, '0.0.0.0');

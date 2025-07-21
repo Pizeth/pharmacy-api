@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PRODUCTS_CACHE, USERS_CACHE } from './tokens/cache.tokens';
-import { CacheWrapper } from 'src/types/cache';
+// import { CacheWrapper } from 'src/types/cache';
 import { Product, User } from '@prisma/client';
 import { EnhancedCache } from './services/enhanced-cache';
+import { CacheWrapper } from './interfaces/caches';
+import { CacheService } from './services/cache.service';
 
 @Module({
   providers: [
@@ -26,8 +28,9 @@ import { EnhancedCache } from './services/enhanced-cache';
         });
       },
     },
+    CacheService, // Assuming you have a CachesService that uses these caches
   ],
   // Export the tokens so other modules can inject them
-  exports: [USERS_CACHE, PRODUCTS_CACHE],
+  exports: [USERS_CACHE, PRODUCTS_CACHE, CacheService],
 })
 export class CacheModule {}

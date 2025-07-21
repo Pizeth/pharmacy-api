@@ -149,17 +149,35 @@ export class UsersService {
     });
   }
 
+  /**
+   * Creates a new user in the system.
+   *
+   * This function handles the creation of a new user with the provided data,
+   * including optional file handling for avatar uploads. It ensures that the
+   * username and email are unique before proceeding with the user creation
+   * transaction. If a file is provided, it attempts to upload it as the user's
+   * avatar. The password is securely hashed before being stored.
+   *
+   * @param createUserDto - The data transfer object containing user details.
+   * @param file - An optional file representing the user's avatar.
+   *
+   * @returns A promise that resolves to the created user object, excluding the password.
+   *
+   * @throws {AppError} If the username or email already exists, or if an error
+   * occurs during user creation.
+   */
   async create(
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
   ): Promise<Omit<User, 'password'>> {
+    const username = createUserDto.username;
     const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
       return this.prisma.$transaction(
         async (tx) => {
           // Check unique constraints within transaction
           const [existingUsername, existingEmail] = await Promise.all([
-            this.getOne({ username: createUserDto.username }),
+            this.getOne({ username }),
             this.getOne({ email: createUserDto.email }),
           ]);
 

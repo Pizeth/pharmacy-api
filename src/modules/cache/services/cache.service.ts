@@ -1,59 +1,60 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-import { CacheOptions } from 'src/types/cache';
+import { CacheOptions } from '../interfaces/caches';
 import { CentralizedCacheManager } from './centralized-cache-manager.service';
 
-// Enhanced Cache Service for easier usage
+// Type-safe cache service with enhanced functionality
 export class CacheService {
-  private cacheManager: CentralizedCacheManager;
+  private readonly cacheManager: CentralizedCacheManager;
 
-  constructor(defaultConfig?: CacheOptions<any, any>) {
+  constructor(defaultConfig?: CacheOptions<string, unknown>) {
     this.cacheManager = CentralizedCacheManager.getInstance(defaultConfig);
   }
 
-  // Cache function with automatic key generation and TTL support
+  // Enhanced function caching with proper type inference
   public async cacheFunction<T extends {}>(
     cacheName: string,
     key: string,
     fn: () => Promise<T> | T,
     options?: {
-      config?: Partial<CacheOptions<string, T>>;
       ttl?: number;
+      config?: Partial<CacheOptions<string, T>>;
     },
   ): Promise<T> {
-    const cache = this.cacheManager.getCache<string, T>(
+    return this.cacheManager.getOrSet(
       cacheName,
-      options?.config,
-    );
-
-    const cachedValue = cache.get(key);
-    if (cachedValue !== undefined) {
-      return cachedValue;
-    }
-
-    // Execute function and cache result
-    const result = await fn();
-    cache.set(key, result, { ttl: options?.ttl });
-    return result;
+      key,
+      fn,
+      options,
+    ) as Promise<T>;
   }
 
-  // Enhanced direct cache access methods
+  // Synchronous function caching
+  public cacheFunctionSync<T extends {}>(
+    cacheName: string,
+    key: string,
+    fn: () => T,
+    options?: {
+      ttl?: number;
+      config?: Partial<CacheOptions<string, T>>;
+    },
+  ): T {
+    return this.cacheManager.getOrSet(cacheName, key, fn, options) as T;
+  }
+
+  // Type-safe direct cache operations
   public set<T extends {}>(
     cacheName: string,
     key: string,
     value: T,
     options?: {
-      config?: Partial<CacheOptions<string, T>>;
       ttl?: number;
+      config?: Partial<CacheOptions<string, T>>;
     },
   ): void {
     this.cacheManager.addToCache(cacheName, key, value, { ttl: options?.ttl });
   }
 
-  public get<T extends {}>(
-    cacheName: string,
-    key: string,
-    config?: Partial<CacheOptions<string, T>>,
-  ): T | undefined {
+  public get<T extends {}>(cacheName: string, key: string): T | undefined {
     return this.cacheManager.getFromCache<string, T>(cacheName, key);
   }
 
@@ -65,6 +66,26 @@ export class CacheService {
     return this.cacheManager.removeFromCache(cacheName, key);
   }
 
+  // Batch operations with type safety
+  public batchSet<T extends {}>(
+    cacheName: string,
+    entries: Array<{ key: string; value: T; ttl?: number }>,
+  ): void {
+    this.cacheManager.batchSet(cacheName, entries);
+  }
+
+  public batchGet<T extends {}>(
+    cacheName: string,
+    keys: string[],
+  ): Map<string, T | undefined> {
+    return this.cacheManager.batchGet<string, T>(cacheName, keys);
+  }
+
+  public batchDelete(cacheName: string, keys: string[]): Map<string, boolean> {
+    return this.cacheManager.batchDelete(cacheName, keys);
+  }
+
+  // Cache management operations
   public clear(cacheName: string): void {
     this.cacheManager.clearCache(cacheName);
   }
@@ -81,6 +102,7 @@ export class CacheService {
     this.cacheManager.pruneAllCaches();
   }
 
+  // Enhanced statistics and inspection
   public stats(cacheName: string) {
     return this.cacheManager.getCacheStats(cacheName);
   }
@@ -89,12 +111,142 @@ export class CacheService {
     return this.cacheManager.getAllCacheStats();
   }
 
-  public getAllCacheNames(): string[] {
+  public inspect<T extends {}>(cacheName: string) {
+    return this.cacheManager.inspectCache<string, T>(cacheName);
+  }
+
+  public getMetadata(cacheName: string) {
+    return this.cacheManager.getCacheMetadata(cacheName);
+  }
+
+  public getAllCacheNames(): readonly string[] {
     return this.cacheManager.getCacheNames();
   }
 
-  // Graceful shutdown support
+  // Health and maintenance
+  public getHealthStatus() {
+    return this.cacheManager.getHealthStatus();
+  }
+
+  public cleanupUnused(maxIdleTime?: number): number {
+    return this.cacheManager.cleanupUnusedCaches(maxIdleTime);
+  }
+
+  // Graceful shutdown
   public dispose(): void {
     this.cacheManager.dispose();
+  }
+
+  // Advanced patterns for common use cases
+
+  // Memoization decorator support
+  public memoize<TArgs extends readonly unknown[], TReturn extends {}>(
+    cacheName: string,
+    fn: (...args: TArgs) => TReturn | Promise<TReturn>,
+    options?: {
+      keyGenerator?: (...args: TArgs) => string;
+      ttl?: number;
+    },
+  ): (...args: TArgs) => TReturn | Promise<TReturn> {
+    const keyGenerator =
+      options?.keyGenerator ?? ((...args) => JSON.stringify(args));
+
+    return (...args: TArgs) => {
+      const key = keyGenerator(...args);
+
+      const result = fn(...args);
+
+      if (result instanceof Promise) {
+        return this.cacheFunction(cacheName, key, () => result, {
+          ttl: options?.ttl,
+        });
+      } else {
+        return this.cacheFunctionSync(cacheName, key, () => result, {
+          ttl: options?.ttl,
+        });
+      }
+    };
+  }
+
+  // Cache warming utilities
+  public async warmCache<T extends {}>(
+    cacheName: string,
+    entries: Array<{
+      key: string;
+      factory: () => T | Promise<T>;
+      ttl?: number;
+    }>,
+  ): Promise<Map<string, { success: boolean; error?: Error }>> {
+    const results = new Map<string, { success: boolean; error?: Error }>();
+
+    await Promise.allSettled(
+      entries.map(async ({ key, factory, ttl }) => {
+        try {
+          const value = await factory();
+          this.set(cacheName, key, value, { ttl });
+          results.set(key, { success: true });
+        } catch (error) {
+          results.set(key, {
+            success: false,
+            error: error instanceof Error ? error : new Error(String(error)),
+          });
+        }
+      }),
+    );
+
+    return results;
+  }
+
+  // Cache invalidation patterns
+  public invalidatePattern(
+    cacheName: string,
+    pattern: RegExp | ((key: string) => boolean),
+  ): number {
+    const inspection = this.inspect(cacheName);
+    if (!inspection.exists || !inspection.keys) {
+      return 0;
+    }
+
+    const matcher =
+      pattern instanceof RegExp ? (key: string) => pattern.test(key) : pattern;
+
+    let invalidatedCount = 0;
+
+    for (const key of inspection.keys) {
+      if (matcher(String(key))) {
+        if (this.delete(cacheName, String(key))) {
+          invalidatedCount++;
+        }
+      }
+    }
+
+    return invalidatedCount;
+  }
+
+  // Conditional operations
+  public setIfNotExists<T extends {}>(
+    cacheName: string,
+    key: string,
+    value: T,
+    options?: { ttl?: number },
+  ): boolean {
+    if (!this.has(cacheName, key)) {
+      this.set(cacheName, key, value, options);
+      return true;
+    }
+    return false;
+  }
+
+  public getAndRefresh<T extends {}>(
+    cacheName: string,
+    key: string,
+    ttl: number,
+  ): T | undefined {
+    const value = this.get<T>(cacheName, key);
+    if (value !== undefined) {
+      // Refresh the TTL
+      this.set(cacheName, key, value, { ttl });
+    }
+    return value;
   }
 }

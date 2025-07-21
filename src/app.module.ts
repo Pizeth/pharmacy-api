@@ -2,7 +2,7 @@ import { Module, Logger as l } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { ZodError } from 'zod'; // Import Zod
+import { z, ZodError } from 'zod'; // Import Zod
 import {
   I18nModule,
   AcceptLanguageResolver,
@@ -37,7 +37,8 @@ import { CacheModule } from './modules/cache/cache.module';
         } catch (error: unknown) {
           l.log(error);
           if (error instanceof ZodError) {
-            const errorMessages = error.errors.map((e) => {
+            // const errorMessages = error.errors.map((e) => {
+            const errorMessages = error.issues.map((e) => {
               // e.message already contains the internationalized message from our helpers
               return `${e.path.join('.')}: ${e.message}`;
             });
@@ -46,7 +47,8 @@ import { CacheModule } from './modules/cache/cache.module';
             // );
             console.error(
               '❌ Configuration validation error details:',
-              JSON.stringify(error.flatten(), null, 2),
+              JSON.stringify(z.treeifyError(error), null, 2),
+              // JSON.stringify(error.flatten(), null, 2),
             );
             throw new Error(
               `Configuration validation failed:\n${errorMessages.join('\n')}`,

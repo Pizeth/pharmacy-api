@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { LRUCache } from 'lru-cache';
+import { SimpleCache } from '../customs/simple.cache';
 import {
   AdvancedCacheWrapper,
-  CacheOptions,
-  CacheStats,
   CacheWrapper,
+  CacheOptions,
   LRUCacheOptions,
-} from 'src/types/cache';
-import { SimpleCache } from '../customs/simple.cache';
+  CacheStats,
+} from '../interfaces/caches';
 
 // Enhanced cache implementation
 export class EnhancedCache<K extends {}, V extends {}>

@@ -16,17 +16,17 @@ export const createUserSchema = z
     username: z
       .string()
       .trim()
-      .min(5, 'Username must be at least 5 characters')
+      .min(5, { error: 'Username must be at least 5 characters' })
       .max(50, 'Username must be at most 50 characters')
       .refine((username) => usernameRegex.test(username), {
         message:
           'Username must be at least 5 characters, start with a letter, and can contain letters, numbers, underscore, and dot!',
       })
-      .openapi({
+      .meta({
         description: 'The public username for the user.',
         example: 'john_doe',
       }),
-    email: z.string().email('Invalid email address.').openapi({
+    email: z.email('Invalid email address.').meta({
       description: 'The unique email address for the user.',
       example: 'john.doe@example.com',
     }),
@@ -37,7 +37,7 @@ export const createUserSchema = z
         message:
           'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
       })
-      .openapi({
+      .meta({
         description:
           'User password (at least 10 characters, including uppercase, lowercase, number, and special character.).',
         example: 'S3cureP@ssword!',
@@ -48,10 +48,15 @@ export const createUserSchema = z
       .min(10, 'Password must be at least 10 characters long.'),
     avatar: z.string().nullable().optional(),
     roleId: z.coerce
-      .number({ invalid_type_error: 'roleId must be a number' })
+      .number({
+        error: (issue) =>
+          issue.input === undefined
+            ? 'This field is required'
+            : 'roleId must be a number',
+      })
       .int()
       .positive('roleId must be a positive integer.')
-      .openapi({
+      .meta({
         description: 'The ID of the role assigned to the user.',
         example: 1,
       }),
