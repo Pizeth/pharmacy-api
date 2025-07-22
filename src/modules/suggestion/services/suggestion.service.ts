@@ -1,8 +1,7 @@
 // src/utils/levenshtein/suggestion.engine.ts
-import { TrieEngine } from './trie.engine';
-import { LevenshteinUtils } from './levenshtein.util';
+import { TrieEngine } from './trie/trie.service';
 
-export class SuggestionEngine {
+export class SuggestionService {
   private trie = new TrieEngine();
   private unitAliases: string[];
   private suggestionCache = new Map<string, string[]>();

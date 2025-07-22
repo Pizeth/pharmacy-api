@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { LRUCache } from 'lru-cache';
-import { SimpleCache } from '../customs/simple.cache';
+import { SimpleCache } from './simple.cache';
 import {
   AdvancedCacheWrapper,
   CacheWrapper,

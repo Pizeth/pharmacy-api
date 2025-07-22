@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 // src/modules/time-parser/services/suggestion.service.ts
 import { Injectable } from '@nestjs/common';
+import { CacheService } from 'src/modules/cache/services/cache.service';
 import { UNIT_ALIASES } from 'src/types/time';
 
 /**
@@ -7,8 +9,14 @@ import { UNIT_ALIASES } from 'src/types/time';
  */
 @Injectable()
 export class SuggestionService {
-  private readonly maxCache = 500;
-  private suggestionCache = new Map<string, string[]>();
+  private readonly maxSize: number;
+
+  constructor(
+    private readonly cacheService: CacheService,
+    maxSize = 500,
+  ) {
+    this.maxSize = maxSize;
+  }
 
   /**
    * Returns up to 5 closest unit aliases to the input.
@@ -17,8 +25,11 @@ export class SuggestionService {
     // Check if suggestion already cached
 
     const key = input.toLowerCase();
-    if (this.suggestionCache.has(key)) {
-      return this.suggestionCache.get(key)!;
+    // if (this.suggestionCache.has(key)) {
+    //   return this.suggestionCache.get(key)!;
+    // }
+    if (this.cacheService.has('suggestionCache', key)) {
+      return this.cacheService.get<string[]>('suggestionCache', key)!;
     }
 
     // compute distances
@@ -34,7 +45,7 @@ export class SuggestionService {
     const suggestions = scored.slice(0, 5).map((item) => item.alias);
 
     // Add the suggestion to cache to improve performance
-    this.cache(this.suggestionCache, key, suggestions);
+    this.cache(key, suggestions);
     return suggestions;
   }
 
@@ -62,14 +73,21 @@ export class SuggestionService {
   }
 
   /** LRU‑style cache eviction. */
-  private cache<T>(cache: Map<string, T>, key: string, value: T): void {
-    if (cache.size >= this.maxCache) {
-      const firstKey = cache.keys().next().value;
-      if (firstKey) {
-        cache.delete(firstKey);
-      }
-    }
-    cache.set(key, value);
+  private cache<T extends {}>(
+    // cache: CacheWrapper<string, T>,
+    key: string,
+    value: T,
+  ): void {
+    // if (cache.size >= this.maxCache) {
+    //   const firstKey = cache.keys().next().value;
+    //   if (firstKey) {
+    //     cache.delete(firstKey);
+    //   }
+    // }
+    // cache.set(key, value);
+    this.cacheService.set('suggestionCache', key, value, {
+      config: { maxSize: this.maxSize },
+    });
   }
 
   // Precompute trigrams for all aliases
@@ -91,7 +109,8 @@ export class SuggestionService {
   // Function to compute trigram similarity
   private trigramSimilarity(input: string, alias: string): number {
     const inputTrigrams = this.getTrigrams(input);
-    const aliasTrigrams = aliasTrigrams.get(alias)!;
+    // const aliasTrigrams = aliasTrigrams.get(alias)!;
+    const aliasTrigrams = this.getTrigrams(alias);
     let matches = 0;
     for (const trigram of inputTrigrams) {
       if (aliasTrigrams.has(trigram)) matches++;

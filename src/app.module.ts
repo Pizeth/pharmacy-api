@@ -1,7 +1,7 @@
 import { Module, Logger as l } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { z, ZodError } from 'zod'; // Import Zod
 import {
   I18nModule,
@@ -22,6 +22,9 @@ import { Request } from 'express';
 import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { CacheModule } from './modules/cache/cache.module';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { SuggestionModule } from './src/modules/suggestion/suggestion.module';
+import { SuggestionModule } from './modules/suggestion/suggestion.module';
 
 @Module({
   imports: [
@@ -118,12 +121,17 @@ import { CacheModule } from './modules/cache/cache.module';
     FileModule,
     TimeParserModule,
     CacheModule,
+    SuggestionModule,
   ],
   providers: [
     // Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_PIPE,
+      useClass: ZodValidationPipe,
     },
   ],
   exports: [], // Export if other modules need it

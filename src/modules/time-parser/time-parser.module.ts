@@ -7,10 +7,17 @@ import { TimeParserService } from './services/time-parser.service/time-parser.se
 import { SuggestionService } from './services/suggestion/suggestion.service';
 import { LocalizationService } from './services/localization/localization.service';
 import { TimeParserConfigService } from './configurations/time-parser.config/time-parser.config.service';
+import { CacheModule } from '../cache/cache.module';
 
 @Global() // Make this utility service available everywhere
 @Module({
-  providers: [TimeParserService, SuggestionService, LocalizationService, TimeParserConfigService],
+  imports: [CacheModule], // Import any necessary modules, e.g., cache
+  providers: [
+    TimeParserService,
+    SuggestionService,
+    LocalizationService,
+    TimeParserConfigService,
+  ],
   exports: [TimeParserService],
 })
 export class TimeParserModule {}

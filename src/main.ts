@@ -1,12 +1,13 @@
 // **CRITICAL STEP**: The import of the patch file MUST be the very first line.
 // import './zod-patch'; // <-- This executes the patch immediately.
+
 import { NestFactory } from '@nestjs/core';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
 import 'reflect-metadata';
 import { VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ZodValidationPipe } from 'nestjs-zod';
+// import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './app.module';
 
 declare const module: HotModule;
@@ -32,7 +33,7 @@ async function bootstrap() {
   });
 
   // 1. Use the global ZodValidationPipe from `nestjs-zod`
-  app.useGlobalPipes(new ZodValidationPipe());
+  // app.useGlobalPipes(new ZodValidationPipe());
 
   // 2. Setup Swagger as usual
   const config = new DocumentBuilder()

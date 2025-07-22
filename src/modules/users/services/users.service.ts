@@ -170,14 +170,13 @@ export class UsersService {
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
   ): Promise<Omit<User, 'password'>> {
-    const username = createUserDto.username;
     const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
       return this.prisma.$transaction(
         async (tx) => {
           // Check unique constraints within transaction
           const [existingUsername, existingEmail] = await Promise.all([
-            this.getOne({ username }),
+            this.getOne({ username: createUserDto.username }),
             this.getOne({ email: createUserDto.email }),
           ]);
 

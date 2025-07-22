@@ -1,4 +1,4 @@
-import { CacheStats, CacheWrapper } from 'src/types/cache';
+import { CacheStats, CacheWrapper } from '../interfaces/caches';
 
 export class SimpleCache<K, V> implements CacheWrapper<K, V> {
   private store = new Map<K, { value: V; expiresAt?: number }>();

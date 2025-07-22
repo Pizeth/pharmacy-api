@@ -21,7 +21,7 @@ import {
   TimeParserConfig,
   RELATIVE_TIME_UNITS,
 } from 'src/types/time';
-import { SuggestionEngine } from 'src/utils/levenshtein/suggestion.engine';
+import { SuggestionEngine } from 'src/modules/suggestion/services/suggestion.service';
 
 @Injectable()
 /**

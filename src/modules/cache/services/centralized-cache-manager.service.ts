@@ -4,21 +4,21 @@ import {
   CacheWrapper,
   CacheStats,
   CacheOptions,
-  CacheProvider,
+  // CacheProvider,
   DefaultCacheConfig,
   CacheEntry,
   CacheMetadata,
   CacheHealthReport,
   InspectResult,
 } from '../interfaces/caches';
-import { EnhancedCache } from './enhanced-cache';
+import { EnhancedCache } from '../customs/enhanced-cache';
 
 // Centralized Cache Manager with enhanced features
 export class CentralizedCacheManager {
   private static instance: CentralizedCacheManager;
 
   // The map now stores functions, not cache instances. It's safer.
-  private providers = new Map<string, CacheProvider<any, any>>();
+  // private providers = new Map<string, CacheProvider<any, any>>();
   private readonly caches = new Map<string, CacheEntry>();
   private readonly defaultConfig: DefaultCacheConfig;
   // private caches = new Map<string, AdvancedCacheWrapper<any, any>>();
@@ -30,7 +30,9 @@ export class CentralizedCacheManager {
 
   private constructor(
     defaultConfig: DefaultCacheConfig = {
-      max: 100,
+      defaultTTL: 3600000, // 1 hour,
+      backgroundPruneInterval: 180000, // 1 hour default
+      max: 100, // 1 hour default
       useLibrary: true,
     },
   ) {
@@ -67,15 +69,15 @@ export class CentralizedCacheManager {
    * @param cacheName The unique name for the cache.
    * @param provider A function that creates and returns a new EnhancedCache with specific types.
    */
-  public registerCache<K extends {}, V extends {}>(
-    cacheName: string,
-    provider: CacheProvider<K, V>,
-  ): void {
-    if (this.providers.has(cacheName)) {
-      console.warn(`Cache provider for "${cacheName}" is being overwritten.`);
-    }
-    this.providers.set(cacheName, provider);
-  }
+  // public registerCache<K extends {}, V extends {}>(
+  //   cacheName: string,
+  //   provider: CacheProvider<K, V>,
+  // ): void {
+  //   if (this.providers.has(cacheName)) {
+  //     console.warn(`Cache provider for "${cacheName}" is being overwritten.`);
+  //   }
+  //   this.providers.set(cacheName, provider);
+  // }
 
   // Get or create a cache instance
   // public getCache<K extends {}, V extends {}>(
@@ -369,14 +371,14 @@ export class CentralizedCacheManager {
     }
   }
 
-  public getCacheNames(): string[] {
-    return Array.from(this.providers.keys());
-  }
+  // public getCacheNames(): string[] {
+  //   return Array.from(this.providers.keys());
+  // }
 
   // Get cache names
-  // public getCacheNames(): string[] {
-  //   return Array.from(this.caches.keys());
-  // }
+  public getCacheNames(): string[] {
+    return Array.from(this.caches.keys());
+  }
 
   // Remove cache instance with proper cleanup
   // public removeCache<K, V>(cacheName: string): boolean {
