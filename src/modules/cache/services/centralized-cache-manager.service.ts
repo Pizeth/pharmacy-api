@@ -228,7 +228,7 @@ export class CentralizedCacheManager {
   // Enhanced cache statistics with proper typing
   public getCacheStats<K = unknown>(
     cacheName: string,
-  ): (CacheStats<K> & { exists: boolean }) | null {
+  ): CacheStats<K> & { exists: boolean } {
     const cacheEntry = this.caches.get(cacheName);
 
     if (!cacheEntry) {

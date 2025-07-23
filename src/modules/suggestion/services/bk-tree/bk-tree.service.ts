@@ -27,7 +27,7 @@ export class BKTreeService {
       return;
     }
 
-    let current = this.root;
+    let current: BKNode = this.root;
 
     while (true) {
       const distance = this.levenshteinService.calculateDistance(
@@ -52,6 +52,45 @@ export class BKTreeService {
 
     this.searchRecursive(this.root, query.toLowerCase(), maxDistance, results);
 
+    return results.sort((a, b) => {
+      const distA = this.levenshteinService.calculateDistance(query, a);
+      const distB = this.levenshteinService.calculateDistance(query, b);
+      return distA - distB;
+    });
+  }
+
+  search(query: string, maxDistance: number): string[] {
+    const results: string[] = [];
+    if (!this.root) return results;
+
+    const stack: BKNode[] = [this.root];
+    const queryLower = query.toLowerCase();
+
+    if (queryLower === this.root.word) return [query];
+
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      const distance = this.levenshteinService.calculateDistance(
+        queryLower,
+        node.word,
+      );
+
+      if (distance <= maxDistance) {
+        results.push(node.word);
+      }
+
+      // Calculate child distance range using triangle inequality
+      const minDist = Math.max(1, distance - maxDistance);
+      const maxDist = distance + maxDistance;
+
+      for (const [childDistance, childNode] of node.children.entries()) {
+        if (childDistance >= minDist && childDistance <= maxDist) {
+          stack.push(childNode);
+        }
+      }
+    }
+
+    // Sort by distance to query
     return results.sort((a, b) => {
       const distA = this.levenshteinService.calculateDistance(query, a);
       const distB = this.levenshteinService.calculateDistance(query, b);

@@ -39,13 +39,17 @@ export class TrigramIndexService {
     const queryTrigrams = this.getTrigrams(query.toLowerCase());
     const candidateCounts = new Map<string, number>();
 
+    // Union only relevant trigrams
     for (const trigram of queryTrigrams) {
-      const wordsWithTrigram = this.index.get(trigram);
-      if (wordsWithTrigram) {
-        for (const word of wordsWithTrigram) {
-          candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
-        }
-      }
+      // const wordsWithTrigram = this.index.get(trigram);
+      // if (wordsWithTrigram) {
+      //   for (const word of wordsWithTrigram) {
+      //     candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
+      //   }
+      // }
+      this.index.get(trigram)?.forEach((word) => {
+        candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
+      });
     }
 
     // Filter by minimum shared trigrams
@@ -80,6 +84,7 @@ export class TrigramIndexService {
     minSimilarity: number = 0.1,
   ): string[] {
     const candidates = this.getCandidates(query, 1);
+    if (candidates.size === 0) return [];
 
     return Array.from(candidates)
       .map((word) => ({
