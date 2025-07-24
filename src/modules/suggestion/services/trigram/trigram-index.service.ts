@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { MinHeap } from '../../helpers/min-heap.helper';
 
 @Injectable()
 export class TrigramIndexService {
   private index: Map<string, Set<string>> = new Map();
   private wordTrigrams: Map<string, Set<string>> = new Map();
+  private aliasStats = new Map<
+    string,
+    { trigrams: Set<string>; length: number }
+  >();
 
   buildIndex(words: string[]): void {
     this.index.clear();
@@ -19,6 +24,24 @@ export class TrigramIndexService {
           this.index.set(trigram, new Set());
         }
         this.index.get(trigram)!.add(word.toLowerCase());
+      }
+    }
+  }
+
+  private buildIndex(words: string[]): void {
+    this.index.clear();
+    this.aliasStats.clear();
+
+    for (const word of words) {
+      const trigrams = this.getTrigrams(word.toLowerCase());
+      this.aliasStats.set(word, { trigrams, length: word.length });
+
+      // Build inverted index
+      for (const trigram of trigrams) {
+        if (!this.index.has(trigram)) {
+          this.index.set(trigram, new Set());
+        }
+        this.index.get(trigram)!.add(word);
       }
     }
   }
@@ -95,5 +118,61 @@ export class TrigramIndexService {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, maxCandidates)
       .map((item) => item.word);
+  }
+
+  getTopCandidates(
+    input: string,
+    maxCandidates: number,
+    threshold: number,
+  ): string[] {
+    const inputTrigrams = this.getTrigrams(input);
+    if (inputTrigrams.size === 0) return [];
+
+    // 1. Score all candidates (lazy evaluation)
+    const candidateScores = new Map<string, number>();
+    for (const trigram of inputTrigrams) {
+      this.index.get(trigram)?.forEach((alias) => {
+        if (!candidateScores.has(alias)) {
+          const { trigrams, length } = this.aliasStats.get(alias)!;
+          const matches = this.countMatches(inputTrigrams, trigrams);
+          const similarity =
+            matches / Math.max(trigrams.size, inputTrigrams.size);
+          const lengthPenalty =
+            1 -
+            Math.abs(length - input.length) / Math.max(length, input.length);
+          candidateScores.set(alias, similarity * lengthPenalty);
+        }
+      });
+    }
+
+    // 2. Use min-heap for top-k selection
+    const heap = new MinHeap<{ alias: string; score: number }>(
+      (a, b) => a.score - b.score,
+    );
+
+    for (const [alias, score] of candidateScores.entries()) {
+      if (score < threshold) continue;
+
+      if (heap.size() < maxCandidates) {
+        heap.push({ alias, score });
+      } else if (score > heap.peek()!.score) {
+        heap.pop();
+        heap.push({ alias, score });
+      }
+    }
+
+    // 3. Return results in descending order
+    return heap
+      .toSortedArray()
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.alias);
+  }
+
+  private countMatches(a: Set<string>, b: Set<string>): number {
+    let matches = 0;
+    for (const trigram of a) {
+      if (b.has(trigram)) matches++;
+    }
+    return matches;
   }
 }

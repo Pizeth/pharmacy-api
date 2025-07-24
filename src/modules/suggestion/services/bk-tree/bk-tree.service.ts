@@ -46,7 +46,11 @@ export class BKTreeService {
     }
   }
 
-  search(query: string, maxDistance: number): string[] {
+  // @deprecate(function searchOld(
+  //   query: string,
+  //   maxDistance: number,
+  // ): string[] {}, 'searchOld is deprecated, use search instead')
+  searchOld(query: string, maxDistance: number): string[] {
     const results: string[] = [];
     if (!this.root) return results;
 
