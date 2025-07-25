@@ -48,71 +48,105 @@ export class TrieService {
       this.collectWords(child, current + char, results);
     }
   }
-}
 
-export class TrigramIndex {
-  private index = new Map<string, Set<string>>();
-  private aliasStats = new Map<
-    string,
-    { trigrams: Set<string>; length: number }
-  >();
+  *streamWordsWithPrefix(
+    prefix: string,
+    maxWords = Infinity,
+  ): Generator<string> {
+    const prefixLower = prefix.toLowerCase();
+    let node = this.root;
+    let count = 0;
 
-  constructor(private aliases: string[]) {
-    this.buildIndex();
-  }
+    // Traverse to prefix node
+    for (const char of prefixLower) {
+      if (!node.children.has(char)) return;
+      node = node.children.get(char)!;
+    }
 
-  private buildIndex(): void {
-    for (const alias of this.aliases) {
-      const trigrams = this.getTrigrams(alias);
-      this.aliasStats.set(alias, { trigrams, length: alias.length });
+    // DFS generator
+    const stack: [TrieNode, string][] = [[node, prefixLower]];
+    while (stack.length > 0 && count < maxWords) {
+      const [current, word] = stack.pop()!;
 
-      for (const trigram of trigrams) {
-        if (!this.index.has(trigram)) {
-          this.index.set(trigram, new Set());
-        }
-        this.index.get(trigram)!.add(alias);
+      if (current.isEndOfWord) {
+        yield word;
+        count++;
+      }
+
+      for (const [char, child] of current.children.entries()) {
+        stack.push([child, word + char]);
       }
     }
   }
 
-  getTrigrams(str: string): Set<string> {
-    const trigrams = new Set<string>();
-    const normalized = str.toLowerCase();
-
-    for (let i = 0; i <= normalized.length - 3; i++) {
-      trigrams.add(normalized.substring(i, i + 3));
-    }
-    return trigrams;
-  }
-
-  getCandidates(input: string, threshold = 0.3): string[] {
-    const inputTrigrams = this.getTrigrams(input);
-    if (inputTrigrams.size === 0) return [];
-
-    const candidateScores = new Map<string, number>();
-
-    // Union only relevant trigrams
-    for (const trigram of inputTrigrams) {
-      this.index.get(trigram)?.forEach((alias) => {
-        const current = candidateScores.get(alias) || 0;
-        candidateScores.set(alias, current + 1);
-      });
-    }
-
-    // Calculate normalized similarity
-    return Array.from(candidateScores.entries())
-      .map(([alias, matches]) => {
-        const { trigrams, length } = this.aliasStats.get(alias)!;
-        const maxTrigrams = Math.max(trigrams.size, inputTrigrams.size);
-        const similarity = matches / maxTrigrams;
-
-        // Length-based penalty
-        const lengthPenalty =
-          Math.abs(length - input.length) / Math.max(length, input.length);
-        return { alias, score: similarity * (1 - lengthPenalty) };
-      })
-      .filter(({ score }) => score >= threshold)
-      .sort((a, b) => b.score - a.score)
-      .map(({ alias }) => alias);
+  getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
+    return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
   }
 }
+
+// export class TrigramIndex {
+//   private index = new Map<string, Set<string>>();
+//   private aliasStats = new Map<
+//     string,
+//     { trigrams: Set<string>; length: number }
+//   >();
+
+//   constructor(private aliases: string[]) {
+//     this.buildIndex();
+//   }
+
+//   private buildIndex(): void {
+//     for (const alias of this.aliases) {
+//       const trigrams = this.getTrigrams(alias);
+//       this.aliasStats.set(alias, { trigrams, length: alias.length });
+
+//       for (const trigram of trigrams) {
+//         if (!this.index.has(trigram)) {
+//           this.index.set(trigram, new Set());
+//         }
+//         this.index.get(trigram)!.add(alias);
+//       }
+//     }
+//   }
+
+//   getTrigrams(str: string): Set<string> {
+//     const trigrams = new Set<string>();
+//     const normalized = str.toLowerCase();
+
+//     for (let i = 0; i <= normalized.length - 3; i++) {
+//       trigrams.add(normalized.substring(i, i + 3));
+//     }
+//     return trigrams;
+//   }
+
+//   getCandidates(input: string, threshold = 0.3): string[] {
+//     const inputTrigrams = this.getTrigrams(input);
+//     if (inputTrigrams.size === 0) return [];
+
+//     const candidateScores = new Map<string, number>();
+
+//     // Union only relevant trigrams
+//     for (const trigram of inputTrigrams) {
+//       this.index.get(trigram)?.forEach((alias) => {
+//         const current = candidateScores.get(alias) || 0;
+//         candidateScores.set(alias, current + 1);
+//       });
+//     }
+
+//     // Calculate normalized similarity
+//     return Array.from(candidateScores.entries())
+//       .map(([alias, matches]) => {
+//         const { trigrams, length } = this.aliasStats.get(alias)!;
+//         const maxTrigrams = Math.max(trigrams.size, inputTrigrams.size);
+//         const similarity = matches / maxTrigrams;
+
+//         // Length-based penalty
+//         const lengthPenalty =
+//           Math.abs(length - input.length) / Math.max(length, input.length);
+//         return { alias, score: similarity * (1 - lengthPenalty) };
+//       })
+//       .filter(({ score }) => score >= threshold)
+//       .sort((a, b) => b.score - a.score)
+//       .map(({ alias }) => alias);
+//   }
+// }
