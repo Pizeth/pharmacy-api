@@ -46,23 +46,6 @@ export class BKTreeService {
     }
   }
 
-  // @deprecate(function searchOld(
-  //   query: string,
-  //   maxDistance: number,
-  // ): string[] {}, 'searchOld is deprecated, use search instead')
-  searchOld(query: string, maxDistance: number): string[] {
-    const results: string[] = [];
-    if (!this.root) return results;
-
-    this.searchRecursive(this.root, query.toLowerCase(), maxDistance, results);
-
-    return results.sort((a, b) => {
-      const distA = this.levenshteinService.calculateDistance(query, a);
-      const distB = this.levenshteinService.calculateDistance(query, b);
-      return distA - distB;
-    });
-  }
-
   search(query: string, maxDistance: number): string[] {
     const results: string[] = [];
     if (!this.root) return results;
@@ -102,30 +85,43 @@ export class BKTreeService {
     });
   }
 
-  private searchRecursive(
-    node: BKNode,
-    query: string,
-    maxDistance: number,
-    results: string[],
-  ): void {
-    const distance = this.levenshteinService.calculateDistance(
-      query,
-      node.word,
-    );
+  // searchOld(query: string, maxDistance: number): string[] {
+  //   const results: string[] = [];
+  //   if (!this.root) return results;
 
-    if (distance <= maxDistance) {
-      results.push(node.word);
-    }
+  //   this.searchRecursive(this.root, query.toLowerCase(), maxDistance, results);
 
-    // Use triangle inequality to prune search space
-    // Only explore children where |d(query, child) - d(query, current)| <= maxDistance
-    const minChild = Math.max(1, distance - maxDistance);
-    const maxChild = distance + maxDistance;
+  //   return results.sort((a, b) => {
+  //     const distA = this.levenshteinService.calculateDistance(query, a);
+  //     const distB = this.levenshteinService.calculateDistance(query, b);
+  //     return distA - distB;
+  //   });
+  // }
 
-    for (const [childDistance, childNode] of node.children) {
-      if (childDistance >= minChild && childDistance <= maxChild) {
-        this.searchRecursive(childNode, query, maxDistance, results);
-      }
-    }
-  }
+  // private searchRecursive(
+  //   node: BKNode,
+  //   query: string,
+  //   maxDistance: number,
+  //   results: string[],
+  // ): void {
+  //   const distance = this.levenshteinService.calculateDistance(
+  //     query,
+  //     node.word,
+  //   );
+
+  //   if (distance <= maxDistance) {
+  //     results.push(node.word);
+  //   }
+
+  //   // Use triangle inequality to prune search space
+  //   // Only explore children where |d(query, child) - d(query, current)| <= maxDistance
+  //   const minChild = Math.max(1, distance - maxDistance);
+  //   const maxChild = distance + maxDistance;
+
+  //   for (const [childDistance, childNode] of node.children) {
+  //     if (childDistance >= minChild && childDistance <= maxChild) {
+  //       this.searchRecursive(childNode, query, maxDistance, results);
+  //     }
+  //   }
+  // }
 }

@@ -24,30 +24,30 @@ export class TrieService {
     node.isEndOfWord = true;
   }
 
-  getWordsWithPrefix(prefix: string): string[] {
-    const results: string[] = [];
-    const prefixLower = prefix.toLowerCase();
-    let node = this.root;
+  // getWordsWithPrefixOld(prefix: string): string[] {
+  //   const results: string[] = [];
+  //   const prefixLower = prefix.toLowerCase();
+  //   let node = this.root;
 
-    for (const char of prefixLower) {
-      if (!node.children.has(char)) return [];
-      node = node.children.get(char)!;
-    }
+  //   for (const char of prefixLower) {
+  //     if (!node.children.has(char)) return [];
+  //     node = node.children.get(char)!;
+  //   }
 
-    this.collectWords(node, prefixLower, results);
-    return results;
-  }
+  //   this.collectWords(node, prefixLower, results);
+  //   return results;
+  // }
 
-  private collectWords(
-    node: TrieNode,
-    current: string,
-    results: string[],
-  ): void {
-    if (node.isEndOfWord) results.push(current);
-    for (const [char, child] of node.children.entries()) {
-      this.collectWords(child, current + char, results);
-    }
-  }
+  // private collectWords(
+  //   node: TrieNode,
+  //   current: string,
+  //   results: string[],
+  // ): void {
+  //   if (node.isEndOfWord) results.push(current);
+  //   for (const [char, child] of node.children.entries()) {
+  //     this.collectWords(child, current + char, results);
+  //   }
+  // }
 
   *streamWordsWithPrefix(
     prefix: string,
@@ -82,6 +82,37 @@ export class TrieService {
   getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
     return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
   }
+
+  // getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
+  //   const prefixLower = prefix.toLowerCase();
+  //   let node = this.root;
+
+  //   // 1. Traverse to the prefix node
+  //   for (const char of prefixLower) {
+  //     if (!node.children.has(char)) return [];
+  //     node = node.children.get(char)!;
+  //   }
+
+  //   // 2. If cached, return a quick slice
+  //   if (node.cachedWords) {
+  //     return node.cachedWords.slice(0, maxWords);
+  //   }
+
+  //   // 3. First‐time: collect all descendants
+  //   const results: string[] = [];
+  //   this.collectWords(node, prefixLower, results);
+
+  //   // 4. Cache & return top‐K
+  //   node.cachedWords = results;
+  //   return results.slice(0, maxWords);
+  // }
+
+  // private collectWords(node: TrieNode, prefix: string, out: string[]): void {
+  //   if (node.isEndOfWord) out.push(prefix);
+  //   for (const [ch, child] of node.children) {
+  //     this.collectWords(child, prefix + ch, out);
+  //   }
+  // }
 }
 
 // export class TrigramIndex {

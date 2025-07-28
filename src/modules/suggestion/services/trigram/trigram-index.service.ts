@@ -4,8 +4,8 @@ import { MinHeap } from '../../helpers/min-heap.helper';
 @Injectable()
 export class TrigramIndexService {
   private index: Map<string, Set<string>> = new Map();
-  private wordTrigrams: Map<string, Set<string>> = new Map();
-  private aliasStats = new Map<
+  private wordTrigramsOld: Map<string, Set<string>> = new Map();
+  private wordTrigrams = new Map<
     string,
     { trigrams: Set<string>; length: number }
   >();
@@ -16,7 +16,7 @@ export class TrigramIndexService {
 
     for (const word of words) {
       const trigrams = this.getTrigrams(word.toLowerCase());
-      this.wordTrigrams.set(word.toLowerCase(), trigrams);
+      this.wordTrigramsOld.set(word.toLowerCase(), trigrams);
 
       // Build inverted index
       for (const trigram of trigrams) {
@@ -30,11 +30,11 @@ export class TrigramIndexService {
 
   buildIndex(words: string[]): void {
     this.index.clear();
-    this.aliasStats.clear();
+    this.wordTrigrams.clear();
 
     for (const word of words) {
       const trigrams = this.getTrigrams(word.toLowerCase());
-      this.aliasStats.set(word, { trigrams, length: word.length });
+      this.wordTrigrams.set(word, { trigrams, length: word.length });
 
       // Build inverted index
       for (const trigram of trigrams) {
@@ -58,31 +58,31 @@ export class TrigramIndexService {
     return trigrams;
   }
 
-  getCandidates(query: string, minSharedTrigrams: number = 1): Set<string> {
+  // getCandidates(query: string, minSharedTrigrams: number = 1): Set<string> {
+  //   const queryTrigrams = this.getTrigrams(query.toLowerCase());
+  //   const candidateCounts = new Map<string, number>();
+
+  //   // Union only relevant trigrams
+  //   for (const trigram of queryTrigrams) {
+  //     this.index.get(trigram)?.forEach((word) => {
+  //       candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
+  //     });
+  //   }
+
+  //   // Filter by minimum shared trigrams
+  //   const candidates = new Set<string>();
+  //   for (const [word, count] of candidateCounts) {
+  //     if (count >= minSharedTrigrams) {
+  //       candidates.add(word);
+  //     }
+  //   }
+
+  //   return candidates;
+  // }
+
+  calculateSimilarity(query: string, word: string): number {
     const queryTrigrams = this.getTrigrams(query.toLowerCase());
-    const candidateCounts = new Map<string, number>();
-
-    // Union only relevant trigrams
-    for (const trigram of queryTrigrams) {
-      this.index.get(trigram)?.forEach((word) => {
-        candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
-      });
-    }
-
-    // Filter by minimum shared trigrams
-    const candidates = new Set<string>();
-    for (const [word, count] of candidateCounts) {
-      if (count >= minSharedTrigrams) {
-        candidates.add(word);
-      }
-    }
-
-    return candidates;
-  }
-
-  calculateSimilarityOld(query: string, word: string): number {
-    const queryTrigrams = this.getTrigrams(query.toLowerCase());
-    const wordTrigrams = this.wordTrigrams.get(word.toLowerCase());
+    const wordTrigrams = this.wordTrigramsOld.get(word.toLowerCase());
 
     if (!wordTrigrams) return 0;
 
@@ -95,24 +95,24 @@ export class TrigramIndexService {
     return union === 0 ? 0 : intersection / union; // Jaccard similarity
   }
 
-  getTopCandidatesOld(
-    query: string,
-    maxCandidates: number = 50,
-    minSimilarity: number = 0.1,
-  ): string[] {
-    const candidates = this.getCandidates(query, 1);
-    if (candidates.size === 0) return [];
+  // getTopCandidatesOld(
+  //   query: string,
+  //   maxCandidates: number = 50,
+  //   minSimilarity: number = 0.1,
+  // ): string[] {
+  //   const candidates = this.getCandidates(query, 1);
+  //   if (candidates.size === 0) return [];
 
-    return Array.from(candidates)
-      .map((word) => ({
-        word,
-        similarity: this.calculateSimilarityOld(query, word),
-      }))
-      .filter((item) => item.similarity >= minSimilarity)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, maxCandidates)
-      .map((item) => item.word);
-  }
+  //   return Array.from(candidates)
+  //     .map((word) => ({
+  //       word,
+  //       similarity: this.calculateSimilarity(query, word),
+  //     }))
+  //     .filter((item) => item.similarity >= minSimilarity)
+  //     .sort((a, b) => b.similarity - a.similarity)
+  //     .slice(0, maxCandidates)
+  //     .map((item) => item.word);
+  // }
 
   getTopCandidates(
     input: string,
@@ -127,13 +127,8 @@ export class TrigramIndexService {
     for (const trigram of inputTrigrams) {
       this.index.get(trigram)?.forEach((word) => {
         if (!candidateScores.has(word)) {
-          const similarity = this.calculateSimilarity(
-            input,
-            inputTrigrams,
-            word,
-          );
-
-          candidateScores.set(word, similarity);
+          const score = this.calculateScore(input, inputTrigrams, word);
+          candidateScores.set(word, score);
         }
       });
     }
@@ -161,12 +156,12 @@ export class TrigramIndexService {
       .map((item) => item.alias);
   }
 
-  private calculateSimilarity(
+  private calculateScore(
     input: string,
     inputTrigrams: Set<string>,
     word: string,
   ): number {
-    const { trigrams, length } = this.aliasStats.get(word)!;
+    const { trigrams, length } = this.wordTrigrams.get(word)!;
     const matches = this.countMatches(inputTrigrams, trigrams);
     const similarity = matches / Math.max(trigrams.size, inputTrigrams.size);
     const lengthPenalty =
