@@ -6,14 +6,20 @@ import {
   LEVENSHTEIN_CACHE,
   SUGGESTION_CACHE,
 } from 'src/modules/cache/tokens/cache.tokens';
-import suggestionConfig, {
-  SuggestionConfig,
-} from '../config/suggestion.config';
+import suggestionConfig from '../config/suggestion.config';
 import { BKTreeService } from './bk-tree/bk-tree.service';
 import { LevenshteinService } from './levenshtein/levenshtein.service';
 import { TrieService } from './trie/trie.service';
 import { TrigramIndexService } from './trigram/trigram-index.service';
 import { CacheStats } from 'src/modules/cache/interfaces/caches';
+import {
+  AutoTuneOptions,
+  BenchmarkResult,
+  ScoreBreakdown,
+  SuggestionConfig,
+  SystemStats,
+} from '../interfaces/suggestion.interface';
+import { MinHeap } from '../helpers/min-heap.helper';
 
 // export class SuggestionService {
 //   private trie = new TrieEngine();
@@ -93,7 +99,7 @@ export class SuggestionService implements OnModuleInit {
 
   onModuleInit() {
     this.logger.log('SuggestionService initialized');
-    setInterval(() => this.updatePopularQueries(), 60_000); // Update popular queries every minu
+    setInterval(() => this.updatePopularQueries(), 60_000); // Update popular queries every minute
   }
 
   /**
@@ -666,6 +672,871 @@ export class SuggestionService implements OnModuleInit {
       stat: this.cache.stats(SUGGESTION_CACHE),
       maxSize: this.config.cacheSize,
     };
+  }
+}
+
+// =================== ENHANCED SUGGESTION SERVICE ===================
+@Injectable()
+export class SuggestionService implements OnModuleInit {
+  private readonly logger = new Logger(SuggestionService.name);
+  private queryStats = new Map<
+    string,
+    { count: number; timestamp: number; avgResponseTime: number }
+  >();
+  private popularQueries: string[] = [];
+  private isWarmedUp = false;
+
+  constructor(
+    @Inject(suggestionConfig.KEY)
+    private readonly config: ConfigType<typeof suggestionConfig>,
+    private readonly bkTreeService: BKTreeService,
+    private readonly trigramIndexService: TrigramIndexService,
+    private readonly trieService: TrieService,
+    private readonly levenshteinService: LevenshteinService,
+    private readonly cache: CacheService,
+  ) {}
+
+  /**
+   * Lifecycle hook that is called when the module is initialized.
+   * Logs the initialization and sets up periodic tasks:
+   * - Updates popular queries every 5 minutes.
+   * - Cleans up old query statistics every hour.
+   */
+  onModuleInit() {
+    this.logger.log('SuggestionService initialized');
+
+    // Update popular queries every 5 minutes
+    setInterval(() => this.updatePopularQueries(), 300_000);
+
+    // Cleanup old query stats every hour
+    setInterval(() => this.cleanupQueryStats(), 3600_000);
+  }
+
+  async initialize(words: string[]): Promise<void> {
+    const uniqueWords = [...new Set(words.filter((w) => w && w.trim()))];
+    this.logger.log(`Initializing with ${uniqueWords.length} unique words`);
+
+    const start = performance.now();
+
+    // Parallel initialization
+    await Promise.all([
+      Promise.resolve(this.bkTreeService.buildTree(uniqueWords)),
+      Promise.resolve(this.trigramIndexService.buildIndex(uniqueWords)),
+      Promise.resolve(this.trieService.buildTrie(uniqueWords)),
+    ]);
+
+    const duration = performance.now() - start;
+    this.logger.log(`Indices built in ${duration.toFixed(2)}ms`);
+
+    // Conditional warmup
+    if (this.config.warmupEnabled && uniqueWords.length <= 10000) {
+      await this.warmupCache(this.generateWarmupQueries(uniqueWords));
+      this.isWarmedUp = true;
+    }
+  }
+
+  private generateWarmupQueries(words: string[]): string[] {
+    const queries = new Set<string>();
+    const sampleSize = Math.min(500, words.length);
+
+    // Random sampling
+    for (let i = 0; i < sampleSize; i++) {
+      const word = words[Math.floor(Math.random() * words.length)];
+
+      // Generate variations
+      queries.add(word.slice(0, Math.floor(word.length * 0.7))); // Prefix
+      queries.add(word.slice(0, -1)); // Missing last char
+      queries.add('x' + word.slice(1)); // Wrong first char
+      if (word.length > 3) {
+        queries.add(word.slice(0, 2) + word.slice(3)); // Missing middle char
+      }
+    }
+
+    return Array.from(queries).slice(0, 1000);
+  }
+
+  private async warmupCache(queries: string[]): Promise<void> {
+    const start = performance.now();
+    const batchSize = this.config.batchProcessingSize;
+
+    for (let i = 0; i < queries.length; i += batchSize) {
+      const batch = queries.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map((query) => Promise.resolve(this.getSuggestions(query))),
+      );
+
+      // Yield control periodically
+      if (i % (batchSize * 5) === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
+
+    const duration = performance.now() - start;
+    this.logger.log(
+      `Cache warmed up with ${queries.length} queries in ${duration.toFixed(2)}ms`,
+    );
+  }
+
+  getSuggestions(
+    query: string,
+    configOverride?: Partial<SuggestionConfig>,
+  ): string[] {
+    const startTime = performance.now();
+    const config = { ...this.config, ...configOverride };
+    const normalizedQuery = query.toLowerCase().trim();
+
+    if (!normalizedQuery || normalizedQuery.length > config.maxWordsPerNode)
+      return [];
+
+    // Update query statistics
+    this.updateQueryStats(normalizedQuery, startTime);
+
+    // Fast path for very short queries
+    if (normalizedQuery.length < 2) {
+      return this.trieService.getWordsWithPrefix(
+        normalizedQuery,
+        config.maxSuggestions,
+      );
+    }
+
+    const cacheKey = `${normalizedQuery}_${this.hashConfig(config)}`;
+
+    // Check cache
+    if (this.cache.has(SUGGESTION_CACHE, cacheKey)) {
+      return this.cache.get<string[]>(SUGGESTION_CACHE, cacheKey)!;
+    }
+
+    const suggestions = this.computeSuggestions(normalizedQuery, config);
+
+    // Adaptive caching calculate TTL based on query popularity
+    const ttl = this.calculateCacheTTL(normalizedQuery);
+    this.cache.set(SUGGESTION_CACHE, cacheKey, suggestions, {
+      config: {
+        maxSize: config.cacheSize,
+        defaultTTL: ttl,
+        sizeCalculation: (items: string[]) =>
+          items.reduce((sum, item) => sum + item.length * 2 + 16, 64), // Overhead estimation
+      },
+    });
+
+    return suggestions;
+  }
+
+  private computeSuggestions(
+    query: string,
+    config: SuggestionConfig,
+  ): string[] {
+    const adaptiveThreshold = this.getAdaptiveThreshold(query);
+
+    // Strategy 1: Exact prefix matching (highest precision)
+    const prefixMatches = this.trieService.getWordsWithPrefix(
+      query,
+      config.maxSuggestions * 3,
+    );
+
+    if (prefixMatches.length >= config.maxSuggestions) {
+      return this.rankCandidates(query, prefixMatches, config).slice(
+        0,
+        config.maxSuggestions,
+      );
+    }
+
+    // Strategy 2: BK-Tree search for small edit distances (fast, good recall)
+    const candidates = new Set(prefixMatches);
+    const bkResults = this.bkTreeService.search(
+      query,
+      adaptiveThreshold,
+      config.maxTrigramCandidates,
+    );
+    bkResults.forEach((word) => candidates.add(word));
+
+    // Early exit if we have enough high-quality candidates
+    if (candidates.size >= config.maxSuggestions * 2) {
+      const ranked = this.rankCandidates(query, Array.from(candidates), config);
+      if (
+        ranked.length > 0 &&
+        this.calculateCompositeScore(query, ranked[0], config) >=
+          config.earlyExitThreshold
+      ) {
+        return ranked.slice(0, config.maxSuggestions);
+      }
+    }
+
+    // Strategy 3: Trigram fallback (broader coverage)
+    if (candidates.size < config.maxTrigramCandidates) {
+      const trigramCandidates = this.trigramIndexService.getTopCandidates(
+        query,
+        config.maxTrigramCandidates - candidates.size,
+        config.minTrigramSimilarity,
+      );
+      trigramCandidates.forEach((word) => candidates.add(word));
+    }
+
+    return this.rankCandidates(query, Array.from(candidates), config);
+  }
+
+  private rankCandidates(
+    query: string,
+    candidates: string[],
+    config: SuggestionConfig,
+  ): string[] {
+    if (candidates.length === 0) return [];
+
+    // Use heap for efficient top-k selection
+    const heap = new MinHeap<{ candidate: string; score: number }>(
+      (a, b) => a.score - b.score,
+    );
+
+    for (const candidate of candidates) {
+      const score = this.calculateCompositeScore(query, candidate, config);
+
+      if (heap.size() < config.maxSuggestions) {
+        heap.push({ candidate, score });
+      } else if (score > heap.peek()!.score) {
+        heap.pop();
+        heap.push({ candidate, score });
+      }
+    }
+
+    return heap
+      .toSortedArray()
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.candidate);
+  }
+
+  private calculateCompositeScore(
+    query: string,
+    candidate: string,
+    config: SuggestionConfig,
+  ): number {
+    // Prefix bonus
+    const prefixBonus = candidate.toLowerCase().startsWith(query.toLowerCase())
+      ? 1
+      : 0;
+
+    // Trigram similarity
+    const trigramSim = this.trigramIndexService.calculateSimilarity(
+      query,
+      candidate,
+    );
+
+    // Levenshtein similarity (normalized to 0-1, higher is better)
+    const maxLen = Math.max(query.length, candidate.length);
+    const levDistance = this.levenshteinService.calculateDistance(
+      query,
+      candidate,
+    );
+    const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
+
+    // Length penalty (prefer similar lengths)
+    const lengthDiff = Math.abs(query.length - candidate.length);
+    const lengthPenalty =
+      1 - lengthDiff / Math.max(query.length, candidate.length);
+
+    // Composite score with configurable weights
+    return (
+      config.trigramWeight * trigramSim +
+      config.levenshteinWeight * levSim +
+      config.prefixWeight * prefixBonus +
+      0.05 * lengthPenalty // Small bonus for similar length
+    );
+  }
+
+  private getAdaptiveThreshold(query: string): number {
+    // Shorter queries need stricter thresholds
+    if (query.length <= 3) return 1;
+    if (query.length <= 6) return 2;
+
+    // Dynamic threshold based on query characteristics
+    const uniqueChars = new Set(query).size;
+    const complexity = uniqueChars / query.length;
+
+    const threshold = Math.min(
+      this.config.maxLevenshteinDistance,
+      Math.floor(query.length * 0.3),
+    );
+
+    // Reduce threshold for repetitive patterns
+    return complexity < 0.5 ? Math.max(1, threshold - 1) : threshold;
+  }
+
+  private updateQueryStats(query: string, startTime: number): void {
+    const responseTime = performance.now() - startTime;
+    const existing = this.queryStats.get(query);
+
+    if (existing) {
+      existing.count++;
+      existing.avgResponseTime = (existing.avgResponseTime + responseTime) / 2;
+      existing.timestamp = Date.now();
+    } else {
+      this.queryStats.set(query, {
+        count: 1,
+        timestamp: Date.now(),
+        avgResponseTime: responseTime,
+      });
+    }
+  }
+
+  private updatePopularQueries(): void {
+    const now = Date.now();
+    const oneHour = 3600_000;
+
+    // Weight by recency and frequency
+    this.popularQueries = Array.from(this.queryStats.entries())
+      .filter(([, stats]) => now - stats.timestamp < oneHour)
+      .map(([query, stats]) => ({
+        query,
+        score: stats.count * Math.exp(-(now - stats.timestamp) / oneHour),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 200)
+      .map((item) => item.query);
+
+    this.logger.debug(`Updated ${this.popularQueries.length} popular queries`);
+  }
+
+  private cleanupQueryStats(): void {
+    const now = Date.now();
+    const maxAge = 24 * 3600_000; // 24 hours
+    let cleaned = 0;
+
+    for (const [query, stats] of this.queryStats.entries()) {
+      if (now - stats.timestamp > maxAge) {
+        this.queryStats.delete(query);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      this.logger.debug(`Cleaned up ${cleaned} old query stats`);
+    }
+  }
+
+  private calculateCacheTTL(query: string): number {
+    // Popular queries stay longer in cache
+    const isPopular = this.popularQueries.includes(query);
+    const baseStats = this.queryStats.get(query);
+
+    // if (isPopular || (baseStats && baseStats.count > 5)) {
+    //   return 7200_000; // 2 hours for popular queries
+    // } else if (baseStats && baseStats.count > 2) {
+    //   return 1800_000; // 30 minutes for moderately used
+    // } else {
+    //   return 300_000; // 5 minutes for new queries
+    // }
+
+    return isPopular || (baseStats && baseStats.count > 5)
+      ? 7200_000 // 2 hours for popular queries
+      : baseStats && baseStats.count > 2
+        ? 1800_000 // 30 minutes for moderately used
+        : 300_000; // 5 minutes for new queries
+  }
+
+  private hashConfig(config: SuggestionConfig): string {
+    // Create a compact hash of relevant config values
+    const key = `${config.maxSuggestions}_${config.minTrigramSimilarity}_${config.maxLevenshteinDistance}_${config.trigramWeight}_${config.levenshteinWeight}`;
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+    }
+    return hash.toString(36);
+  }
+
+  // =================== BENCHMARKING ===================
+  async benchmark(testQueries: string[]): Promise<BenchmarkResult> {
+    if (!this.config.enableBenchmarking) {
+      this.logger.warn('Benchmarking is disabled');
+      return {
+        avgResponseTime: 0,
+        medianResponseTime: 0,
+        p95ResponseTime: 0,
+        throughput: 0,
+        cacheHitRate: 0,
+        errorRate: 0,
+      };
+    }
+
+    this.logger.log(`Starting benchmark with ${testQueries.length} queries`);
+
+    const results: number[] = [];
+    const errors: string[] = [];
+    let cacheHits = 0;
+
+    // Clear cache for accurate cold performance measurement
+    const initialCacheStats = this.getCacheStats();
+
+    const startTime = performance.now();
+
+    for (const query of testQueries) {
+      const queryStart = performance.now();
+
+      try {
+        const beforeCacheSize = this.getCacheStats().stat.size;
+        this.getSuggestions(query);
+        const afterCacheSize = this.getCacheStats().stat.size;
+
+        if (afterCacheSize === beforeCacheSize) {
+          cacheHits++;
+        }
+
+        results.push(performance.now() - queryStart);
+      } catch (error) {
+        errors.push(
+          `${query}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        results.push(performance.now() - queryStart);
+      }
+    }
+
+    const totalTime = performance.now() - startTime;
+
+    // Calculate statistics
+    results.sort((a, b) => a - b);
+    const avgResponseTime =
+      results.reduce((sum, time) => sum + time, 0) / results.length;
+    const medianResponseTime = results[Math.floor(results.length / 2)];
+    const p95ResponseTime = results[Math.floor(results.length * 0.95)];
+    const throughput = testQueries.length / (totalTime / 1000); // queries per second
+    const cacheHitRate = cacheHits / testQueries.length;
+    const errorRate = errors.length / testQueries.length;
+
+    const result: BenchmarkResult = {
+      avgResponseTime,
+      medianResponseTime,
+      p95ResponseTime,
+      throughput,
+      cacheHitRate,
+      errorRate,
+    };
+
+    this.logger.log('Benchmark Results:', result);
+
+    if (errors.length > 0) {
+      this.logger.warn(
+        `Benchmark errors (${errors.length}):`,
+        errors.slice(0, 10),
+      );
+    }
+
+    return result;
+  }
+
+  // =================== AUTO-TUNING ===================
+  async autoTune(
+    testCases: Array<{ query: string; expectedResults: string[] }>,
+    options: AutoTuneOptions = {},
+  ): Promise<SuggestionConfig> {
+    const {
+      maxIterations = 100,
+      initialTemp = 15.0,
+      coolingRate = 0.95,
+      convergenceThreshold = 0.001,
+      validationSplit = 0.2,
+    } = options;
+
+    // Split test cases into training and validation
+    const shuffled = [...testCases].sort(() => Math.random() - 0.5);
+    const splitIndex = Math.floor(testCases.length * (1 - validationSplit));
+    const trainingCases = shuffled.slice(0, splitIndex);
+    const validationCases = shuffled.slice(splitIndex);
+
+    let currentConfig = { ...this.config };
+    let currentScore = await this.evaluateConfig(trainingCases);
+    let bestConfig = { ...currentConfig };
+    let bestScore = currentScore;
+    let bestValidationScore = await this.evaluateConfig(validationCases);
+
+    let temperature = initialTemp;
+    let noImprovementCount = 0;
+    const maxNoImprovement = 20;
+
+    this.logger.log(
+      `Starting auto-tune with ${trainingCases.length} training cases, ${validationCases.length} validation cases`,
+    );
+    this.logger.log(
+      `Initial training score: ${currentScore.toFixed(4)}, validation score: ${bestValidationScore.toFixed(4)}`,
+    );
+
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      const candidateConfig = this.perturbConfig(
+        currentConfig,
+        temperature,
+        iteration,
+      );
+      const candidateScore = await this.evaluateConfig(trainingCases);
+
+      // Simulated annealing acceptance criterion
+      const accept =
+        candidateScore > currentScore ||
+        Math.random() < Math.exp((candidateScore - currentScore) / temperature);
+
+      if (accept) {
+        currentConfig = candidateConfig;
+        currentScore = candidateScore;
+
+        // Check validation score for best config
+        const validationScore = await this.evaluateConfig(validationCases);
+
+        if (validationScore > bestValidationScore) {
+          bestConfig = { ...candidateConfig };
+          bestScore = candidateScore;
+          bestValidationScore = validationScore;
+          noImprovementCount = 0;
+
+          this.logger.log(
+            `New best config at iteration ${iteration}: ` +
+              `training=${bestScore.toFixed(4)}, validation=${bestValidationScore.toFixed(4)}`,
+          );
+        } else {
+          noImprovementCount++;
+        }
+      } else {
+        noImprovementCount++;
+      }
+
+      // Early stopping
+      if (noImprovementCount >= maxNoImprovement) {
+        this.logger.log(
+          `Early stopping at iteration ${iteration} (no improvement for ${maxNoImprovement} iterations)`,
+        );
+        break;
+      }
+
+      // Convergence check
+      if (Math.abs(candidateScore - currentScore) < convergenceThreshold) {
+        this.logger.log(`Converged at iteration ${iteration}`);
+        break;
+      }
+
+      temperature *= coolingRate;
+
+      // Progress logging
+      if (iteration % 10 === 0) {
+        this.logger.log(
+          `Iteration ${iteration}: current=${currentScore.toFixed(4)}, best=${bestScore.toFixed(4)}, temp=${temperature.toFixed(3)}`,
+        );
+      }
+    }
+
+    this.clearCaches();
+    this.logger.log(
+      `Auto-tune complete. Best validation score: ${bestValidationScore.toFixed(4)}`,
+    );
+
+    return bestConfig;
+  }
+
+  private perturbConfig(
+    config: SuggestionConfig,
+    temperature: number,
+    iteration: number,
+  ): SuggestionConfig {
+    const newConfig = { ...config };
+
+    // Adaptive perturbation based on iteration
+    const perturbationStrength = Math.max(0.1, temperature / 15.0);
+
+    const perturbations = [
+      // Trigram similarity threshold
+      () => {
+        newConfig.minTrigramSimilarity = this.clamp(
+          config.minTrigramSimilarity +
+            (Math.random() - 0.5) * 0.2 * perturbationStrength,
+          0.1,
+          0.8,
+        );
+      },
+
+      // Levenshtein distance
+      () => {
+        newConfig.maxLevenshteinDistance = Math.round(
+          this.clamp(
+            config.maxLevenshteinDistance +
+              (Math.random() - 0.5) * 2 * perturbationStrength,
+            1,
+            6,
+          ),
+        );
+      },
+
+      // Weight adjustments (maintaining sum = 1)
+      () => {
+        const totalWeight =
+          config.trigramWeight + config.levenshteinWeight + config.prefixWeight;
+        const delta = (Math.random() - 0.5) * 0.3 * perturbationStrength;
+
+        newConfig.trigramWeight = this.clamp(
+          config.trigramWeight + delta,
+          0.1,
+          0.7,
+        );
+        const remaining = totalWeight - newConfig.trigramWeight;
+
+        const levRatio =
+          config.levenshteinWeight /
+          (config.levenshteinWeight + config.prefixWeight);
+        newConfig.levenshteinWeight = remaining * levRatio;
+        newConfig.prefixWeight = remaining * (1 - levRatio);
+      },
+
+      // Candidate limits
+      () => {
+        newConfig.maxTrigramCandidates = Math.round(
+          this.clamp(
+            config.maxTrigramCandidates +
+              (Math.random() - 0.5) * 50 * perturbationStrength,
+            20,
+            200,
+          ),
+        );
+      },
+    ];
+
+    // Apply 1-3 random perturbations
+    const numPerturbations = Math.min(3, Math.floor(Math.random() * 3) + 1);
+    const selectedPerturbations = this.shuffleArray([...perturbations]).slice(
+      0,
+      numPerturbations,
+    );
+
+    selectedPerturbations.forEach((perturbation) => perturbation());
+
+    return newConfig;
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private shuffleArray<T>(array: T[]): T[] {
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  private async evaluateConfig(
+    testCases: Array<{ query: string; expectedResults: string[] }>,
+  ): Promise<number> {
+    this.clearCaches();
+
+    let totalScore = 0;
+    const batchSize = 10;
+
+    for (let i = 0; i < testCases.length; i += batchSize) {
+      const batch = testCases.slice(i, i + batchSize);
+
+      const batchPromises = batch.map(async ({ query, expectedResults }) => {
+        const suggestions = this.getSuggestions(query);
+        return this.calculateMetrics(suggestions, expectedResults);
+      });
+
+      const batchScores = await Promise.all(batchPromises);
+      totalScore += batchScores.reduce((sum, score) => sum + score, 0);
+
+      // Yield control periodically
+      if (i % (batchSize * 5) === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
+
+    return totalScore / testCases.length;
+  }
+
+  private calculateMetrics(
+    suggestions: string[],
+    expectedResults: string[],
+  ): number {
+    const expectedSet = new Set(expectedResults.map((r) => r.toLowerCase()));
+    const suggestionSet = new Set(suggestions.map((s) => s.toLowerCase()));
+
+    const intersection = new Set(
+      [...suggestionSet].filter((s) => expectedSet.has(s)),
+    );
+
+    // Precision: relevant suggestions / total suggestions
+    const precision =
+      suggestionSet.size > 0 ? intersection.size / suggestionSet.size : 0;
+
+    // Recall: relevant suggestions / total relevant
+    const recall =
+      expectedSet.size > 0 ? intersection.size / expectedSet.size : 1;
+
+    // F1 Score
+    const f1 =
+      precision + recall > 0
+        ? (2 * precision * recall) / (precision + recall)
+        : 0;
+
+    // NDCG for ranking quality
+    const ndcg = this.calculateNDCG(suggestions, expectedResults);
+
+    // Composite score
+    return 0.6 * f1 + 0.4 * ndcg;
+  }
+
+  private calculateNDCG(
+    suggestions: string[],
+    expectedResults: string[],
+    k: number = 5,
+  ): number {
+    const expectedSet = new Set(expectedResults.map((r) => r.toLowerCase()));
+
+    // DCG calculation
+    let dcg = 0;
+    for (let i = 0; i < Math.min(k, suggestions.length); i++) {
+      const relevance = expectedSet.has(suggestions[i].toLowerCase()) ? 1 : 0;
+      dcg += relevance / Math.log2(i + 2);
+    }
+
+    // IDCG calculation (perfect ranking)
+    let idcg = 0;
+    const maxRelevant = Math.min(k, expectedResults.length);
+    for (let i = 0; i < maxRelevant; i++) {
+      idcg += 1 / Math.log2(i + 2);
+    }
+
+    return idcg > 0 ? dcg / idcg : 0;
+  }
+
+  // =================== UTILITIES ===================
+  clearCaches(): void {
+    this.cache.clear(SUGGESTION_CACHE);
+    this.cache.clear(LEVENSHTEIN_CACHE);
+    this.logger.debug('All caches cleared');
+  }
+
+  getCacheStats(): { stat: CacheStats<unknown>; maxSize: number } {
+    return {
+      stat: this.cache.stats(SUGGESTION_CACHE),
+      maxSize: this.config.cacheSize,
+    };
+  }
+
+  getSystemStats(): SystemStats {
+    const queryStatsSize = this.queryStats.size;
+    const popularQueriesCount = this.popularQueries.length;
+    const bkTreeStats = this.bkTreeService.getStats();
+
+    return {
+      isWarmedUp: this.isWarmedUp,
+      queryStatsSize,
+      popularQueriesCount,
+      bkTreeNodeCount: bkTreeStats.nodeCount,
+      cacheStats: this.getCacheStats(),
+    };
+  }
+
+  // =================== ADVANCED FEATURES ===================
+
+  /**
+   * Get suggestions with detailed scoring breakdown
+   */
+  getSuggestionsWithScores(
+    query: string,
+  ): Array<{ word: string; score: number; breakdown: ScoreBreakdown }> {
+    const normalizedQuery = query.toLowerCase().trim();
+    if (!normalizedQuery) return [];
+
+    const candidates = this.getAllCandidates(normalizedQuery);
+
+    return candidates
+      .map((candidate) => {
+        const breakdown = this.getScoreBreakdown(normalizedQuery, candidate);
+        const totalScore = this.calculateCompositeScore(
+          normalizedQuery,
+          candidate,
+          this.config,
+        );
+
+        return {
+          word: candidate,
+          score: totalScore,
+          breakdown,
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, this.config.maxSuggestions);
+  }
+
+  private getAllCandidates(query: string): string[] {
+    const candidates = new Set<string>();
+
+    // Get candidates from all strategies
+    const prefixMatches = this.trieService.getWordsWithPrefix(query, 50);
+    const bkResults = this.bkTreeService.search(
+      query,
+      this.getAdaptiveThreshold(query),
+      50,
+    );
+    const trigramResults = this.trigramIndexService.getTopCandidates(
+      query,
+      50,
+      this.config.minTrigramSimilarity,
+    );
+
+    prefixMatches.forEach((word) => candidates.add(word));
+    bkResults.forEach((word) => candidates.add(word));
+    trigramResults.forEach((word) => candidates.add(word));
+
+    return Array.from(candidates);
+  }
+
+  private getScoreBreakdown(query: string, candidate: string): ScoreBreakdown {
+    const prefixMatch = candidate.toLowerCase().startsWith(query.toLowerCase());
+    const trigramSim = this.trigramIndexService.calculateSimilarity(
+      query,
+      candidate,
+    );
+
+    const maxLen = Math.max(query.length, candidate.length);
+    const levDistance = this.levenshteinService.calculateDistance(
+      query,
+      candidate,
+    );
+    const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
+
+    const lengthDiff = Math.abs(query.length - candidate.length);
+    const lengthSim = 1 - lengthDiff / Math.max(query.length, candidate.length);
+
+    return {
+      prefixMatch,
+      trigramSimilarity: trigramSim,
+      levenshteinSimilarity: levSim,
+      lengthSimilarity: lengthSim,
+      editDistance: levDistance,
+    };
+  }
+
+  /**
+   * Batch processing for multiple queries
+   */
+  async batchGetSuggestions(
+    queries: string[],
+    batchSize: number = 50,
+  ): Promise<Map<string, string[]>> {
+    const results = new Map<string, string[]>();
+
+    for (let i = 0; i < queries.length; i += batchSize) {
+      const batch = queries.slice(i, i + batchSize);
+
+      const batchPromises = batch.map(async (query) => {
+        const suggestions = this.getSuggestions(query);
+        return [query, suggestions] as [string, string[]];
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      batchResults.forEach(([query, suggestions]) => {
+        results.set(query, suggestions);
+      });
+
+      // Yield control between batches
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    return results;
   }
 }
 

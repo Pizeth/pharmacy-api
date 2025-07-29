@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { SuggestionConfig } from '../interfaces/suggestion.config';
+import { SuggestionConfig } from '../interfaces/suggestion.interface';
 
 // export interface SuggestionConfig {
 //   // Trigram filtering
