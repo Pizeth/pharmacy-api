@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MinHeap } from '../../helpers/min-heap.helper';
+import { Trigram } from '../../interfaces/suggestion.config';
 
 @Injectable()
 export class TrigramIndexService {
@@ -178,5 +179,164 @@ export class TrigramIndexService {
       if (wordTrigrams.has(trigram)) matches++;
     }
     return matches;
+  }
+}
+
+@Injectable()
+export class TrigramIndexService {
+  private index = new Map<string, Set<string>>();
+  private wordTrigrams = new Map<string, Trigram>();
+  private readonly trigramPool = new Map<string, Set<string>>(); // Reuse trigram sets
+
+  buildIndex(words: string[]): void {
+    this.index.clear();
+    this.wordTrigrams.clear();
+    this.trigramPool.clear();
+
+    const uniqueWords = [...new Set(words.map((w) => w.toLowerCase()))];
+
+    for (const word of uniqueWords) {
+      const trigrams = this.buildTrigram(word);
+
+      this.wordTrigrams.set(word, trigrams);
+
+      // Build inverted index
+      for (const trigram of trigrams.trigrams) {
+        if (!this.index.has(trigram)) {
+          this.index.set(trigram, new Set());
+        }
+        this.index.get(trigram)!.add(word);
+      }
+    }
+  }
+
+  private buildTrigram(word: string): Trigram {
+    const trigrams = this.getTrigrams(word);
+    const hash = this.hashTrigrams(trigrams);
+    return { trigrams, length: word.length, hash };
+  }
+
+  private getTrigrams(word: string): Set<string> {
+    const key = word;
+    if (this.trigramPool.has(key)) {
+      return this.trigramPool.get(key)!;
+    }
+
+    const trigrams = new Set<string>();
+
+    // Add padding for better boundary matching
+    const paddedWord = `  ${word}  `;
+
+    for (let i = 0; i < paddedWord.length - 2; i++) {
+      trigrams.add(paddedWord.slice(i, i + 3));
+    }
+
+    this.trigramPool.set(key, trigrams);
+    return trigrams;
+  }
+
+  private hashTrigrams(trigrams: Set<string>): number {
+    let hash = 0;
+    for (const trigram of trigrams) {
+      hash = ((hash << 5) - hash + trigram.charCodeAt(0)) | 0;
+    }
+    return hash;
+  }
+
+  getTopCandidates(
+    input: string,
+    maxCandidates: number,
+    threshold: number,
+  ): string[] {
+    const inputTrigrams = this.getTrigrams(input);
+    if (inputTrigrams.size === 0) return [];
+
+    const candidateScores = new Map<string, number>();
+    const processedHashes = new Set<number>();
+
+    // Fast hash-based deduplication
+    for (const trigram of inputTrigrams) {
+      this.index.get(trigram)?.forEach((word) => {
+        const wordData = this.wordTrigrams.get(word)!;
+        if (processedHashes.has(wordData.hash)) return;
+
+        processedHashes.add(wordData.hash);
+        const score = this.calculateAdvancedScore(
+          input,
+          inputTrigrams,
+          word,
+          wordData,
+        );
+        if (score >= threshold) {
+          candidateScores.set(word, score);
+        }
+      });
+    }
+
+    // Use heap for top-k selection
+    const heap = new MinHeap<{ word: string; score: number }>(
+      (a, b) => a.score - b.score,
+    );
+
+    for (const [word, score] of candidateScores) {
+      if (heap.size() < maxCandidates) {
+        heap.push({ word, score });
+      } else if (score > heap.peek()!.score) {
+        heap.pop();
+        heap.push({ word, score });
+      }
+    }
+
+    return heap
+      .toSortedArray()
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.word);
+  }
+
+  private calculateAdvancedScore(
+    input: string,
+    inputTrigrams: Set<string>,
+    word: string,
+    wordData: { trigrams: Set<string>; length: number },
+  ): number {
+    const { trigrams: wordTrigrams, length } = wordData;
+
+    // Jaccard similarity with position weighting
+    let matches = 0;
+    let positionBonus = 0;
+
+    const inputArray = Array.from(inputTrigrams);
+    const wordArray = Array.from(wordTrigrams);
+
+    for (let i = 0; i < inputArray.length; i++) {
+      if (wordTrigrams.has(inputArray[i])) {
+        matches++;
+        // Bonus for trigrams in similar positions
+        const wordPos = wordArray.indexOf(inputArray[i]);
+        if (wordPos !== -1) {
+          positionBonus +=
+            1 -
+            Math.abs(i - wordPos) /
+              Math.max(inputArray.length, wordArray.length);
+        }
+      }
+    }
+
+    const jaccard =
+      matches / (inputTrigrams.size + wordTrigrams.size - matches);
+    const lengthSimilarity =
+      1 - Math.abs(length - input.length) / Math.max(length, input.length);
+    const positionWeight = positionBonus / matches || 0;
+
+    return jaccard * 0.7 + lengthSimilarity * 0.2 + positionWeight * 0.1;
+  }
+
+  calculateSimilarity(query: string, word: string): number {
+    const queryTrigrams = this.getTrigrams(query);
+    const wordData = this.wordTrigrams.get(word.toLowerCase());
+
+    if (!wordData) return 0;
+
+    return this.calculateAdvancedScore(query, queryTrigrams, word, wordData);
   }
 }

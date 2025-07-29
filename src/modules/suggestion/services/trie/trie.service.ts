@@ -1,53 +1,170 @@
 import { Injectable } from '@nestjs/common';
 import { TrieNode } from '../../nodes/node.class';
 
-@Injectable()
+// @Injectable()
+// export class TrieService {
+//   private root = new TrieNode();
+
+//   buildTrie(words: string[]): void {
+//     this.root = new TrieNode();
+
+//     for (const word of words) {
+//       this.insert(word.toLowerCase());
+//     }
+//   }
+
+//   private insert(word: string): void {
+//     let node = this.root;
+//     for (const char of word) {
+//       if (!node.children.has(char)) {
+//         node.children.set(char, new TrieNode());
+//       }
+//       node = node.children.get(char)!;
+//     }
+//     node.isEndOfWord = true;
+//   }
+
+//   // getWordsWithPrefixOld(prefix: string): string[] {
+//   //   const results: string[] = [];
+//   //   const prefixLower = prefix.toLowerCase();
+//   //   let node = this.root;
+
+//   //   for (const char of prefixLower) {
+//   //     if (!node.children.has(char)) return [];
+//   //     node = node.children.get(char)!;
+//   //   }
+
+//   //   this.collectWords(node, prefixLower, results);
+//   //   return results;
+//   // }
+
+//   // private collectWords(
+//   //   node: TrieNode,
+//   //   current: string,
+//   //   results: string[],
+//   // ): void {
+//   //   if (node.isEndOfWord) results.push(current);
+//   //   for (const [char, child] of node.children.entries()) {
+//   //     this.collectWords(child, current + char, results);
+//   //   }
+//   // }
+
+//   *streamWordsWithPrefix(
+//     prefix: string,
+//     maxWords = Infinity,
+//   ): Generator<string> {
+//     const prefixLower = prefix.toLowerCase();
+//     let node = this.root;
+//     let count = 0;
+
+//     // Traverse to prefix node
+//     for (const char of prefixLower) {
+//       if (!node.children.has(char)) return;
+//       node = node.children.get(char)!;
+//     }
+
+//     // DFS generator
+//     const stack: [TrieNode, string][] = [[node, prefixLower]];
+//     while (stack.length > 0 && count < maxWords) {
+//       const [current, word] = stack.pop()!;
+
+//       if (current.isEndOfWord) {
+//         yield word;
+//         count++;
+//       }
+
+//       for (const [char, child] of current.children.entries()) {
+//         stack.push([child, word + char]);
+//       }
+//     }
+//   }
+
+//   getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
+//     return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
+//   }
+// }
+
+// getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
+//   const prefixLower = prefix.toLowerCase();
+//   let node = this.root;
+
+//   // 1. Traverse to the prefix node
+//   for (const char of prefixLower) {
+//     if (!node.children.has(char)) return [];
+//     node = node.children.get(char)!;
+//   }
+
+//   // 2. If cached, return a quick slice
+//   if (node.cachedWords) {
+//     return node.cachedWords.slice(0, maxWords);
+//   }
+
+//   // 3. First‐time: collect all descendants
+//   const results: string[] = [];
+//   this.collectWords(node, prefixLower, results);
+
+//   // 4. Cache & return top‐K
+//   node.cachedWords = results;
+//   return results.slice(0, maxWords);
+// }
+
+// private collectWords(node: TrieNode, prefix: string, out: string[]): void {
+//   if (node.isEndOfWord) out.push(prefix);
+//   for (const [ch, child] of node.children) {
+//     this.collectWords(child, prefix + ch, out);
+//   }
+// }
 export class TrieService {
   private root = new TrieNode();
+  private readonly maxCacheDepth = 3; // Cache only short prefixes
 
   buildTrie(words: string[]): void {
     this.root = new TrieNode();
 
-    for (const word of words) {
-      this.insert(word.toLowerCase());
+    // Build trie with frequency tracking
+    const wordFreq = new Map<string, number>();
+    words.forEach((word) => {
+      const lower = word.toLowerCase();
+      wordFreq.set(lower, (wordFreq.get(lower) || 0) + 1);
+    });
+
+    for (const [word, freq] of wordFreq) {
+      this.insert(word, freq);
     }
+
+    // Pre-cache popular prefixes
+    this.precachePopularPrefixes();
   }
 
-  private insert(word: string): void {
+  private insert(word: string, frequency: number): void {
     let node = this.root;
     for (const char of word) {
       if (!node.children.has(char)) {
         node.children.set(char, new TrieNode());
       }
       node = node.children.get(char)!;
+      node.wordCount++;
     }
     node.isEndOfWord = true;
   }
 
-  // getWordsWithPrefixOld(prefix: string): string[] {
-  //   const results: string[] = [];
-  //   const prefixLower = prefix.toLowerCase();
-  //   let node = this.root;
+  private precachePopularPrefixes(): void {
+    const queue: [TrieNode, string, number][] = [[this.root, '', 0]];
 
-  //   for (const char of prefixLower) {
-  //     if (!node.children.has(char)) return [];
-  //     node = node.children.get(char)!;
-  //   }
+    while (queue.length > 0) {
+      const [node, prefix, depth] = queue.shift()!;
 
-  //   this.collectWords(node, prefixLower, results);
-  //   return results;
-  // }
+      if (depth > 0 && depth <= this.maxCacheDepth && node.wordCount > 10) {
+        node.cachedWords = this.collectWordsSync(node, prefix, 50);
+      }
 
-  // private collectWords(
-  //   node: TrieNode,
-  //   current: string,
-  //   results: string[],
-  // ): void {
-  //   if (node.isEndOfWord) results.push(current);
-  //   for (const [char, child] of node.children.entries()) {
-  //     this.collectWords(child, current + char, results);
-  //   }
-  // }
+      if (depth < this.maxCacheDepth) {
+        for (const [char, child] of node.children) {
+          queue.push([child, prefix + char, depth + 1]);
+        }
+      }
+    }
+  }
 
   *streamWordsWithPrefix(
     prefix: string,
@@ -57,15 +174,30 @@ export class TrieService {
     let node = this.root;
     let count = 0;
 
-    // Traverse to prefix node
+    // Navigate to prefix node
     for (const char of prefixLower) {
       if (!node.children.has(char)) return;
       node = node.children.get(char)!;
     }
 
-    // DFS generator
-    const stack: [TrieNode, string][] = [[node, prefixLower]];
+    // Use cached results if available
+    if (node.cachedWords) {
+      for (const word of node.cachedWords.slice(0, maxWords)) {
+        yield word;
+        if (++count >= maxWords) return;
+      }
+      return;
+    }
+
+    // DFS with priority queue for frequency-based ordering
+    const stack: [TrieNode, string, number][] = [
+      [node, prefixLower, node.wordCount],
+    ];
+
     while (stack.length > 0 && count < maxWords) {
+      // Sort by word count for better results
+      stack.sort((a, b) => b[2] - a[2]);
+
       const [current, word] = stack.pop()!;
 
       if (current.isEndOfWord) {
@@ -73,46 +205,23 @@ export class TrieService {
         count++;
       }
 
-      for (const [char, child] of current.children.entries()) {
-        stack.push([child, word + char]);
+      for (const [char, child] of current.children) {
+        stack.push([child, word + char, child.wordCount]);
       }
     }
+  }
+
+  private collectWordsSync(
+    node: TrieNode,
+    prefix: string,
+    maxWords: number,
+  ): string[] {
+    return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
   }
 
   getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
     return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
   }
-
-  // getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
-  //   const prefixLower = prefix.toLowerCase();
-  //   let node = this.root;
-
-  //   // 1. Traverse to the prefix node
-  //   for (const char of prefixLower) {
-  //     if (!node.children.has(char)) return [];
-  //     node = node.children.get(char)!;
-  //   }
-
-  //   // 2. If cached, return a quick slice
-  //   if (node.cachedWords) {
-  //     return node.cachedWords.slice(0, maxWords);
-  //   }
-
-  //   // 3. First‐time: collect all descendants
-  //   const results: string[] = [];
-  //   this.collectWords(node, prefixLower, results);
-
-  //   // 4. Cache & return top‐K
-  //   node.cachedWords = results;
-  //   return results.slice(0, maxWords);
-  // }
-
-  // private collectWords(node: TrieNode, prefix: string, out: string[]): void {
-  //   if (node.isEndOfWord) out.push(prefix);
-  //   for (const [ch, child] of node.children) {
-  //     this.collectWords(child, prefix + ch, out);
-  //   }
-  // }
 }
 
 // export class TrigramIndex {
