@@ -1,8 +1,10 @@
 // src/utils/levenshtein/bk-tree.ts
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { BKNode } from '../../nodes/node.class';
 import { LevenshteinService } from '../levenshtein/levenshtein.service';
+import suggestionConfig from '../../config/suggestion.config';
+import { ConfigType } from '@nestjs/config';
 
 // @Injectable()
 // export class BKTreeService {
@@ -131,7 +133,11 @@ export class BKTreeService {
   private root: BKNode | null = null;
   private nodeCount = 0;
 
-  constructor(private readonly levenshteinService: LevenshteinService) {}
+  constructor(
+    private readonly levenshteinService: LevenshteinService,
+    @Inject(suggestionConfig.KEY)
+    private readonly config: ConfigType<typeof suggestionConfig>, // Inject config
+  ) {}
 
   buildTree(words: string[]): void {
     this.root = null;
@@ -162,9 +168,12 @@ export class BKTreeService {
     let current: BKNode = this.root;
 
     while (true) {
+      // Pass maxLevenshteinDistance as threshold for early exit
       const distance = this.levenshteinService.calculateDistance(
         word,
         current.word,
+        // Pass slightly more than max allowed to avoid aborting valid paths too early
+        this.config.maxLevenshteinDistance + 1,
       );
 
       if (distance === 0) return;
@@ -186,6 +195,7 @@ export class BKTreeService {
     const stack: BKNode[] = [this.root];
     const queryLower = query.toLowerCase();
 
+    // If exact match with root, return early
     if (queryLower === this.root.word) return [query];
 
     while (stack.length > 0 && results.length < maxResults) {

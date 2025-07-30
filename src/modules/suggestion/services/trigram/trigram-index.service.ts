@@ -226,7 +226,6 @@ export class TrigramIndexService {
 
     // Add padding for better boundary matching
     const paddedWord = `  ${word}  `;
-
     for (let i = 0; i < paddedWord.length - 2; i++) {
       trigrams.add(paddedWord.slice(i, i + 3));
     }
@@ -339,5 +338,151 @@ export class TrigramIndexService {
     if (!wordData) return 0;
 
     return this.calculateAdvancedScore(query, queryTrigrams, wordData);
+  }
+}
+
+@Injectable()
+export class TrigramIndexService {
+  private index: Map<string, Set<string>> = new Map();
+  // Simplified: `wordTrigramsOld` is removed, all trigram data is in `wordTrigrams`
+  private wordTrigrams = new Map<
+    string,
+    { trigrams: Set<string>; length: number }
+  >();
+
+  buildIndex(words: string[]): void {
+    this.index.clear();
+    this.wordTrigrams.clear();
+
+    for (const word of words) {
+      const lowercasedWord = word.toLowerCase(); // Lowercase once
+      const trigrams = this.getTrigrams(lowercasedWord);
+      this.wordTrigrams.set(lowercasedWord, {
+        trigrams,
+        length: lowercasedWord.length,
+      }); // Store lowercased word
+
+      // Build inverted index
+      for (const trigram of trigrams) {
+        if (!this.index.has(trigram)) {
+          this.index.set(trigram, new Set());
+        }
+        this.index.get(trigram)!.add(lowercasedWord);
+      }
+    }
+  }
+
+  private getTrigrams(word: string): Set<string> {
+    const trigrams = new Set<string>();
+    const paddedWord = `  ${word}  `; // Add padding for better boundary matching
+    for (let i = 0; i < paddedWord.length - 2; i++) {
+      trigrams.add(paddedWord.slice(i, i + 3));
+    }
+    return trigrams;
+  }
+
+  /**
+   * Calculates the Jaccard similarity between the query's trigrams and a candidate word's trigrams.
+   * This is a "raw" similarity without length penalty.
+   */
+  calculateJaccardSimilarity(
+    queryTrigrams: Set<string>,
+    candidateWord: string,
+  ): number {
+    const candidateData = this.wordTrigrams.get(candidateWord);
+    if (!candidateData) return 0; // Candidate not found in index
+
+    const candidateTrigrams = candidateData.trigrams;
+
+    let intersection = 0;
+    for (const trigram of queryTrigrams) {
+      if (candidateTrigrams.has(trigram)) intersection++;
+    }
+
+    const union = queryTrigrams.size + candidateTrigrams.size - intersection;
+    return union === 0 ? 0 : intersection / union; // Jaccard similarity
+  }
+
+  /**
+   * Retrieves top candidate words based on trigram similarity, optionally filtered by length penalty.
+   * This now returns words, not aliases (as 'alias' was removed from this service's mental model).
+   */
+  getTopCandidates(
+    input: string,
+    maxCandidates: number,
+    minSimilarity: number, // Renamed from threshold for clarity with similarity
+  ): string[] {
+    const inputLower = input.toLowerCase();
+    const inputTrigrams = this.getTrigrams(inputLower);
+    if (inputTrigrams.size === 0) return [];
+
+    // 1. Collect potential candidates and their raw trigram counts
+    const candidateCounts = new Map<string, number>();
+    for (const trigram of inputTrigrams) {
+      this.index.get(trigram)?.forEach((word) => {
+        candidateCounts.set(word, (candidateCounts.get(word) || 0) + 1);
+      });
+    }
+
+    // 2. Use min-heap for top-k selection based on the full composite score (Jaccard + Length Penalty)
+    const heap = new MinHeap<{ word: string; score: number }>(
+      (a, b) => a.score - b.score,
+    );
+
+    for (const [word, _count] of candidateCounts.entries()) {
+      const score = this.calculateTrigramCompositeScore(
+        inputLower,
+        inputTrigrams,
+        word,
+      );
+      if (score < minSimilarity) continue; // Filter by minimum overall similarity
+
+      if (heap.size() < maxCandidates) {
+        heap.push({ word, score });
+      } else if (score > heap.peek()!.score) {
+        heap.pop();
+        heap.push({ word, score });
+      }
+    }
+
+    // 3. Return results in descending score order
+    return heap
+      .toSortedArray()
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.word);
+  }
+
+  /**
+   * Calculates a composite trigram score including Jaccard similarity and a length penalty.
+   * This is now the primary scoring method for trigrams within this service.
+   */
+  private calculateTrigramCompositeScore(
+    inputLower: string,
+    inputTrigrams: Set<string>,
+    candidateWord: string,
+  ): number {
+    const candidateData = this.wordTrigrams.get(candidateWord);
+    if (!candidateData) return 0; // Should not happen if word is in candidateScores
+
+    const { trigrams: candidateTrigrams, length: candidateLength } =
+      candidateData;
+
+    // Jaccard Similarity (matches / union)
+    let intersection = 0;
+    for (const trigram of inputTrigrams) {
+      if (candidateTrigrams.has(trigram)) intersection++;
+    }
+    const union = inputTrigrams.size + candidateTrigrams.size - intersection;
+    const jaccardSimilarity = union === 0 ? 0 : intersection / union;
+
+    // Length Penalty (closer to 1 for similar lengths)
+    const lengthDiff = Math.abs(candidateLength - inputLower.length);
+    const maxLength = Math.max(candidateLength, inputLower.length);
+    const lengthPenalty = maxLength === 0 ? 1 : 1 - lengthDiff / maxLength;
+
+    // Combine with a simple product (can be weighted if config supports it)
+    // For now, hardcode weights for Trigram-specific composite.
+    // The main SuggestionService's composite score will apply global weights.
+    return jaccardSimilarity * 0.8 + lengthPenalty * 0.2; // Example weights, tune as needed
   }
 }

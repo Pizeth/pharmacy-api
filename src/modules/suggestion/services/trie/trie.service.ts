@@ -114,6 +114,7 @@ import { TrieNode } from '../../nodes/node.class';
 //     this.collectWords(child, prefix + ch, out);
 //   }
 // }
+@Injectable()
 export class TrieService {
   private root = new TrieNode();
   private readonly maxCacheDepth = 3; // Cache only short prefixes
@@ -146,6 +147,7 @@ export class TrieService {
       node.wordCount++;
     }
     node.isEndOfWord = true;
+    node.frequency = frequency; // Store the word's frequency
   }
 
   private precachePopularPrefixes(): void {
@@ -154,7 +156,13 @@ export class TrieService {
     while (queue.length > 0) {
       const [node, prefix, depth] = queue.shift()!;
 
-      if (depth > 0 && depth <= this.maxCacheDepth && node.wordCount > 10) {
+      // Cache prefixes with high word count OR high frequency words
+      if (
+        depth > 0 &&
+        depth <= this.maxCacheDepth &&
+        (node.wordCount > 10 || (node.isEndOfWord && node.frequency > 5))
+      ) {
+        // Now efficiently collects words starting from this node
         node.cachedWords = this.collectWordsSync(node, prefix, 50);
       }
 
@@ -191,11 +199,11 @@ export class TrieService {
 
     // DFS with priority queue for frequency-based ordering
     const stack: [TrieNode, string, number][] = [
-      [node, prefixLower, node.wordCount],
+      [node, prefixLower, node.frequency],
     ];
 
     while (stack.length > 0 && count < maxWords) {
-      // Sort by word count for better results
+      // Sort by frequency (higher frequency first)
       stack.sort((a, b) => b[2] - a[2]);
 
       const [current, word] = stack.pop()!;
@@ -206,7 +214,7 @@ export class TrieService {
       }
 
       for (const [char, child] of current.children) {
-        stack.push([child, word + char, child.wordCount]);
+        stack.push([child, word + char, child.frequency]);
       }
     }
   }
@@ -216,11 +224,45 @@ export class TrieService {
     prefix: string,
     maxWords: number,
   ): string[] {
-    return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
+    const results: string[] = [];
+    let count = 0;
+
+    // Use cached results if available
+    if (node.cachedWords) {
+      return node.cachedWords.slice(0, maxWords);
+    }
+
+    // DFS collection directly from the provided node
+    const stack: [TrieNode, string, number][] = [
+      [node, prefix, node.frequency || 0],
+    ];
+
+    while (stack.length > 0 && count < maxWords) {
+      // Sort by frequency (higher frequency first)
+      stack.sort((a, b) => b[2] - a[2]);
+
+      const [current, word] = stack.pop()!;
+
+      if (current.isEndOfWord) {
+        results.push(word);
+        count++;
+      }
+
+      for (const [char, child] of current.children) {
+        stack.push([child, word + char, child.frequency || 0]);
+      }
+    }
+
+    return results;
   }
 
   getWordsWithPrefix(prefix: string, maxWords = Infinity): string[] {
-    return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
+    // return Array.from(this.streamWordsWithPrefix(prefix, maxWords));
+    const results: string[] = [];
+    for (const word of this.streamWordsWithPrefix(prefix, maxWords)) {
+      results.push(word);
+    }
+    return results;
   }
 }
 

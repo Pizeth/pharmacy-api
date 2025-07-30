@@ -105,7 +105,6 @@ import suggestionConfig from '../../config/suggestion.config';
 @Injectable()
 export class LevenshteinService {
   private localCache = new Map<string, number>();
-  private readonly maxLocalCacheSize = 1000;
 
   constructor(
     @Inject(suggestionConfig.KEY)
@@ -113,26 +112,32 @@ export class LevenshteinService {
     private readonly cacheService: CacheService,
   ) {}
 
+  /**
+   * Calculates the Levenshtein distance between two strings, optionally using a threshold to limit computation.
+   * Utilizes both a local and distributed cache to optimize repeated calculations.
+   *
+   * @param a - The first string to compare.
+   * @param b - The second string to compare.
+   * @param threshold - Optional maximum distance to compute before early exit. Defaults to `this.config.maxLevenshteinDistance`.
+   * @returns The Levenshtein distance between `a` and `b`. If the distance exceeds the threshold, returns the length difference.
+   *
+   * @remarks
+   * - If the strings are equal, returns 0.
+   * - If the length difference exceeds the configured maximum distance or threshold, returns the length difference.
+   * - Results are cached locally and in a distributed cache for performance.
+   * - Local cache is periodically pruned to maintain a maximum size.
+   */
   calculateDistance(a: string, b: string, threshold?: number): number {
     // Quick equality check
     if (a === b) return 0;
 
-    // Length difference optimization
-    const lengthDiff = Math.abs(a.length - b.length);
-    if (lengthDiff > this.config.maxLevenshteinDistance) {
-      return lengthDiff;
-    }
-
-    threshold ??= this.config.maxLevenshteinDistance;
-
-    if (lengthDiff > threshold) return lengthDiff;
-
     const key = a < b ? `${a}|${b}` : `${b}|${a}`;
 
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+
     // Check local cache first (faster than distributed cache)
-    if (this.localCache.has(key)) {
-      return this.localCache.get(key)!;
-    }
+    if (this.localCache.has(key)) return this.localCache.get(key)!;
 
     // Check distributed cache
     if (this.cacheService.has(LEVENSHTEIN_CACHE, key)) {
@@ -141,91 +146,136 @@ export class LevenshteinService {
       return distance;
     }
 
-    const distance = this.computeDistance(a, b, threshold);
+    // threshold defaults to maxDistance
+    threshold ??= this.config.maxLevenshteinDistance;
 
-    // Cache management
-    if (this.localCache.size >= this.maxLocalCacheSize) {
-      // Remove 20% of oldest entries
-      const keysToRemove = Array.from(this.localCache.keys()).slice(
-        0,
-        Math.floor(this.maxLocalCacheSize * 0.2),
-      );
-      keysToRemove.forEach((k) => this.localCache.delete(k));
+    // Length difference optimization
+    const lengthDiff = Math.abs(a.length - b.length);
+    if (lengthDiff > threshold) {
+      this.cacheResult(key, lengthDiff);
+      return lengthDiff;
+    }
+
+    const distance = this.computeDistance(a, b, threshold);
+    this.cacheResult(key, distance);
+    return distance;
+  }
+
+  // private computeDistance(a: string, b: string, threshold: number): number {
+  //   // Matrix-free implementation with early exit
+  //   if (!a.length) return b.length;
+  //   if (!b.length) return a.length;
+
+  //   // Use diagonal optimization for similar-length strings
+  //   if (Math.abs(a.length - b.length) <= 1) {
+  //     return this.computeDiagonal(a, b, threshold);
+  //   }
+
+  //   return this.computeStandard(a, b, threshold);
+  // }
+
+  // private computeDiagonal(a: string, b: string, threshold: number): number {
+  //   const maxLen = Math.max(a.length, b.length);
+  //   let prevRow = Array.from({ length: maxLen + 1 }, (_, i) => i);
+  //   let currRow = new Array<number>(maxLen + 1);
+
+  //   for (let i = 0; i < maxLen; i++) {
+  //     currRow[0] = i + 1;
+  //     let minRowValue = currRow[0];
+
+  //     for (let j = 0; j < maxLen; j++) {
+  //       const cost = i < a.length && j < b.length && a[i] === b[j] ? 0 : 1;
+  //       currRow[j + 1] = Math.min(
+  //         currRow[j] + 1, // Deletion
+  //         prevRow[j + 1] + 1, // Insertion
+  //         prevRow[j] + cost, // Substitution
+  //       );
+  //       minRowValue = Math.min(minRowValue, currRow[j + 1]);
+  //     }
+
+  //     if (minRowValue > threshold) return minRowValue;
+
+  //     // Swap rows for next iteration
+  //     [prevRow, currRow] = [currRow, prevRow];
+  //   }
+
+  //   return prevRow[maxLen];
+  // }
+
+  // private computeStandard(a: string, b: string, threshold: number): number {
+  //   let prevRow = Array.from({ length: b.length + 1 }, (_, i) => i);
+  //   let currRow = new Array<number>(b.length + 1);
+
+  //   for (let i = 0; i < a.length; i++) {
+  //     currRow[0] = i + 1;
+  //     let minRowValue = currRow[0];
+
+  //     for (let j = 0; j < b.length; j++) {
+  //       const cost = a[i] === b[j] ? 0 : 1;
+  //       currRow[j + 1] = Math.min(
+  //         currRow[j] + 1, // Deletion
+  //         prevRow[j + 1] + 1, // Insertion
+  //         prevRow[j] + cost, // Substitution
+  //       );
+  //       minRowValue = Math.min(minRowValue, currRow[j + 1]);
+  //     }
+
+  //     if (minRowValue > threshold) return minRowValue;
+
+  //     // Swap rows for next iteration
+  //     [prevRow, currRow] = [currRow, prevRow];
+  //   }
+
+  //   return prevRow[b.length];
+  // }
+
+  private computeDistance(a: string, b: string, threshold: number): number {
+    const m = a.length,
+      n = b.length;
+    let prev = [...Array(n + 1).keys()],
+      curr = new Array<number>(n + 1);
+    // if |m - n| <= 1, inner loop checks only j∈[i-1,i+1], else full n loop
+    const smallDelta = Math.abs(m - n) <= 1;
+    for (let i = 0; i < m; i++) {
+      curr[0] = i + 1;
+      let rowMin = curr[0];
+      const start = smallDelta ? Math.max(0, i - 1) : 0;
+      const end = smallDelta ? Math.min(n, i + 1) : n;
+      for (let j = start; j < end; j++) {
+        const cost = a[i] === b[j] ? 0 : 1;
+        curr[j + 1] = Math.min(curr[j] + 1, prev[j + 1] + 1, prev[j] + cost);
+        rowMin = Math.min(rowMin, curr[j + 1]);
+      }
+      if (rowMin > threshold) return rowMin;
+
+      // Swap rows for next iteration
+      [prev, curr] = [curr, prev];
+    }
+    return prev[n];
+  }
+
+  private cacheResult(key: string, distance: number) {
+    // // Cache management
+    // if (this.localCache.size >= this.maxLocalCacheSize) {
+    //   // Remove 20% of oldest entries
+    //   const keysToRemove = Array.from(this.localCache.keys()).slice(
+    //     0,
+    //     Math.floor(this.maxLocalCacheSize * 0.2),
+    //   );
+    //   keysToRemove.forEach((k) => this.localCache.delete(k));
+    // }
+
+    if (this.localCache.size >= this.config.maxLocalCacheSize) {
+      // Remove oldest entry (Map preserves insertion order)
+      const oldestKey = this.localCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.localCache.delete(oldestKey);
+      }
     }
 
     this.localCache.set(key, distance);
     this.cacheService.set(LEVENSHTEIN_CACHE, key, distance, {
       config: { maxSize: this.config.cacheSize },
     });
-
-    return distance;
-  }
-
-  private computeDistance(a: string, b: string, threshold: number): number {
-    // Matrix-free implementation with early exit
-    if (!a.length) return b.length;
-    if (!b.length) return a.length;
-
-    // Use diagonal optimization for similar-length strings
-    if (Math.abs(a.length - b.length) <= 1) {
-      return this.computeDiagonal(a, b, threshold);
-    }
-
-    return this.computeStandard(a, b, threshold);
-  }
-
-  private computeDiagonal(a: string, b: string, threshold: number): number {
-    const maxLen = Math.max(a.length, b.length);
-    let prevRow = Array.from({ length: maxLen + 1 }, (_, i) => i);
-    let currRow = new Array<number>(maxLen + 1);
-
-    for (let i = 0; i < maxLen; i++) {
-      currRow[0] = i + 1;
-      let minRowValue = currRow[0];
-
-      for (let j = 0; j < maxLen; j++) {
-        const cost = i < a.length && j < b.length && a[i] === b[j] ? 0 : 1;
-        currRow[j + 1] = Math.min(
-          currRow[j] + 1, // Deletion
-          prevRow[j + 1] + 1, // Insertion
-          prevRow[j] + cost, // Substitution
-        );
-        minRowValue = Math.min(minRowValue, currRow[j + 1]);
-      }
-
-      if (minRowValue > threshold) return minRowValue;
-
-      // Swap rows for next iteration
-      [prevRow, currRow] = [currRow, prevRow];
-    }
-
-    return prevRow[maxLen];
-  }
-
-  private computeStandard(a: string, b: string, threshold: number): number {
-    let prevRow = Array.from({ length: b.length + 1 }, (_, i) => i);
-    let currRow = new Array<number>(b.length + 1);
-
-    for (let i = 0; i < a.length; i++) {
-      currRow[0] = i + 1;
-      let minRowValue = currRow[0];
-
-      for (let j = 0; j < b.length; j++) {
-        const cost = a[i] === b[j] ? 0 : 1;
-        currRow[j + 1] = Math.min(
-          currRow[j] + 1, // Deletion
-          prevRow[j + 1] + 1, // Insertion
-          prevRow[j] + cost, // Substitution
-        );
-        minRowValue = Math.min(minRowValue, currRow[j + 1]);
-      }
-
-      if (minRowValue > threshold) return minRowValue;
-
-      // Swap rows for next iteration
-      [prevRow, currRow] = [currRow, prevRow];
-    }
-
-    return prevRow[b.length];
   }
 }

@@ -13,8 +13,12 @@ import { TrieService } from './trie/trie.service';
 import { TrigramIndexService } from './trigram/trigram-index.service';
 import { CacheStats } from 'src/modules/cache/interfaces/caches';
 import {
+  AdvancedBenchmarkResult,
   AutoTuneOptions,
+  BenchmarkOptions,
   BenchmarkResult,
+  DetailedStats,
+  MemoryUsage,
   ScoreBreakdown,
   SuggestionConfig,
   SystemStats,
@@ -80,7 +84,7 @@ import { MinHeap } from '../helpers/min-heap.helper';
 // }
 
 @Injectable()
-export class SuggestionService implements OnModuleInit {
+export class SuggestionService1 implements OnModuleInit {
   private readonly logger = new Logger(SuggestionService.name);
   private queryStats = new Map<string, { count: number; timestamp: number }>();
   private popularQueries: string[] = [];
@@ -641,8 +645,25 @@ export class SuggestionService implements OnModuleInit {
             maxSuggestions: 5,
             trigramWeight: weights.trigram,
             levenshteinWeight: weights.levenshtein,
+            prefixWeight: 1 - weights.trigram - weights.levenshtein,
+            earlyExitThreshold: this.config.earlyExitThreshold,
+            batchProcessingSize: this.config.batchProcessingSize,
+            warmupEnabled: this.config.warmupEnabled,
+            maxWordsPerNode: this.config.maxWordsPerNode,
             cacheSize: this.config.cacheSize,
             enableBenchmarking: this.config.enableBenchmarking,
+            popularQueryTTLMs: parseInt(
+              process.env.POPULAR_QUERY_TTL_MS ?? '3600000',
+            ), // 1 hour
+            defaultQueryTTLMs: parseInt(
+              process.env.DEFAULT_QUERY_TTL_MS ?? '300000',
+            ), // 5 minutes
+            minQueryLengthForCache: parseInt(
+              process.env.MIN_QUERY_LENGTH_FOR_CACHE ?? '3',
+            ),
+            lengthPenaltyWeight: parseFloat(
+              process.env.LENGTH_PENALTY_WEIGHT ?? '0.1',
+            ), // Default 0.1
           });
         }
       }
@@ -1043,7 +1064,8 @@ export class SuggestionService implements OnModuleInit {
   }
 
   // =================== BENCHMARKING ===================
-  async benchmark(testQueries: string[]): Promise<BenchmarkResult> {
+
+  benchmark(testQueries: string[]): BenchmarkResult {
     if (!this.config.enableBenchmarking) {
       this.logger.warn('Benchmarking is disabled');
       return {
@@ -1062,8 +1084,8 @@ export class SuggestionService implements OnModuleInit {
     const errors: string[] = [];
     let cacheHits = 0;
 
-    // Clear cache for accurate cold performance measurement
-    const initialCacheStats = this.getCacheStats();
+    // Store initial cache state for hit rate calculation
+    // const initialCacheSize = this.getCacheStats().stat.size;
 
     const startTime = performance.now();
 
@@ -1075,6 +1097,7 @@ export class SuggestionService implements OnModuleInit {
         this.getSuggestions(query);
         const afterCacheSize = this.getCacheStats().stat.size;
 
+        // If cache size didn't change, it was a cache hit
         if (afterCacheSize === beforeCacheSize) {
           cacheHits++;
         }
@@ -1121,7 +1144,174 @@ export class SuggestionService implements OnModuleInit {
     return result;
   }
 
+  /**
+   * Advanced benchmark with cache warming and detailed metrics
+   */
+  async benchmarkAdvanced(
+    testQueries: string[],
+    options: BenchmarkOptions = {},
+  ): Promise<AdvancedBenchmarkResult> {
+    const {
+      warmCache = false,
+      clearCacheFirst = false,
+      iterations = 1,
+      measureMemory = false,
+    } = options;
+
+    if (!this.config.enableBenchmarking) {
+      this.logger.warn('Benchmarking is disabled');
+      throw new Error('Benchmarking is disabled in configuration');
+    }
+
+    this.logger.log(
+      `Starting advanced benchmark with ${testQueries.length} queries, ${iterations} iterations`,
+    );
+
+    // Optional cache clearing
+    if (clearCacheFirst) {
+      this.clearCaches();
+      this.logger.log('Caches cleared for cold start benchmark');
+    }
+
+    // Optional cache warming
+    if (warmCache && !clearCacheFirst) {
+      await this.warmupCache(
+        testQueries.slice(0, Math.min(100, testQueries.length)),
+      );
+      this.logger.log('Cache warmed up');
+    }
+
+    const allResults: number[] = [];
+    const iterationResults: number[][] = [];
+    const errors: string[] = [];
+    let totalCacheHits = 0;
+
+    // Memory measurement setup
+    const memoryBefore = measureMemory ? this.getMemoryUsage() : null;
+
+    const totalStartTime = performance.now();
+
+    for (let i = 0; i < iterations; i++) {
+      const iterationTimes: number[] = [];
+      const iterationStartTime = performance.now();
+
+      for (const query of testQueries) {
+        const queryStart = performance.now();
+
+        try {
+          const beforeCacheSize = this.getCacheStats().stat.size;
+          this.getSuggestions(query);
+          const afterCacheSize = this.getCacheStats().stat.size;
+
+          // If cache size didn't change, it was a cache hit
+          if (afterCacheSize === beforeCacheSize) {
+            totalCacheHits++;
+          }
+
+          const queryTime = performance.now() - queryStart;
+          iterationTimes.push(queryTime);
+          allResults.push(queryTime);
+        } catch (error) {
+          errors.push(
+            `Iteration ${i}, Query "${query}": ${error instanceof Error ? error.message : String(error)}`,
+          );
+          const queryTime = performance.now() - queryStart;
+          iterationTimes.push(queryTime);
+          allResults.push(queryTime);
+        }
+      }
+
+      iterationResults.push(iterationTimes);
+
+      const iterationTime = performance.now() - iterationStartTime;
+      this.logger.log(
+        `Iteration ${i + 1}/${iterations} completed in ${iterationTime.toFixed(2)}ms`,
+      );
+    }
+
+    const totalTime = performance.now() - totalStartTime;
+    const memoryAfter = measureMemory ? this.getMemoryUsage() : null;
+
+    // Calculate comprehensive statistics
+    allResults.sort((a, b) => a - b);
+    const stats = this.calculateDetailedStats(allResults);
+
+    const result: AdvancedBenchmarkResult = {
+      ...stats,
+      totalQueries: testQueries.length * iterations,
+      totalTime,
+      throughput: (testQueries.length * iterations) / (totalTime / 1000),
+      cacheHitRate: totalCacheHits / (testQueries.length * iterations),
+      errorRate: errors.length / (testQueries.length * iterations),
+      iterationStats: iterationResults.map((times) =>
+        this.calculateDetailedStats(times),
+      ),
+      memoryUsage:
+        memoryBefore && memoryAfter
+          ? {
+              before: memoryBefore,
+              after: memoryAfter,
+              delta: memoryAfter.used - memoryBefore.used,
+            }
+          : undefined,
+      errors: errors.slice(0, 20), // Keep only first 20 errors
+    };
+
+    this.logger.log('Advanced Benchmark Results:', {
+      avgResponseTime: result.avgResponseTime.toFixed(3),
+      throughput: result.throughput.toFixed(1),
+      cacheHitRate: (result.cacheHitRate * 100).toFixed(1) + '%',
+      errorRate: (result.errorRate * 100).toFixed(2) + '%',
+    });
+
+    if (errors.length > 0) {
+      this.logger.warn(`Benchmark completed with ${errors.length} errors`);
+    }
+
+    return result;
+  }
+
+  private calculateDetailedStats(times: number[]): DetailedStats {
+    const sorted = [...times].sort((a, b) => a - b);
+    const len = sorted.length;
+
+    return {
+      avgResponseTime: times.reduce((sum, time) => sum + time, 0) / len,
+      medianResponseTime:
+        len % 2 === 0
+          ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
+          : sorted[Math.floor(len / 2)],
+      p95ResponseTime: sorted[Math.floor(len * 0.95)],
+      p99ResponseTime: sorted[Math.floor(len * 0.99)],
+      minResponseTime: sorted[0],
+      maxResponseTime: sorted[len - 1],
+      stdDeviation: this.calculateStandardDeviation(times),
+    };
+  }
+
+  private calculateStandardDeviation(values: number[]): number {
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
+    const avgSquaredDiff =
+      squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
+    return Math.sqrt(avgSquaredDiff);
+  }
+
+  private getMemoryUsage(): MemoryUsage | null {
+    // Node.js specific - replace with appropriate implementation for your environment
+    if (typeof process !== 'undefined' && process.memoryUsage) {
+      const usage = process.memoryUsage();
+      return {
+        used: usage.heapUsed,
+        total: usage.heapTotal,
+        external: usage.external,
+      };
+    }
+    return null;
+  }
+
   // =================== AUTO-TUNING ===================
+
   async autoTune(
     testCases: Array<{ query: string; expectedResults: string[] }>,
     options: AutoTuneOptions = {},
@@ -1158,11 +1348,7 @@ export class SuggestionService implements OnModuleInit {
     );
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      const candidateConfig = this.perturbConfig(
-        currentConfig,
-        temperature,
-        iteration,
-      );
+      const candidateConfig = this.perturbConfig(currentConfig, temperature);
       const candidateScore = await this.evaluateConfig(trainingCases);
 
       // Simulated annealing acceptance criterion
@@ -1229,11 +1415,10 @@ export class SuggestionService implements OnModuleInit {
   private perturbConfig(
     config: SuggestionConfig,
     temperature: number,
-    iteration: number,
   ): SuggestionConfig {
     const newConfig = { ...config };
 
-    // Adaptive perturbation based on iteration
+    // Adaptive perturbation based on temperature
     const perturbationStrength = Math.max(0.1, temperature / 15.0);
 
     const perturbations = [
@@ -1259,7 +1444,7 @@ export class SuggestionService implements OnModuleInit {
         );
       },
 
-      // Weight adjustments (maintaining sum = 1)
+      // Weight adjustments (maintaining sum ≈ 1)
       () => {
         const totalWeight =
           config.trigramWeight + config.levenshteinWeight + config.prefixWeight;
@@ -1288,6 +1473,16 @@ export class SuggestionService implements OnModuleInit {
             20,
             200,
           ),
+        );
+      },
+
+      // Early exit threshold (temperature-dependent adjustment)
+      () => {
+        newConfig.earlyExitThreshold = this.clamp(
+          config.earlyExitThreshold +
+            (Math.random() - 0.5) * 0.1 * perturbationStrength,
+          0.7,
+          0.99,
         );
       },
     ];
@@ -1328,7 +1523,7 @@ export class SuggestionService implements OnModuleInit {
     for (let i = 0; i < testCases.length; i += batchSize) {
       const batch = testCases.slice(i, i + batchSize);
 
-      const batchPromises = batch.map(async ({ query, expectedResults }) => {
+      const batchPromises = batch.map(({ query, expectedResults }) => {
         const suggestions = this.getSuggestions(query);
         return this.calculateMetrics(suggestions, expectedResults);
       });
@@ -1522,7 +1717,7 @@ export class SuggestionService implements OnModuleInit {
     for (let i = 0; i < queries.length; i += batchSize) {
       const batch = queries.slice(i, i + batchSize);
 
-      const batchPromises = batch.map(async (query) => {
+      const batchPromises = batch.map((query) => {
         const suggestions = this.getSuggestions(query);
         return [query, suggestions] as [string, string[]];
       });

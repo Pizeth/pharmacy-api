@@ -1,5 +1,5 @@
 // =================== INTERFACES ===================
-export interface BenchmarkResult {
+interface BenchmarkResult {
   avgResponseTime: number;
   medianResponseTime: number;
   p95ResponseTime: number;
@@ -8,7 +8,45 @@ export interface BenchmarkResult {
   errorRate: number;
 }
 
-export interface AutoTuneOptions {
+interface BenchmarkOptions {
+  warmCache?: boolean;
+  clearCacheFirst?: boolean;
+  iterations?: number;
+  measureMemory?: boolean;
+}
+
+interface DetailedStats {
+  avgResponseTime: number;
+  medianResponseTime: number;
+  p95ResponseTime: number;
+  p99ResponseTime: number;
+  minResponseTime: number;
+  maxResponseTime: number;
+  stdDeviation: number;
+}
+
+interface AdvancedBenchmarkResult extends DetailedStats {
+  totalQueries: number;
+  totalTime: number;
+  throughput: number;
+  cacheHitRate: number;
+  errorRate: number;
+  iterationStats: DetailedStats[];
+  memoryUsage?: {
+    before: MemoryUsage;
+    after: MemoryUsage;
+    delta: number;
+  };
+  errors: string[];
+}
+
+interface MemoryUsage {
+  used: number;
+  total: number;
+  external: number;
+}
+
+interface AutoTuneOptions {
   maxIterations?: number;
   initialTemp?: number;
   coolingRate?: number;
@@ -16,7 +54,7 @@ export interface AutoTuneOptions {
   validationSplit?: number;
 }
 
-export interface SystemStats {
+interface SystemStats {
   isWarmedUp: boolean;
   queryStatsSize: number;
   popularQueriesCount: number;
@@ -24,7 +62,7 @@ export interface SystemStats {
   cacheStats: { stat: CacheStats<unknown>; maxSize: number };
 }
 
-export interface ScoreBreakdown {
+interface ScoreBreakdown {
   prefixMatch: boolean;
   trigramSimilarity: number;
   levenshteinSimilarity: number;
@@ -53,13 +91,19 @@ export interface SuggestionConfig {
   // Strategy weights (0-1, should sum to 1)
   trigramWeight: number;
   levenshteinWeight: number;
-  prefixWeight: number; // New: bonus for prefix matches
+  lengthPenaltyWeight: number; // Added for explicit weighting
+  prefixWeight: number; // Bonus for prefix matches
 
   // Cache configuration
   cacheSize: number;
+  maxLocalCacheSize: 1000; // Default local cache size
 
   // Benchmarking flag
   enableBenchmarking: boolean;
+
+  popularQueryTTLMs: number; // Added for clarity
+  defaultQueryTTLMs: number; // Added for clarity
+  minQueryLengthForCache: number; // Added for clarity
 
   // Performance options
   earlyExitThreshold: number;

@@ -1,7 +1,8 @@
 export class TrieNode {
   children: Map<string, TrieNode> = new Map();
   isEndOfWord: boolean = false;
-  wordCount = 0; // Track frequency for ranking
+  wordCount: number = 0; // Track frequency for ranking
+  frequency: number = 0; // Store frequency of the word
   /**
    * Once we collect all words under this node,
    * store them here to reuse on future calls.
