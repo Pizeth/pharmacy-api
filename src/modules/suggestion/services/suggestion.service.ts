@@ -652,18 +652,14 @@ export class SuggestionService1 implements OnModuleInit {
             maxWordsPerNode: this.config.maxWordsPerNode,
             cacheSize: this.config.cacheSize,
             enableBenchmarking: this.config.enableBenchmarking,
-            popularQueryTTLMs: parseInt(
-              process.env.POPULAR_QUERY_TTL_MS ?? '3600000',
-            ), // 1 hour
-            defaultQueryTTLMs: parseInt(
-              process.env.DEFAULT_QUERY_TTL_MS ?? '300000',
-            ), // 5 minutes
-            minQueryLengthForCache: parseInt(
-              process.env.MIN_QUERY_LENGTH_FOR_CACHE ?? '3',
-            ),
-            lengthPenaltyWeight: parseFloat(
-              process.env.LENGTH_PENALTY_WEIGHT ?? '0.1',
-            ), // Default 0.1
+            lengthPenaltyWeight: this.config.lengthPenaltyWeight, // 0.05
+            popularQueryTTLMs: this.config.popularQueryTTLMs, // 2 hour
+            frequentQueryTTLMs: this.config.frequentQueryTTLMs, // 30 minutes
+            defaultQueryTTLMs: this.config.defaultQueryTTLMs, // 5 minutes
+            minQueryLength: this.config.minQueryLength, // 3 chars
+            maxLocalCacheSize: this.config.maxLocalCacheSize, // 500
+            wampUpSize: this.config.wampUpSize,
+            coldStartBenchmark: this.config.coldStartBenchmark, // false
           });
         }
       }
@@ -727,17 +723,17 @@ export class SuggestionService implements OnModuleInit {
     this.logger.log('SuggestionService initialized');
 
     // Update popular queries every 5 minutes
-    setInterval(() => this.updatePopularQueries(), 300_000);
-
+    setInterval(() => this.updatePopularQueries(), 5 * 60_000);
     // Cleanup old query stats every hour
-    setInterval(() => this.cleanupQueryStats(), 3600_000);
+    setInterval(() => this.cleanupQueryStats(), 60 * 60_000);
   }
 
   async initialize(words: string[]): Promise<void> {
     const uniqueWords = [...new Set(words.filter((w) => w && w.trim()))];
     this.logger.log(`Initializing with ${uniqueWords.length} unique words`);
 
-    const start = performance.now();
+    // const start = performance.now();
+    const start = process.hrtime.bigint();
 
     // Parallel initialization
     await Promise.all([
@@ -746,8 +742,9 @@ export class SuggestionService implements OnModuleInit {
       Promise.resolve(this.trieService.buildTrie(uniqueWords)),
     ]);
 
-    const duration = performance.now() - start;
-    this.logger.log(`Indices built in ${duration.toFixed(2)}ms`);
+    // const duration = performance.now() - start;
+    const duration = Number(process.hrtime.bigint() - start);
+    this.logger.log(`Indices built in ${duration.toFixed(2)}ns`);
 
     // Conditional warmup
     if (this.config.warmupEnabled && uniqueWords.length <= 10000) {
@@ -758,7 +755,7 @@ export class SuggestionService implements OnModuleInit {
 
   private generateWarmupQueries(words: string[]): string[] {
     const queries = new Set<string>();
-    const sampleSize = Math.min(500, words.length);
+    const sampleSize = Math.min(this.config.wampUpSize, words.length);
 
     // Random sampling
     for (let i = 0; i < sampleSize; i++) {
@@ -777,14 +774,13 @@ export class SuggestionService implements OnModuleInit {
   }
 
   private async warmupCache(queries: string[]): Promise<void> {
+    this.logger.log(`Warming up cache with ${queries.length} queries...`);
     const start = performance.now();
     const batchSize = this.config.batchProcessingSize;
 
     for (let i = 0; i < queries.length; i += batchSize) {
       const batch = queries.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map((query) => Promise.resolve(this.getSuggestions(query))),
-      );
+      await Promise.all(batch.map((query) => this.getSuggestions(query)));
 
       // Yield control periodically
       if (i % (batchSize * 5) === 0) {
@@ -812,15 +808,18 @@ export class SuggestionService implements OnModuleInit {
     // Update query statistics
     this.updateQueryStats(normalizedQuery, startTime);
 
+    // Generate a robust cache key. For production.
+    const cacheKey = `${normalizedQuery}_${this.hashConfig(config)}`;
+
     // Fast path for very short queries
-    if (normalizedQuery.length < 2) {
-      return this.trieService.getWordsWithPrefix(
+    if (normalizedQuery.length < config.minQueryLength) {
+      const result = this.trieService.getWordsWithPrefix(
         normalizedQuery,
         config.maxSuggestions,
       );
+      this.cacheSuggestions(cacheKey, result, config);
+      return result;
     }
-
-    const cacheKey = `${normalizedQuery}_${this.hashConfig(config)}`;
 
     // Check cache
     if (this.cache.has(SUGGESTION_CACHE, cacheKey)) {
@@ -829,16 +828,8 @@ export class SuggestionService implements OnModuleInit {
 
     const suggestions = this.computeSuggestions(normalizedQuery, config);
 
-    // Adaptive caching calculate TTL based on query popularity
-    const ttl = this.calculateCacheTTL(normalizedQuery);
-    this.cache.set(SUGGESTION_CACHE, cacheKey, suggestions, {
-      config: {
-        maxSize: config.cacheSize,
-        defaultTTL: ttl,
-        sizeCalculation: (items: string[]) =>
-          items.reduce((sum, item) => sum + item.length * 2 + 16, 64), // Overhead estimation
-      },
-    });
+    // Cache suggestions
+    this.cacheSuggestions(cacheKey, suggestions, config);
 
     return suggestions;
   }
@@ -893,6 +884,7 @@ export class SuggestionService implements OnModuleInit {
       trigramCandidates.forEach((word) => candidates.add(word));
     }
 
+    // Score and rank all collected candidates
     return this.rankCandidates(query, Array.from(candidates), config);
   }
 
@@ -946,6 +938,7 @@ export class SuggestionService implements OnModuleInit {
     const levDistance = this.levenshteinService.calculateDistance(
       query,
       candidate,
+      config.maxLevenshteinDistance,
     );
     const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
 
@@ -965,8 +958,8 @@ export class SuggestionService implements OnModuleInit {
 
   private getAdaptiveThreshold(query: string): number {
     // Shorter queries need stricter thresholds
-    if (query.length <= 3) return 1;
-    if (query.length <= 6) return 2;
+    if (query.length <= 3) return 1; // Allow 1 typo for very short words
+    if (query.length <= 5) return 2; // Allow 2 typos for medium words
 
     // Dynamic threshold based on query characteristics
     const uniqueChars = new Set(query).size;
@@ -1010,7 +1003,7 @@ export class SuggestionService implements OnModuleInit {
         score: stats.count * Math.exp(-(now - stats.timestamp) / oneHour),
       }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, 200)
+      .slice(0, 250)
       .map((item) => item.query);
 
     this.logger.debug(`Updated ${this.popularQueries.length} popular queries`);
@@ -1018,7 +1011,7 @@ export class SuggestionService implements OnModuleInit {
 
   private cleanupQueryStats(): void {
     const now = Date.now();
-    const maxAge = 24 * 3600_000; // 24 hours
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
     let cleaned = 0;
 
     for (const [query, stats] of this.queryStats.entries()) {
@@ -1033,29 +1026,38 @@ export class SuggestionService implements OnModuleInit {
     }
   }
 
+  private cacheSuggestions(
+    cacheKey: string,
+    suggestions: string[],
+    config: SuggestionConfig,
+  ): void {
+    // Adaptive caching calculate TTL based on query popularity
+    const ttl = this.calculateCacheTTL(cacheKey.split('_')[0]);
+    this.cache.set(SUGGESTION_CACHE, cacheKey, suggestions, {
+      config: {
+        maxSize: config.cacheSize,
+        defaultTTL: ttl,
+        sizeCalculation: (items: string[]) =>
+          items.reduce((sum, item) => sum + item.length * 2 + 16, 64), // Overhead estimation
+      },
+    });
+  }
+
   private calculateCacheTTL(query: string): number {
     // Popular queries stay longer in cache
     const isPopular = this.popularQueries.includes(query);
     const baseStats = this.queryStats.get(query);
 
-    // if (isPopular || (baseStats && baseStats.count > 5)) {
-    //   return 7200_000; // 2 hours for popular queries
-    // } else if (baseStats && baseStats.count > 2) {
-    //   return 1800_000; // 30 minutes for moderately used
-    // } else {
-    //   return 300_000; // 5 minutes for new queries
-    // }
-
     return isPopular || (baseStats && baseStats.count > 5)
-      ? 7200_000 // 2 hours for popular queries
+      ? this.config.popularQueryTTLMs // 2 hours for popular queries
       : baseStats && baseStats.count > 2
-        ? 1800_000 // 30 minutes for moderately used
-        : 300_000; // 5 minutes for new queries
+        ? this.config.frequentQueryTTLMs // 30 minutes for moderately used
+        : this.config.defaultQueryTTLMs; // 5 minutes for new queries
   }
 
   private hashConfig(config: SuggestionConfig): string {
     // Create a compact hash of relevant config values
-    const key = `${config.maxSuggestions}_${config.minTrigramSimilarity}_${config.maxLevenshteinDistance}_${config.trigramWeight}_${config.levenshteinWeight}`;
+    const key = `${config.maxSuggestions}_${config.minTrigramSimilarity}_${config.maxTrigramCandidates}_${config.maxLevenshteinDistance}_${config.trigramWeight}_${config.levenshteinWeight}_${config.lengthPenaltyWeight}`;
     let hash = 0;
     for (let i = 0; i < key.length; i++) {
       hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
@@ -1078,19 +1080,25 @@ export class SuggestionService implements OnModuleInit {
       };
     }
 
+    if (this.config.coldStartBenchmark) {
+      // Optionally, clear caches to ensure fresh runs between benchmarks
+      this.cache.clear(SUGGESTION_CACHE);
+      this.cache.clear(LEVENSHTEIN_CACHE);
+      this.queryStats.clear(); // Clear query stats for consistent runs
+    }
+
     this.logger.log(`Starting benchmark with ${testQueries.length} queries`);
 
-    const results: number[] = [];
+    const results: bigint[] = [];
     const errors: string[] = [];
     let cacheHits = 0;
 
-    // Store initial cache state for hit rate calculation
-    // const initialCacheSize = this.getCacheStats().stat.size;
-
-    const startTime = performance.now();
+    // const startTime = performance.now();
+    const startTime = process.hrtime.bigint();
 
     for (const query of testQueries) {
-      const queryStart = performance.now();
+      // const queryStart = performance.now();
+      const queryStart = process.hrtime.bigint();
 
       try {
         const beforeCacheSize = this.getCacheStats().stat.size;
@@ -1102,23 +1110,26 @@ export class SuggestionService implements OnModuleInit {
           cacheHits++;
         }
 
-        results.push(performance.now() - queryStart);
+        // results.push(performance.now() - queryStart);
+        results.push(process.hrtime.bigint() - queryStart);
       } catch (error) {
         errors.push(
           `${query}: ${error instanceof Error ? error.message : String(error)}`,
         );
-        results.push(performance.now() - queryStart);
+        // results.push(performance.now() - queryStart);
+        results.push(process.hrtime.bigint() - queryStart);
       }
     }
 
-    const totalTime = performance.now() - startTime;
+    // const totalTime = performance.now() - startTime;
+    const totalTime = Number(process.hrtime.bigint() - startTime);
 
     // Calculate statistics
-    results.sort((a, b) => a - b);
+    results.sort((a, b) => Number(a - b));
     const avgResponseTime =
-      results.reduce((sum, time) => sum + time, 0) / results.length;
-    const medianResponseTime = results[Math.floor(results.length / 2)];
-    const p95ResponseTime = results[Math.floor(results.length * 0.95)];
+      results.reduce((sum, time) => sum + Number(time), 0) / results.length;
+    const medianResponseTime = Number(results[Math.floor(results.length / 2)]);
+    const p95ResponseTime = Number(results[Math.floor(results.length * 0.95)]);
     const throughput = testQueries.length / (totalTime / 1000); // queries per second
     const cacheHitRate = cacheHits / testQueries.length;
     const errorRate = errors.length / testQueries.length;
@@ -1189,14 +1200,17 @@ export class SuggestionService implements OnModuleInit {
     // Memory measurement setup
     const memoryBefore = measureMemory ? this.getMemoryUsage() : null;
 
-    const totalStartTime = performance.now();
+    // const totalStartTime = performance.now();
+    const totalStartTime = process.hrtime.bigint();
 
     for (let i = 0; i < iterations; i++) {
       const iterationTimes: number[] = [];
-      const iterationStartTime = performance.now();
+      // const iterationStartTime = performance.now();
+      const iterationStartTime = process.hrtime.bigint();
 
       for (const query of testQueries) {
-        const queryStart = performance.now();
+        // const queryStart = performance.now();
+        const queryStart = process.hrtime.bigint();
 
         try {
           const beforeCacheSize = this.getCacheStats().stat.size;
@@ -1208,14 +1222,16 @@ export class SuggestionService implements OnModuleInit {
             totalCacheHits++;
           }
 
-          const queryTime = performance.now() - queryStart;
+          // const queryTime = performance.now() - queryStart;
+          const queryTime = Number(process.hrtime.bigint() - queryStart);
           iterationTimes.push(queryTime);
           allResults.push(queryTime);
         } catch (error) {
           errors.push(
             `Iteration ${i}, Query "${query}": ${error instanceof Error ? error.message : String(error)}`,
           );
-          const queryTime = performance.now() - queryStart;
+          // const queryTime = performance.now() - queryStart;
+          const queryTime = Number(process.hrtime.bigint() - queryStart);
           iterationTimes.push(queryTime);
           allResults.push(queryTime);
         }
@@ -1223,13 +1239,17 @@ export class SuggestionService implements OnModuleInit {
 
       iterationResults.push(iterationTimes);
 
-      const iterationTime = performance.now() - iterationStartTime;
+      // const iterationTime = performance.now() - iterationStartTime;
+      const iterationTime = Number(
+        process.hrtime.bigint() - iterationStartTime,
+      );
       this.logger.log(
         `Iteration ${i + 1}/${iterations} completed in ${iterationTime.toFixed(2)}ms`,
       );
     }
 
-    const totalTime = performance.now() - totalStartTime;
+    // const totalTime = performance.now() - totalStartTime;
+    const totalTime = Number(process.hrtime.bigint() - totalStartTime);
     const memoryAfter = measureMemory ? this.getMemoryUsage() : null;
 
     // Calculate comprehensive statistics

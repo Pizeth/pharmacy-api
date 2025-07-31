@@ -76,6 +76,13 @@ export interface Trigram {
   hash: number;
 }
 
+// A unified type for candidates from any source
+interface Candidate {
+  word: string;
+  levenshteinDistance?: number;
+  trigramScore?: number;
+}
+
 // =================== CONFIG ===================
 export interface SuggestionConfig {
   // Trigram filtering
@@ -96,19 +103,22 @@ export interface SuggestionConfig {
 
   // Cache configuration
   cacheSize: number;
-  maxLocalCacheSize: 1000; // Default local cache size
+  maxLocalCacheSize: number; // Default local cache size
 
   // Benchmarking flag
   enableBenchmarking: boolean;
+  coldStartBenchmark: boolean; // Flag for cold start benchmarking
 
   popularQueryTTLMs: number; // Added for clarity
+  frequentQueryTTLMs: number; // Added for clarity
   defaultQueryTTLMs: number; // Added for clarity
-  minQueryLengthForCache: number; // Added for clarity
+  minQueryLength: number; // Added for clarity
 
   // Performance options
   earlyExitThreshold: number;
   batchProcessingSize: number;
   warmupEnabled: boolean;
+  wampUpSize: number; // Size of the warm-up batch
 
   // Eviction policy
   maxWordsPerNode: number; // New: max words per TrieNode
