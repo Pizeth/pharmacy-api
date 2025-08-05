@@ -178,13 +178,13 @@ export class BKTreeService {
 
       if (distance === 0) return;
 
-      if (!current.children.has(distance)) {
-        current.children.set(distance, new BKNode(word));
+      if (!current.getChild(distance)) {
+        current.addChild(distance, new BKNode(word));
         this.nodeCount++;
         return;
       }
 
-      current = current.children.get(distance)!;
+      current = current.getChild(distance)!;
     }
   }
 

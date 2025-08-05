@@ -51,7 +51,7 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     prefixWeight: parseFloat(process.env.PREFIX_WEIGHT ?? '0.1'),
     cacheSize: parseInt(process.env.SUGGESTION_CACHE_SIZE ?? '2000'),
     enableBenchmarking: process.env.ENABLE_BENCHMARKING === 'true',
-    coldStartBenchmark: process.env.COLD_START_BENCHMARK === 'fasle',
+    coldStartBenchmark: process.env.COLD_START_BENCHMARK === 'true',
     earlyExitThreshold: parseFloat(process.env.EARLY_EXIT_THRESHOLD ?? '0.95'),
     batchProcessingSize: parseInt(process.env.BATCH_PROCESSING_SIZE ?? '100'),
     warmupEnabled: process.env.WARMUP_ENABLED !== 'false',
@@ -65,14 +65,21 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     ),
     defaultQueryTTLMs: parseInt(process.env.DEFAULT_QUERY_TTL_MS ?? '300_000'),
     minQueryLength: parseInt(process.env.MIN_QUERY_LENGTH ?? '3'),
-    wampUpSize: parseInt(process.env.WAMP_UP_SIZE ?? '500'),
+    warmpUpSize: parseInt(process.env.WAMP_UP_SIZE ?? '500'),
     maxWordsPerNode: parseInt(process.env.MAX_WORDS_PER_NODE ?? '50'),
   };
 
-  // Validate weights
-  if (cfg.trigramWeight + cfg.levenshteinWeight !== 1) {
+  // Validation: weights should sum to 1 including all weights
+  const totalWeight =
+    cfg.trigramWeight +
+    cfg.levenshteinWeight +
+    cfg.prefixWeight +
+    cfg.lengthPenaltyWeight;
+  if (Math.abs(totalWeight - 1.0) > 0.001) {
     throw new Error(
-      '[suggestion] trigramWeight + levenshteinWeight must equal 1',
+      `[suggestion] All weights must sum to 1.0, got ${totalWeight.toFixed(3)}. ` +
+        `Current: trigram=${cfg.trigramWeight}, levenshtein=${cfg.levenshteinWeight}, ` +
+        `prefix=${cfg.prefixWeight}, lengthPenalty=${cfg.lengthPenaltyWeight}`,
     );
   }
 

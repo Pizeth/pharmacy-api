@@ -207,13 +207,17 @@ export class TrieService {
       stack.sort((a, b) => b[2] - a[2]);
 
       const [current, word] = stack.pop()!;
-
       if (current.isEndOfWord) {
         yield word;
         count++;
       }
 
-      for (const [char, child] of current.children) {
+      // Process children in reverse alphabetical order
+      const sortedChildren = [...current.children.entries()].sort((a, b) =>
+        b[0].localeCompare(a[0]),
+      );
+
+      for (const [char, child] of sortedChildren /*current.children*/) {
         stack.push([child, word + char, child.frequency]);
       }
     }

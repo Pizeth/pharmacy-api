@@ -70,6 +70,13 @@ interface ScoreBreakdown {
   editDistance: number;
 }
 
+export interface PerformanceMetrics {
+  totalQueries: number;
+  totalTime: bigint;
+  cacheHits: number;
+  errors: number;
+}
+
 export interface Trigram {
   trigrams: Set<string>;
   length: number;
@@ -118,7 +125,7 @@ export interface SuggestionConfig {
   earlyExitThreshold: number;
   batchProcessingSize: number;
   warmupEnabled: boolean;
-  wampUpSize: number; // Size of the warm-up batch
+  warmpUpSize: number; // Size of the warm-up batch
 
   // Eviction policy
   maxWordsPerNode: number; // New: max words per TrieNode

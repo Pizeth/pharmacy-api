@@ -171,6 +171,21 @@ export class MinHeap<T> {
     return this._size;
   }
 
+  // Bulk insert with heapify (O(n) vs O(n log n))
+  pushAll(items: T[]): void {
+    if (items.length === 0) return;
+
+    // Append all items
+    for (const item of items) {
+      this.data[this._size++] = item;
+    }
+
+    // Heapify from bottom up (more efficient for bulk)
+    for (let i = Math.floor((this._size - 2) / 2); i >= 0; i--) {
+      this.sinkDown(i);
+    }
+  }
+
   push(item: T): void {
     this.data[this._size] = item;
     this.bubbleUp(this._size++);
@@ -193,7 +208,8 @@ export class MinHeap<T> {
 
   clear(): void {
     this._size = 0;
-    this.data.length = 0; // free internal buffer
+    // Don't resize array, just reset size for better memory reuse
+    // this.data.length = 0; // free internal buffer
   }
 
   toSortedArray(): T[] {
