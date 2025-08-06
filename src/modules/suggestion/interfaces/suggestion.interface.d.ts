@@ -81,6 +81,11 @@ export interface Trigram {
   trigrams: Set<string>;
   length: number;
   hash: number;
+  positionMap: Map<string, number>;
+}
+
+interface TrigramData extends Omit<Trigram, 'hash'> {
+  positionMap: Map<string, number>;
 }
 
 // A unified type for candidates from any source

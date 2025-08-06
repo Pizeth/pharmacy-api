@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MinHeap } from '../../helpers/min-heap.helper';
-import { Trigram } from '../../interfaces/suggestion.interface';
+import { Trigram, TrigramData } from '../../interfaces/suggestion.interface';
 
 // @Injectable()
 // export class TrigramIndexService {
@@ -210,13 +210,40 @@ export class TrigramIndexService {
     }
   }
 
+  // private buildTrigram(word: string): Trigram {
+  //   const trigrams = this.getTrigrams(word);
+  //   const hash = this.hashTrigrams(trigrams);
+  //   return { trigrams, length: word.length, hash };
+  // }
+
   private buildTrigram(word: string): Trigram {
+    // 1. Get or build the raw set of padded trigrams
     const trigrams = this.getTrigrams(word);
+
+    // 2. Build a positionMap: trigram → first index in `word`
+    const positionMap = new Map<string, number>();
+    Array.from(trigrams).forEach((tri) => {
+      const idx = word.indexOf(tri.trim()); // trim off padding
+      if (idx !== -1 && !positionMap.has(tri)) {
+        positionMap.set(tri, idx);
+      }
+    });
+
+    // 3. Compute the same hash you use for deduplication
     const hash = this.hashTrigrams(trigrams);
-    return { trigrams, length: word.length, hash };
+
+    return {
+      trigrams,
+      length: word.length,
+      hash,
+      positionMap,
+    };
   }
 
-  private getTrigrams(word: string): Set<string> {
+  private getTrigrams(
+    word: string,
+    minLengthForPadding: number = 4,
+  ): Set<string> {
     const key = word;
     if (this.trigramPool.has(key)) {
       return this.trigramPool.get(key)!;
@@ -225,7 +252,9 @@ export class TrigramIndexService {
     const trigrams = new Set<string>();
 
     // Add padding for better boundary matching
-    const paddedWord = `  ${word}  `;
+    const paddedWord =
+      word.length >= minLengthForPadding ? `  ${word}  ` : word;
+
     for (let i = 0; i < paddedWord.length - 2; i++) {
       trigrams.add(paddedWord.slice(i, i + 3));
     }
@@ -294,40 +323,83 @@ export class TrigramIndexService {
       .map((item) => item.word);
   }
 
+  // private calculateAdvancedScore(
+  //   input: string,
+  //   inputTrigrams: Set<string>,
+  //   // word: string,
+  //   wordData: { trigrams: Set<string>; length: number },
+  // ): number {
+  //   const { trigrams, length } = wordData;
+
+  //   // Jaccard similarity with position weighting
+  //   let matches = 0;
+  //   let positionBonus = 0;
+
+  //   const inputArray = Array.from(inputTrigrams);
+  //   const wordArray = Array.from(trigrams);
+
+  //   for (let i = 0; i < inputArray.length; i++) {
+  //     if (trigrams.has(inputArray[i])) {
+  //       matches++;
+  //       // Bonus for trigrams in similar positions
+  //       const wordPos = wordArray.indexOf(inputArray[i]);
+  //       if (wordPos !== -1) {
+  //         positionBonus +=
+  //           1 -
+  //           Math.abs(i - wordPos) /
+  //             Math.max(inputArray.length, wordArray.length);
+  //       }
+  //     }
+  //   }
+
+  //   const jaccard = matches / (inputTrigrams.size + trigrams.size - matches);
+  //   const lengthSimilarity =
+  //     1 - Math.abs(length - input.length) / Math.max(length, input.length);
+  //   const positionWeight = positionBonus / matches || 0;
+
+  //   return jaccard * 0.7 + lengthSimilarity * 0.2 + positionWeight * 0.1;
+  // }
+
   private calculateAdvancedScore(
     input: string,
     inputTrigrams: Set<string>,
-    // word: string,
-    wordData: { trigrams: Set<string>; length: number },
+    wordData: TrigramData,
   ): number {
-    const { trigrams, length } = wordData;
+    const { trigrams, length, positionMap } = wordData;
+    const inputSize = inputTrigrams.size;
+    const wordSize = trigrams.size;
 
-    // Jaccard similarity with position weighting
+    // Position-aware matching with SIMD-like optimization
     let matches = 0;
     let positionBonus = 0;
 
-    const inputArray = Array.from(inputTrigrams);
-    const wordArray = Array.from(trigrams);
+    // Only iterate over input trigrams ⇒ O(k)
+    Array.from(inputTrigrams).forEach((trigram, i) => {
+      if (!trigrams.has(trigram)) return;
+      matches++;
 
-    for (let i = 0; i < inputArray.length; i++) {
-      if (trigrams.has(inputArray[i])) {
-        matches++;
-        // Bonus for trigrams in similar positions
-        const wordPos = wordArray.indexOf(inputArray[i]);
-        if (wordPos !== -1) {
-          positionBonus +=
-            1 -
-            Math.abs(i - wordPos) /
-              Math.max(inputArray.length, wordArray.length);
-        }
+      // Bonus for trigrams in similar positions
+      const wordPos = positionMap.get(trigram);
+      if (wordPos !== undefined) {
+        const maxLen = Math.max(inputSize, wordSize);
+        positionBonus += 1 - Math.abs(i - wordPos) / maxLen;
       }
-    }
+    });
 
-    const jaccard = matches / (inputTrigrams.size + trigrams.size - matches);
-    const lengthSimilarity =
-      1 - Math.abs(length - input.length) / Math.max(length, input.length);
-    const positionWeight = positionBonus / matches || 0;
+    if (matches === 0) return 0;
 
+    // Fast Jaccard similarity
+    const unionSize = inputSize + wordSize - matches;
+    const jaccard = matches / unionSize;
+
+    // Length similarity with sigmoid scaling
+    const diff = Math.abs(length - input.length);
+    const lengthSimilarity = 1 / (1 + Math.exp(0.5 * (diff - 3)));
+
+    // Position weight
+    const positionWeight = positionBonus / matches;
+
+    // Weighted sum
     return jaccard * 0.7 + lengthSimilarity * 0.2 + positionWeight * 0.1;
   }
 

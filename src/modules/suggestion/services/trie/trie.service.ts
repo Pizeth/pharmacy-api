@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TrieNode } from '../../nodes/node.class';
+import { MaxHeap } from '../../helpers/max-heap.helper';
 
 // @Injectable()
 // export class TrieService {
@@ -219,6 +220,47 @@ export class TrieService {
 
       for (const [char, child] of sortedChildren /*current.children*/) {
         stack.push([child, word + char, child.frequency]);
+      }
+    }
+  }
+
+  async *streamWordsWithPrefixAsync(
+    prefix: string,
+    maxWords = Infinity,
+    timeoutMs = 10,
+  ): AsyncGenerator<string> {
+    const startTime = Date.now();
+    let node = this.root;
+    let count = 0;
+
+    // Navigate to prefix node
+    for (const char of prefix) {
+      if (!node.children.has(char)) return;
+      node = node.children.get(char)!;
+    }
+
+    // Use frequency-based priority queue
+    const queue = new MaxHeap<[TrieNode, string, number]>(
+      (a, b) => a[2] - b[2],
+    );
+    queue.push([node, prefix, node.frequency || 0]);
+
+    while (!queue.isEmpty() && count < maxWords) {
+      // Yield to event loop periodically
+      if (Date.now() - startTime > timeoutMs) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+
+      const [current, word] = queue.pop()!;
+
+      if (current.isEndOfWord) {
+        yield word;
+        count++;
+      }
+
+      // Add children with their frequencies
+      for (const [char, child] of current.children) {
+        queue.push([child, word + char, child.frequency || 0]);
       }
     }
   }

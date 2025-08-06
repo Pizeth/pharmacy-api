@@ -26,6 +26,7 @@ import {
 } from '../interfaces/suggestion.interface';
 import { MinHeap } from '../helpers/min-heap.helper';
 import farmhash from 'farmhash';
+import * as CBOR from 'cbor';
 
 // export class SuggestionService {
 //   private trie = new TrieEngine();
@@ -716,6 +717,13 @@ export class SuggestionService implements OnModuleInit {
     errors: 0,
   };
 
+  private queryLengthStats = {
+    sum: 0,
+    count: 0,
+    squares: 0,
+    lengths: new Map<number, number>(),
+  };
+
   constructor(
     @Inject(suggestionConfig.KEY)
     private readonly config: ConfigType<typeof suggestionConfig>,
@@ -868,7 +876,8 @@ export class SuggestionService implements OnModuleInit {
       // ) {
       //   return []; // Fail-fast during error storms
       // }
-      if (this.shouldFailFast(startTime)) return [];
+      if (this.shouldFailFast(startTime))
+        return this.getFallbackSuggestions(query);
 
       const config = { ...this.config, ...configOverride };
       // const normalizedQuery = query.toLowerCase().trim();
@@ -1165,19 +1174,32 @@ export class SuggestionService implements OnModuleInit {
     // if (query.length === 0) return 0;
     // if (query.length <= 3) return 1; // "cat" → 1 typo max
     // if (query.length <= 5) return 2; // "hello" → 2 typos max
-
-    if (query.length === 0) return 0;
-    if (query.length === 1) return 0; // No typos for single chars
-    if (query.length === 2) return 1; // Max 1 typo for 2 chars
-    if (query.length <= 4) return 1; // Conservative for short words
-    if (query.length <= 7) return 2; // Moderate for medium words
+    const length = query.length;
+    if (length === 0) return 0;
+    if (length === 1) return 0; // No typos for single chars
+    if (length === 2) return 1; // Max 1 typo for 2 chars
+    if (length <= 4) return 1; // Conservative for short words
+    if (length <= 7) return 2; // Moderate for medium words
 
     // 2. Base threshold: 30% of length (industry standard for fuzzy search)
     //    Use 0.3 instead of 0.35 for better long-query behavior
     //    Example: 20 chars → 6 → capped to max (usually 3-5 typos, Elasticsearch defaults to ~30%)
+    // const baseThreshold = Math.min(
+    //   this.config.maxLevenshteinDistance,
+    //   Math.floor(query.length * 0.3), // 0.3 is safer than 0.35 for long queries
+    // );
+
+    // Calculate length statistics
+    const mean = this.queryLengthStats.sum / this.queryLengthStats.count;
+    const variance =
+      this.queryLengthStats.squares / this.queryLengthStats.count - mean * mean;
+    const stdDev = Math.sqrt(variance);
+    const zScore = (length - mean) / stdDev;
+
+    // Dynamic threshold based on statistical distribution
     const baseThreshold = Math.min(
       this.config.maxLevenshteinDistance,
-      Math.floor(query.length * 0.3), // 0.3 is safer than 0.35 for long queries
+      Math.max(1, Math.floor(0.3 * length - 0.5 * zScore)),
     );
 
     // 3. Diversity adjustment: Unique chars / length (simple & effective)
@@ -1270,6 +1292,14 @@ export class SuggestionService implements OnModuleInit {
   private updateQueryStats(query: string, startTime: bigint): void {
     // const responseTime = performance.now() - startTime;
     const responseTime = Number(process.hrtime.bigint() - startTime);
+    const length = query.length;
+    this.queryLengthStats.sum += length;
+    this.queryLengthStats.count++;
+    this.queryLengthStats.squares += length * length;
+    this.queryLengthStats.lengths.set(
+      length,
+      (this.queryLengthStats.lengths.get(length) || 0) + 1,
+    );
     const existing = this.queryStats.get(query);
 
     if (existing) {
@@ -1341,8 +1371,8 @@ export class SuggestionService implements OnModuleInit {
       config: {
         maxSize: config.cacheSize,
         defaultTTL: ttl,
-        sizeCalculation: (buf: Buffer) =>
-          buf.reduce((sum, item) => sum + item * 2 + 16, 64), // Overhead estimation
+
+        sizeCalculation: (buf: Buffer) => buf.length + 64, // Buffer length + overhead
       },
     });
   }
@@ -1657,10 +1687,13 @@ export class SuggestionService implements OnModuleInit {
     const validationCases = shuffled.slice(splitIndex);
 
     let currentConfig = { ...this.config };
-    let currentScore = await this.evaluateConfig(trainingCases);
+    let currentScore = await this.evaluateConfig(trainingCases, currentConfig);
     let bestConfig = { ...currentConfig };
     let bestScore = currentScore;
-    let bestValidationScore = await this.evaluateConfig(validationCases);
+    let bestValidationScore = await this.evaluateConfig(
+      validationCases,
+      bestConfig,
+    );
 
     let temperature = initialTemp;
     let noImprovementCount = 0;
@@ -1675,7 +1708,10 @@ export class SuggestionService implements OnModuleInit {
 
     for (let i = 0; i < maxIterations; i++) {
       const candidateConfig = this.perturbConfig(currentConfig, temperature);
-      const candidateScore = await this.evaluateConfig(trainingCases);
+      const candidateScore = await this.evaluateConfig(
+        trainingCases,
+        candidateConfig,
+      );
 
       // Simulated annealing acceptance criterion
       const accept =
@@ -1687,7 +1723,10 @@ export class SuggestionService implements OnModuleInit {
         currentScore = candidateScore;
 
         // Check validation score for best config
-        const validationScore = await this.evaluateConfig(validationCases);
+        const validationScore = await this.evaluateConfig(
+          validationCases,
+          currentConfig,
+        );
 
         if (validationScore > bestValidationScore) {
           bestConfig = { ...candidateConfig };
@@ -1838,32 +1877,90 @@ export class SuggestionService implements OnModuleInit {
     return result;
   }
 
+  // private async evaluateConfig(
+  //   testCases: Array<{ query: string; expectedResults: string[] }>,
+  // ): Promise<number> {
+  //   this.clearCaches();
+
+  //   let totalScore = 0;
+  //   const batchSize = 10;
+
+  //   for (let i = 0; i < testCases.length; i += batchSize) {
+  //     const batch = testCases.slice(i, i + batchSize);
+
+  //     const batchPromises = batch.map(({ query, expectedResults }) => {
+  //       const suggestions = this.getSuggestions(query);
+  //       return this.calculateMetrics(suggestions, expectedResults);
+  //     });
+
+  //     const batchScores = await Promise.all(batchPromises);
+  //     totalScore += batchScores.reduce((sum, score) => sum + score, 0);
+
+  //     // Yield control periodically
+  //     if (i % (batchSize * 5) === 0) {
+  //       await new Promise((resolve) => setImmediate(resolve));
+  //     }
+  //   }
+
+  //   return totalScore / testCases.length;
+  // }
+
   private async evaluateConfig(
     testCases: Array<{ query: string; expectedResults: string[] }>,
+    config: SuggestionConfig,
+    options: {
+      batchSize?: number;
+      yieldEveryBatches?: number;
+      earlyStopThreshold?: number; // e.g. 0.3
+      earlyStopAfterFraction?: number; // e.g. 0.2
+    } = {},
   ): Promise<number> {
+    const {
+      batchSize = 20,
+      yieldEveryBatches = 5,
+      earlyStopThreshold = 0.3,
+      earlyStopAfterFraction = 0.2,
+    } = options;
+
+    // Reset cache so each config starts clean
     this.clearCaches();
 
     let totalScore = 0;
-    const batchSize = 10;
+    let processed = 0;
+    const n = testCases.length;
 
-    for (let i = 0; i < testCases.length; i += batchSize) {
-      const batch = testCases.slice(i, i + batchSize);
+    while (processed < n) {
+      const batch = testCases.slice(processed, processed + batchSize);
+      processed += batchSize;
 
-      const batchPromises = batch.map(({ query, expectedResults }) => {
-        const suggestions = this.getSuggestions(query);
-        return this.calculateMetrics(suggestions, expectedResults);
-      });
+      const scores = await Promise.all(
+        batch.map(({ query, expectedResults }) => {
+          const suggestions = this.getSuggestions(query, config);
+          return this.calculateMetrics(suggestions, expectedResults);
+        }),
+      );
 
-      const batchScores = await Promise.all(batchPromises);
-      totalScore += batchScores.reduce((sum, score) => sum + score, 0);
+      totalScore += scores.reduce((sum, score) => sum + score, 0);
 
-      // Yield control periodically
-      if (i % (batchSize * 5) === 0) {
+      // Early stop on poor performers
+      const avgSoFar = totalScore / processed;
+      if (
+        avgSoFar < earlyStopThreshold &&
+        processed >= n * earlyStopAfterFraction
+      ) {
+        this.logger.debug(
+          `Early stop at ${processed}/${n} cases (avg=${avgSoFar.toFixed(2)})`,
+        );
+        return avgSoFar;
+      }
+
+      // Yield periodically to avoid blocking
+      if ((processed / batchSize) % yieldEveryBatches === 0) {
         await new Promise((resolve) => setImmediate(resolve));
       }
     }
 
-    return totalScore / testCases.length;
+    return totalScore / n;
   }
 
   private calculateMetrics(
@@ -1928,21 +2025,67 @@ export class SuggestionService implements OnModuleInit {
   //   return Buffer.from(suggestions.join('\x1D'), 'utf-8');
   // }
 
-  private compressSuggestions(suggestions: string[]): Buffer {
-    if (suggestions.length === 0) return Buffer.alloc(0);
-
-    // Use more efficient separator and encoding
-    const joined = suggestions.join('\x1F'); // Unit separator
-    return Buffer.from(joined, 'utf8');
-  }
-
   // private decompressSuggestions(buffer: Buffer): string[] {
   //   return buffer.toString('utf-8').split('\x1D');
   // }
 
+  // private compressSuggestions(suggestions: string[]): Buffer {
+  //   if (suggestions.length === 0) return Buffer.alloc(0);
+
+  //   // Use more efficient separator and encoding
+  //   const joined = suggestions.join('\x1F'); // Unit separator
+  //   return Buffer.from(joined, 'utf8');
+  // }
+
+  // private decompressSuggestions(buffer: Buffer): string[] {
+  //   if (buffer.length === 0) return [];
+  //   return buffer.toString('utf8').split('\x1F');
+  // }
+
+  private compressSuggestions(suggestions: string[]): Buffer {
+    if (suggestions.length === 0) {
+      return Buffer.alloc(0);
+    }
+
+    // Build dictionary + encoded index list
+    const dict: string[] = [];
+    const encoded: number[] = [];
+    for (const suggestion of suggestions) {
+      let idx = dict.indexOf(suggestion);
+      if (idx === -1) {
+        idx = dict.push(suggestion) - 1;
+      }
+      encoded.push(idx);
+    }
+
+    try {
+      // encode returns Buffer directly, CBOR is imported as *CBOR
+      return CBOR.encode([dict, encoded]);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        this.logger.error('Compression error:', err.message);
+      } else {
+        this.logger.error('Compression error:', String(err));
+      }
+      // fallback to simple join
+      return Buffer.from(suggestions.join('\x1F'), 'utf8');
+    }
+  }
+
   private decompressSuggestions(buffer: Buffer): string[] {
     if (buffer.length === 0) return [];
-    return buffer.toString('utf8').split('\x1F');
+
+    try {
+      const [dict, encoded] = CBOR.decode(buffer) as [string[], number[]];
+      return encoded.map((i) => dict[i]);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        this.logger.error('Decompression error:', err.message);
+      } else {
+        this.logger.error('Decompression error:', String(err));
+      }
+      return buffer.toString('utf8').split('\x1F');
+    }
   }
 
   clearCaches(): void {
@@ -1972,14 +2115,37 @@ export class SuggestionService implements OnModuleInit {
     };
   }
 
+  // private shouldFailFast(currentTime: bigint): boolean {
+  //   const errorWindow = 15_000_000_000n; // 15 seconds in nanoseconds
+  //   const maxErrors = 50;
+
+  //   return (
+  //     this.errorCount > maxErrors &&
+  //     currentTime - this.lastErrorTime < errorWindow
+  //   );
+  // }
+
   private shouldFailFast(currentTime: bigint): boolean {
-    const errorWindow = 30_000_000_000n; // 30 seconds in nanoseconds
+    const errorWindow = 15_000_000_000; // 15 seconds in nanoseconds
     const maxErrors = 50;
 
-    return (
-      this.errorCount > maxErrors &&
+    if (
+      this.errorCount > maxErrors / 2 &&
       currentTime - this.lastErrorTime < errorWindow
-    );
+    ) {
+      if (this.errorCount > maxErrors) {
+        // Permanent failure mode
+        return true;
+      }
+      return true;
+    }
+
+    // Reset error count if last error was long ago
+    if (currentTime - this.lastErrorTime > errorWindow * 2) {
+      this.errorCount = 0;
+    }
+
+    return false;
   }
 
   private normalizeQuery(query: string): string {

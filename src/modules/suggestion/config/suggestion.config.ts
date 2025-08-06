@@ -70,16 +70,34 @@ export default registerAs('suggestion', (): SuggestionConfig => {
   };
 
   // Validation: weights should sum to 1 including all weights
+  // const totalWeight =
+  //   cfg.trigramWeight +
+  //   cfg.levenshteinWeight +
+  //   cfg.prefixWeight +
+  //   cfg.lengthPenaltyWeight;
+  // if (Math.abs(totalWeight - 1.0) > 0.001) {
+  //   throw new Error(
+  //     `[suggestion] All weights must sum to 1.0, got ${totalWeight.toFixed(3)}. ` +
+  //       `Current: trigram=${cfg.trigramWeight}, levenshtein=${cfg.levenshteinWeight}, ` +
+  //       `prefix=${cfg.prefixWeight}, lengthPenalty=${cfg.lengthPenaltyWeight}`,
+  //   );
+  // }
+
+  // Validate weights (sum to 1 or adjust dynamically)
   const totalWeight =
     cfg.trigramWeight +
     cfg.levenshteinWeight +
     cfg.prefixWeight +
     cfg.lengthPenaltyWeight;
-  if (Math.abs(totalWeight - 1.0) > 0.001) {
-    throw new Error(
-      `[suggestion] All weights must sum to 1.0, got ${totalWeight.toFixed(3)}. ` +
-        `Current: trigram=${cfg.trigramWeight}, levenshtein=${cfg.levenshteinWeight}, ` +
-        `prefix=${cfg.prefixWeight}, lengthPenalty=${cfg.lengthPenaltyWeight}`,
+  if (Math.abs(totalWeight - 1) > 0.01) {
+    // Allow small floating-point error
+    const scale = 1 / totalWeight;
+    cfg.trigramWeight *= scale;
+    cfg.levenshteinWeight *= scale;
+    cfg.prefixWeight *= scale;
+    cfg.lengthPenaltyWeight *= scale;
+    console.warn(
+      `[suggestion] Weights normalized to sum to 1: ${JSON.stringify(cfg)}`,
     );
   }
 

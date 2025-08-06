@@ -271,30 +271,128 @@ export class LevenshteinService {
     return distance;
   }
 
+  // private computeDistance(a: string, b: string, threshold: number): number {
+  //   const m = a.length;
+  //   const n = b.length;
+
+  //   let prev = [...Array(n + 1).keys()],
+  //     curr = new Array<number>(n + 1);
+  //   // if |m - n| <= 1, inner loop checks only j∈[i-1,i+1], else full n loop
+  //   const smallDelta = Math.abs(m - n) <= 1;
+  //   for (let i = 0; i < m; i++) {
+  //     curr[0] = i + 1;
+  //     let rowMin = curr[0];
+  //     const start = smallDelta ? Math.max(0, i - 1) : 0;
+  //     const end = smallDelta ? Math.min(n, i + 1) : n;
+  //     for (let j = start; j < end; j++) {
+  //       const cost = a[i] === b[j] ? 0 : 1;
+  //       curr[j + 1] = Math.min(curr[j] + 1, prev[j + 1] + 1, prev[j] + cost);
+  //       rowMin = Math.min(rowMin, curr[j + 1]);
+  //     }
+  //     if (rowMin > threshold) return rowMin;
+
+  //     // Swap rows for next iteration
+  //     [prev, curr] = [curr, prev];
+  //   }
+  //   return prev[n];
+  // }
+
+  // More optimized distance calculation
+  // private computeOptimizedDistance(
+  //   a: string,
+  //   b: string,
+  //   threshold: number,
+  // ): number {
+  //   const m = a.length;
+  //   const n = b.length;
+
+  //   // Use single array with rolling updates (space optimization)
+  //   let prev = new Array<number>(n + 1);
+  //   let curr = new Array<number>(n + 1);
+
+  //   // Initialize first row
+  //   for (let j = 0; j <= n; j++) prev[j] = j;
+
+  //   for (let i = 1; i <= m; i++) {
+  //     curr[0] = i;
+  //     let minInRow = i;
+
+  //     // Bounded search window optimization
+  //     const start = Math.max(1, i - threshold);
+  //     const end = Math.min(n, i + threshold);
+
+  //     for (let j = start; j <= end; j++) {
+  //       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+  //       curr[j] = Math.min(
+  //         curr[j - 1] + 1, // insertion
+  //         prev[j] + 1, // deletion
+  //         prev[j - 1] + cost, // substitution
+  //       );
+  //       minInRow = Math.min(minInRow, curr[j]);
+  //     }
+
+  //     // Early termination if row minimum exceeds threshold
+  //     if (minInRow > threshold) return minInRow;
+
+  //     [prev, curr] = [curr, prev];
+  //   }
+
+  //   return prev[n];
+  // }
+
+  /**
+   * Banded Levenshtein with early exits and minimal memory.
+   * - Always loops over the shorter string for array size m.
+   * - Returns actual distance or a value > threshold if it overruns.
+   */
   private computeDistance(a: string, b: string, threshold: number): number {
+    // 1) Ensure `a` is the shorter string to minimize array size
+    if (a.length > b.length) [a, b] = [b, a];
+
     const m = a.length;
     const n = b.length;
 
-    let prev = [...Array(n + 1).keys()],
-      curr = new Array<number>(n + 1);
-    // if |m - n| <= 1, inner loop checks only j∈[i-1,i+1], else full n loop
-    const smallDelta = Math.abs(m - n) <= 1;
-    for (let i = 0; i < m; i++) {
-      curr[0] = i + 1;
+    // 2) Quick bail when length difference already exceeds threshold
+    if (n - m > threshold) return n - m;
+
+    // 3) Rolling arrays of size m+1 (space optimization)
+    const prev = new Array<number>(m + 1);
+    const curr = new Array<number>(m + 1);
+
+    // Initialize row 0 → [0,1,2,…,m]
+    for (let i = 0; i <= m; i++) prev[i] = i;
+
+    // 4) Main DP: iterate over b (length n)
+    for (let j = 1; j <= n; j++) {
+      curr[0] = j;
       let rowMin = curr[0];
-      const start = smallDelta ? Math.max(0, i - 1) : 0;
-      const end = smallDelta ? Math.min(n, i + 1) : n;
-      for (let j = start; j < end; j++) {
-        const cost = a[i] === b[j] ? 0 : 1;
-        curr[j + 1] = Math.min(curr[j] + 1, prev[j + 1] + 1, prev[j] + cost);
-        rowMin = Math.min(rowMin, curr[j + 1]);
+
+      // 5) Only compute within the diagonal band [j-threshold … j+threshold]
+      const start = Math.max(1, j - threshold);
+      const end = Math.min(m, j + threshold);
+
+      // Fill cells inside the band
+      for (let i = start; i <= end; i++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curr[i] = Math.min(
+          curr[i - 1] + 1, // insertion
+          prev[i] + 1, // deletion
+          prev[i - 1] + cost, // substitution
+        );
+        rowMin = Math.min(rowMin, curr[i]);
       }
+
+      // 6) If every cell in the band is > threshold, we can quit early
       if (rowMin > threshold) return rowMin;
 
-      // Swap rows for next iteration
-      [prev, curr] = [curr, prev];
+      // 7) Swap buffers for next iteration
+      for (let i = start; i <= end; i++) {
+        prev[i] = curr[i];
+      }
     }
-    return prev[n];
+
+    // 8) Final distance is at prev[m]
+    return prev[m];
   }
 
   private cacheResult(key: string, distance: number) {
