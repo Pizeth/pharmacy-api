@@ -1142,13 +1142,30 @@ export class SuggestionService implements OnModuleInit {
     const lengthPenalty =
       1 - lengthDiff / Math.max(query.length, candidate.length);
 
+    // Frequency bonus (log-scaled to avoid over-weighting)
+    const frequencyBonus = Math.min(
+      1,
+      Math.log1p(this.getWordFrequency(candidate)) / Math.log(100),
+    );
+
     // Composite score with configurable weights
     return (
       config.trigramWeight * trigramSim +
       config.levenshteinWeight * levSim +
       config.prefixWeight * prefixBonus +
-      0.05 * lengthPenalty // Small bonus for similar length
+      config.lengthPenaltyWeight * lengthPenalty +
+      0.1 * frequencyBonus // Small weight for frequency
+      // 0.05 * lengthPenalty // Small bonus for similar length
     );
+  }
+
+  private getWordFrequency(word: string): number {
+    let node = this.trieService['root']; // Access private root
+    for (const char of word.toLowerCase()) {
+      if (!node.children.has(char)) return 0;
+      node = node.children.get(char)!;
+    }
+    return node.isEndOfWord ? node.frequency : 0;
   }
 
   // private getAdaptiveThreshold(query: string): number {
@@ -1430,11 +1447,10 @@ export class SuggestionService implements OnModuleInit {
       };
     }
 
+    // Optional cold-start: clear everything first to ensure fresh runs between benchmarks
     if (this.config.coldStartBenchmark) {
-      // Optionally, clear caches to ensure fresh runs between benchmarks
-      this.cache.clear(SUGGESTION_CACHE);
-      this.cache.clear(LEVENSHTEIN_CACHE);
-      this.queryStats.clear(); // Clear query stats for consistent runs
+      this.clearCaches();
+      this.queryStats.clear();
     }
 
     this.logger.log(`Starting benchmark with ${testQueries.length} queries`);
@@ -1443,7 +1459,7 @@ export class SuggestionService implements OnModuleInit {
     const errors: string[] = [];
     let cacheHits = 0;
 
-    // const startTime = performance.now();
+    // Use high-resolution timestamps
     const startTime = process.hrtime.bigint();
 
     for (const query of testQueries) {
@@ -1503,6 +1519,70 @@ export class SuggestionService implements OnModuleInit {
     }
 
     return result;
+  }
+
+  benchmark(testQueries: string[]): BenchmarkResult {
+    if (!this.config.enableBenchmarking) {
+      this.logger.warn('Benchmarking is disabled');
+      return {
+        avgResponseTime: 0,
+        medianResponseTime: 0,
+        p95ResponseTime: 0,
+        throughput: 0,
+        cacheHitRate: 0,
+        errorRate: 0,
+      };
+    }
+
+    // Optional cold-start: clear everything first
+    if (this.config.coldStartBenchmark) {
+      this.clearCaches();
+      this.queryStats.clear();
+    }
+
+    this.logger.log(`Running quick benchmark on ${testQueries.length} queries`);
+
+    const times: number[] = [];
+    let cacheHits = 0,
+      errors = 0;
+
+    // We’ll use high-resolution timestamps
+    const startAll = process.hrtime.bigint();
+
+    for (const q of testQueries) {
+      const start = process.hrtime.bigint();
+      const beforeSize = this.getCacheStats().stat.size;
+
+      try {
+        this.getSuggestions(q);
+      } catch {
+        errors++;
+      }
+
+      const afterSize = this.getCacheStats().stat.size;
+      if (afterSize === beforeSize) cacheHits++;
+
+      const elapsed = Number(process.hrtime.bigint() - start) / 1e6; // → ms
+      times.push(elapsed);
+    }
+
+    const totalMs = Number(process.hrtime.bigint() - startAll) / 1e6;
+    const hitRate = cacheHits / testQueries.length;
+    const errRate = errors / testQueries.length;
+    const throughput = testQueries.length / (totalMs / 1000);
+
+    // sort once
+    times.sort((a, b) => a - b);
+    const stats = this.calculateDetailedStats(times);
+
+    return {
+      avgResponseTime: stats.avgResponseTime,
+      medianResponseTime: stats.medianResponseTime,
+      p95ResponseTime: stats.p95ResponseTime,
+      throughput,
+      cacheHitRate: hitRate,
+      errorRate: errRate,
+    };
   }
 
   /**
@@ -1667,6 +1747,88 @@ export class SuggestionService implements OnModuleInit {
     return Math.sqrt(avgSquaredDiff);
   }
 
+  private calculateDetailedStats(times: number[]): DetailedStats {
+    const sorted = [...times].sort((a, b) => a - b);
+    const len = sorted.length;
+
+    const avgResponseTime = times.reduce((sum, x) => sum + x, 0) / len;
+    const medianResponseTime =
+      len % 2 === 0
+        ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
+        : sorted[Math.floor(len / 2)];
+    const p95ResponseTime = sorted[Math.floor(len * 0.95)];
+    const p99ResponseTime = sorted[Math.floor(len * 0.99)];
+    const minResponseTime = sorted[0];
+    const maxResponseTime = sorted[len - 1];
+    const variance =
+      times.reduce((sum, x) => sum + (x - avgResponseTime) ** 2, 0) / len;
+    const stdDeviation = Math.sqrt(variance);
+
+    return {
+      avgResponseTime,
+      medianResponseTime,
+      p95ResponseTime,
+      p99ResponseTime,
+      minResponseTime,
+      maxResponseTime,
+      stdDeviation,
+    };
+  }
+
+  calculateDetailedStats(times: number[]): DetailedStats {
+    const n = times.length;
+    if (n === 0) {
+      return {
+        avgResponseTime: 0,
+        medianResponseTime: 0,
+        p95ResponseTime: 0,
+        p99ResponseTime: 0,
+        minResponseTime: 0,
+        maxResponseTime: 0,
+        stdDeviation: 0,
+      };
+    }
+
+    // Phase 1: one-pass for mean, M2 (variance accumulator), min, max
+    let avgResponseTime = 0;
+    let M2 = 0;
+    let minResponseTime = Infinity;
+    let maxResponseTime = -Infinity;
+
+    for (let i = 0; i < n; i++) {
+      const x = times[i];
+      const delta = x - avgResponseTime;
+      avgResponseTime += delta / (i + 1);
+      M2 += delta * (x - avgResponseTime);
+
+      if (x < minResponseTime) minResponseTime = x;
+      if (x > maxResponseTime) maxResponseTime = x;
+    }
+
+    // Population variance = M2 / n
+    const variance = M2 / n;
+    const stdDeviation = Math.sqrt(variance);
+
+    // Phase 2: sort once for median & percentiles
+    const sorted = [...times].sort((a, b) => a - b);
+    const medianResponseTime =
+      n % 2 === 0
+        ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+        : sorted[Math.floor(n / 2)];
+    const p95ResponseTime = sorted[Math.floor(n * 0.95)];
+    const p99ResponseTime = sorted[Math.floor(n * 0.99)];
+
+    return {
+      avgResponseTime,
+      medianResponseTime,
+      p95ResponseTime,
+      p99ResponseTime,
+      minResponseTime,
+      maxResponseTime,
+      stdDeviation,
+    };
+  }
+
   // =================== AUTO-TUNING ===================
   async autoTune(
     testCases: Array<{ query: string; expectedResults: string[] }>,
@@ -1810,23 +1972,59 @@ export class SuggestionService implements OnModuleInit {
       },
 
       // Weight adjustments (maintaining sum ≈ 1)
+      // () => {
+      //   const totalWeight =
+      //     config.trigramWeight + config.levenshteinWeight + config.prefixWeight;
+      //   const delta = (Math.random() - 0.5) * 0.3 * perturbationStrength;
+
+      //   newConfig.trigramWeight = this.clamp(
+      //     config.trigramWeight + delta,
+      //     0.1,
+      //     0.7,
+      //   );
+      //   const remaining = totalWeight - newConfig.trigramWeight;
+
+      //   const levRatio =
+      //     config.levenshteinWeight /
+      //     (config.levenshteinWeight + config.prefixWeight);
+      //   newConfig.levenshteinWeight = remaining * levRatio;
+      //   newConfig.prefixWeight = remaining * (1 - levRatio);
+      // },
       () => {
         const totalWeight =
-          config.trigramWeight + config.levenshteinWeight + config.prefixWeight;
+          config.trigramWeight +
+          config.levenshteinWeight +
+          config.prefixWeight +
+          config.lengthPenaltyWeight;
         const delta = (Math.random() - 0.5) * 0.3 * perturbationStrength;
 
         newConfig.trigramWeight = this.clamp(
           config.trigramWeight + delta,
-          0.1,
+          0.05,
           0.7,
         );
         const remaining = totalWeight - newConfig.trigramWeight;
+        const scale =
+          remaining /
+          (config.levenshteinWeight +
+            config.prefixWeight +
+            config.lengthPenaltyWeight);
 
-        const levRatio =
-          config.levenshteinWeight /
-          (config.levenshteinWeight + config.prefixWeight);
-        newConfig.levenshteinWeight = remaining * levRatio;
-        newConfig.prefixWeight = remaining * (1 - levRatio);
+        newConfig.levenshteinWeight = this.clamp(
+          config.levenshteinWeight * scale,
+          0.05,
+          0.7,
+        );
+        newConfig.prefixWeight = this.clamp(
+          config.prefixWeight * scale,
+          0.05,
+          0.7,
+        );
+        newConfig.lengthPenaltyWeight = this.clamp(
+          config.lengthPenaltyWeight * scale,
+          0.05,
+          0.7,
+        );
       },
 
       // Candidate limits
@@ -2282,6 +2480,47 @@ export class SuggestionService implements OnModuleInit {
     return results;
   }
 
+  async batchGetSuggestions(
+    queries: string[],
+    batchSize: number = 50,
+  ): Promise<Map<string, string[]>> {
+    const results = new Map<string, string[]>();
+    const concurrencyLimit = 4; // Adjust based on CPU cores
+
+    async function processBatch(batch: string[]): Promise<void> {
+      const batchResults = await Promise.all(
+        batch.map((query) =>
+          this.getSuggestions(query).then(
+            (s) => [query, s] as [string, string[]],
+          ),
+        ),
+      );
+      batchResults.forEach(([query, suggestions]) =>
+        results.set(query, suggestions),
+      );
+    }
+
+    const batches = [];
+    for (let i = 0; i < queries.length; i += batchSize) {
+      batches.push(queries.slice(i, i + batchSize));
+    }
+
+    await Promise.all(
+      batches
+        .map((batch, index) =>
+          new Promise<void>((resolve) => {
+            setTimeout(
+              () => processBatch.call(this, batch).then(resolve),
+              index * 10,
+            );
+          }).catch((err) => this.logger.error(`Batch failed: ${err}`)),
+        )
+        .slice(0, concurrencyLimit),
+    );
+
+    return results;
+  }
+
   // =================== ENHANCED MONITORING ===================
 
   getDetailedSystemStats(): SystemStats & {
@@ -2309,7 +2548,9 @@ export class SuggestionService implements OnModuleInit {
         external: usage.external,
       };
     }
-    return undefined;
+    // return undefined;
+    // Fallback for non-Node.js environments
+    return { used: 0, total: 0, external: 0 }; // Or throw new Error('Memory usage not supported')
   }
 
   // Reset performance metrics (useful for testing/monitoring)

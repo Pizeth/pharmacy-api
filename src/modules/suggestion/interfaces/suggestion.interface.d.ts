@@ -88,9 +88,10 @@ interface TrigramData extends Omit<Trigram, 'hash'> {
   positionMap: Map<string, number>;
 }
 
-// A unified type for candidates from any source
+// A unified type for candidates that carries scores through the pipeline
 interface Candidate {
   word: string;
+  isPrefixMatch: boolean;
   levenshteinDistance?: number;
   trigramScore?: number;
 }
