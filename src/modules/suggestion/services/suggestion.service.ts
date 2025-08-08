@@ -17,6 +17,7 @@ import {
   AutoTuneOptions,
   BenchmarkOptions,
   BenchmarkResult,
+  Candidate,
   DetailedStats,
   MemoryUsage,
   PerformanceMetrics,
@@ -261,7 +262,7 @@ export class SuggestionService1 implements OnModuleInit {
     // Strategy 2: BK-Tree search for small edit distances (very fast)
     const candidates = new Set<string>(prefixMatches);
     const bkResults = this.bkTreeService.search(input, adaptiveThreshold);
-    bkResults.forEach((word) => candidates.add(word));
+    bkResults.forEach((word) => candidates.add(word.word));
 
     // Strategy 3: Trigram fallback filtering for larger edit distances
     if (candidates.size < this.config.maxTrigramCandidates) {
@@ -1041,25 +1042,53 @@ export class SuggestionService implements OnModuleInit {
       config.maxSuggestions * 3,
     );
 
-    if (prefixMatches.length >= config.maxSuggestions) {
-      return this.rankCandidates(query, prefixMatches, config).slice(
-        0,
-        config.maxSuggestions,
+    const candidates = new Map<string, Candidate>();
+
+    prefixMatches.forEach((word) => {
+      candidates.set(word, { word, isPrefixMatch: true });
+    });
+
+    // if (prefixMatches.length >= config.maxSuggestions) {
+    //   return this.rankCandidates(query, prefixMatches, config).slice(
+    //     0,
+    //     config.maxSuggestions,
+    //   );
+    // }
+
+    // Early exit if we have enough high-quality prefix matches
+    if (candidates.size >= config.maxSuggestions) {
+      return this.rankCandidates(
+        query,
+        Array.from(candidates.values()),
+        config,
       );
     }
 
-    // Strategy 2: BK-Tree search for small edit distances (fast, good recall)
-    const candidates = new Set(prefixMatches);
+    // Strategy 2: BK-Tree search for close typo (fast, good recall)
+    // const candidates = new Set(prefixMatches);
     const bkResults = this.bkTreeService.search(
       query,
       adaptiveThreshold,
       config.maxTrigramCandidates,
     );
-    bkResults.forEach((word) => candidates.add(word));
+    // bkResults.forEach((word) => candidates.add(word));
+    bkResults.forEach(({ word, distance }) => {
+      if (!candidates.has(word)) {
+        candidates.set(word, {
+          word,
+          isPrefixMatch: false,
+          levenshteinDistance: distance,
+        });
+      }
+    });
 
     // Early exit if we have enough high-quality candidates
     if (candidates.size >= config.maxSuggestions * 2) {
-      const ranked = this.rankCandidates(query, Array.from(candidates), config);
+      const ranked = this.rankCandidates(
+        query,
+        Array.from(candidates.values()),
+        config,
+      );
       if (
         ranked.length > 0 &&
         this.calculateCompositeScore(query, ranked[0], config) >=
@@ -1083,9 +1112,72 @@ export class SuggestionService implements OnModuleInit {
     return this.rankCandidates(query, Array.from(candidates), config);
   }
 
+  private computeSuggestions(
+    query: string,
+    config: SuggestionConfig,
+  ): string[] {
+    const adaptiveThreshold = this.getAdaptiveThreshold(query);
+    const candidates = new Map<string, Candidate>();
+
+    // Strategy 1: Prefix matches (high precision)
+    const prefixMatches = this.trieService.getWordsWithPrefix(
+      query,
+      config.maxSuggestions * 2,
+    );
+    prefixMatches.forEach((word) => {
+      candidates.set(word, { word, isPrefixMatch: true });
+    });
+
+    // Early exit if we have enough high-quality prefix matches
+    if (candidates.size >= config.maxSuggestions) {
+      return this.rankCandidates(
+        query,
+        Array.from(candidates.values()),
+        config,
+      );
+    }
+
+    // Strategy 2: BK-Tree for close typos (fast recall)
+    // This now returns ScoredWord objects, preventing re-calculation
+    const bkResults = this.bkTreeService.search(query, adaptiveThreshold);
+    bkResults.forEach(({ word, distance }) => {
+      if (!candidates.has(word)) {
+        candidates.set(word, {
+          word,
+          isPrefixMatch: false,
+          levenshteinDistance: distance,
+        });
+      }
+    });
+
+    // Strategy 3: Trigram fallback for broader matches
+    if (candidates.size < config.maxTrigramCandidates) {
+      const trigramResults = this.trigramIndexService.getTopCandidates(
+        query,
+        config.maxTrigramCandidates,
+        config.minTrigramSimilarity,
+      );
+      trigramResults.forEach(({ alias, score }) => {
+        const existing = candidates.get(alias);
+        if (existing) {
+          // Enhance existing candidate with trigram score
+          existing.trigramScore = score;
+        } else {
+          candidates.set(alias, {
+            word: alias,
+            isPrefixMatch: false,
+            trigramScore: score,
+          });
+        }
+      });
+    }
+
+    return this.rankCandidates(query, Array.from(candidates.values()), config);
+  }
+
   private rankCandidates(
     query: string,
-    candidates: string[],
+    candidates: Candidate[],
     config: SuggestionConfig,
   ): string[] {
     if (candidates.length === 0) return [];
@@ -1099,53 +1191,53 @@ export class SuggestionService implements OnModuleInit {
       const score = this.calculateCompositeScore(query, candidate, config);
 
       if (heap.size() < config.maxSuggestions) {
-        heap.push({ candidate, score });
+        heap.push({ candidate: candidate.word, score });
       } else if (score > heap.peek()!.score) {
         heap.pop();
-        heap.push({ candidate, score });
+        heap.push({ candidate: candidate.word, score });
       }
     }
 
-    return heap
-      .toSortedArray()
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.candidate);
+    return heap.toSortedArray().sort((a, b) => b.score - a.score);
+    // .map((item) => item.candidate);
   }
 
   private calculateCompositeScore(
     query: string,
-    candidate: string,
+    candidate: Candidate,
     config: SuggestionConfig,
   ): number {
+    const word = candidate.word;
     // Prefix bonus
-    const prefixBonus = candidate.toLowerCase().startsWith(query.toLowerCase())
+    const prefixBonus = word.toLowerCase().startsWith(query.toLowerCase())
       ? 1
       : 0;
 
-    // Trigram similarity
-    const trigramSim = this.trigramIndexService.calculateSimilarity(
-      query,
-      candidate,
-    );
+    // Trigram similarity use pre-calculated scores where available, otherwise calculate on the fly
+    const trigramSim =
+      candidate.trigramScore ??
+      this.trigramIndexService.calculateSimilarity(query, word);
 
     // Levenshtein similarity (normalized to 0-1, higher is better)
-    const maxLen = Math.max(query.length, candidate.length);
-    const levDistance = this.levenshteinService.calculateDistance(
-      query,
-      candidate,
-      config.maxLevenshteinDistance,
-    );
+    const levDistance =
+      candidate.levenshteinDistance ??
+      this.levenshteinService.calculateDistance(
+        query,
+        word,
+        config.maxLevenshteinDistance,
+      );
+
+    const maxLen = Math.max(query.length, word.length);
     const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
 
     // Length penalty (prefer similar lengths)
-    const lengthDiff = Math.abs(query.length - candidate.length);
-    const lengthPenalty =
-      1 - lengthDiff / Math.max(query.length, candidate.length);
+    const lengthDiff = Math.abs(query.length - word.length);
+    const lengthPenalty = 1 - lengthDiff / maxLen;
 
     // Frequency bonus (log-scaled to avoid over-weighting)
     const frequencyBonus = Math.min(
       1,
-      Math.log1p(this.getWordFrequency(candidate)) / Math.log(100),
+      Math.log1p(this.getWordFrequency(word)) / Math.log(100),
     );
 
     // Composite score with configurable weights
@@ -1191,12 +1283,31 @@ export class SuggestionService implements OnModuleInit {
     // if (query.length === 0) return 0;
     // if (query.length <= 3) return 1; // "cat" → 1 typo max
     // if (query.length <= 5) return 2; // "hello" → 2 typos max
+    // CRITICAL: Always respect the configured maximum distance
     const length = query.length;
     if (length === 0) return 0;
     if (length === 1) return 0; // No typos for single chars
     if (length === 2) return 1; // Max 1 typo for 2 chars
-    if (length <= 4) return 1; // Conservative for short words
-    if (length <= 7) return 2; // Moderate for medium words
+    if (length <= 4) return Math.min(1, this.config.maxLevenshteinDistance); // Conservative for short words
+    if (length <= 7) return Math.min(2, this.config.maxLevenshteinDistance); // Moderate for medium words
+
+    // Handle numeric queries differently
+    if (this.isNumericQuery(query)) {
+      // Numeric queries need stricter thresholds
+      const baseThreshold = Math.min(
+        this.config.maxLevenshteinDistance,
+        Math.max(1, Math.floor(query.length * 0.15)),
+      );
+
+      // Numeric queries rarely benefit from diversity adjustments
+      return Math.min(baseThreshold, 2); // Cap at 2 for numeric
+    }
+
+    // Use configurable thresholds from config
+    const highDiversityThreshold = this.config.highDiversityThreshold;
+    const lowDiversityThreshold = this.config.lowDiversityThreshold;
+    const diversityAdjustmentStrength = this.config.diversityAdjustmentStrength;
+    const lengthThresholdRatio = this.config.lengthThresholdRatio;
 
     // 2. Base threshold: 30% of length (industry standard for fuzzy search)
     //    Use 0.3 instead of 0.35 for better long-query behavior
@@ -1214,26 +1325,48 @@ export class SuggestionService implements OnModuleInit {
     const zScore = (length - mean) / stdDev;
 
     // Dynamic threshold based on statistical distribution
+    // const baseThreshold = Math.min(
+    //   this.config.maxLevenshteinDistance,
+    //   Math.max(1, Math.floor(0.3 * length - 0.5 * zScore)),
+    // );
     const baseThreshold = Math.min(
       this.config.maxLevenshteinDistance,
-      Math.max(1, Math.floor(0.3 * length - 0.5 * zScore)),
+      Math.max(1, Math.floor(lengthThresholdRatio * length - 0.5 * zScore)),
     );
 
     // 3. Diversity adjustment: Unique chars / length (simple & effective)
-    const uniqueChars = new Set(query).size;
-    const complexity = uniqueChars / query.length;
+    // const uniqueChars = new Set(query).size;
+    const uniqueChars = this.getUniqueCharCount(query);
+    const complexity = uniqueChars / length;
 
+    // Apply smooth, configurable adjustments
     let threshold = baseThreshold;
 
     // ↑ Allow +1 typo for high-diversity words (e.g., "xenophobia")
-    if (complexity > 0.75) {
+    if (complexity > highDiversityThreshold) {
       // High diversity (e.g., >75% unique chars)
-      threshold = Math.min(threshold + 1, this.config.maxLevenshteinDistance);
+      const adjustment =
+        diversityAdjustmentStrength *
+        Math.min(
+          1,
+          (complexity - highDiversityThreshold) /
+            (1.0 - highDiversityThreshold),
+        );
+      threshold = Math.min(
+        threshold + Math.round(adjustment),
+        this.config.maxLevenshteinDistance,
+      );
     }
     // ↓ Be stricter for repetitive words (e.g., "zzzzzz")
-    else if (complexity < 0.35) {
+    else if (complexity < lowDiversityThreshold) {
       // Repetitive (e.g., <35% unique chars)
-      threshold = Math.max(1, threshold - 1);
+      const adjustment =
+        diversityAdjustmentStrength *
+        Math.min(
+          1,
+          (lowDiversityThreshold - complexity) / lowDiversityThreshold,
+        );
+      threshold = Math.max(1, threshold - Math.round(adjustment));
     }
 
     // Check for common patterns that might need special handling
@@ -1266,43 +1399,134 @@ export class SuggestionService implements OnModuleInit {
     return maxRepeat >= query.length * 0.4; // 40% repetition threshold
   }
 
+  private getUniqueCharCount(query: string): number {
+    // Fast path for very short strings
+    if (query.length <= 3) return query.length;
+
+    // Use a fixed-size boolean array for ASCII characters (faster than Set)
+    const seen = new Uint8Array(128); // ASCII only
+    let count = 0;
+
+    for (let i = 0; i < query.length; i++) {
+      const charCode = query.charCodeAt(i);
+      if (charCode < 128 && !seen[charCode]) {
+        seen[charCode] = 1;
+        count++;
+      }
+    }
+
+    // For non-ASCII or longer strings, fall back to Set
+    if (count === 0 || count === query.length) {
+      return new Set(query).size;
+    }
+
+    return count;
+  }
+
   // Optional: Helper method for testing and debugging
+  // getThresholdAnalysis(query: string): {
+  //   threshold: number;
+  //   baseThreshold: number;
+  //   complexity: number;
+  //   adjustment: string;
+  // } {
+  //   const baseThreshold = Math.min(
+  //     this.config.maxLevenshteinDistance,
+  //     Math.floor(query.length * 0.3),
+  //   );
+
+  //   const uniqueChars = new Set(query.toLowerCase()).size;
+  //   const complexity = uniqueChars / query.length;
+
+  //   let adjustment = 'none';
+  //   let threshold = baseThreshold;
+
+  //   if (query.length <= 3) {
+  //     threshold = 1;
+  //     adjustment = 'short query (≤3)';
+  //   } else if (query.length <= 5) {
+  //     threshold = 2;
+  //     adjustment = 'short query (≤5)';
+  //   } else if (complexity > 0.75) {
+  //     threshold = Math.min(threshold + 1, this.config.maxLevenshteinDistance);
+  //     adjustment = 'high diversity (+1)';
+  //   } else if (complexity < 0.35) {
+  //     threshold = Math.max(1, threshold - 1);
+  //     adjustment = 'low diversity (-1)';
+  //   }
+
+  //   return {
+  //     threshold: Math.max(1, threshold),
+  //     baseThreshold,
+  //     complexity: Math.round(complexity * 100) / 100,
+  //     adjustment,
+  //   };
+  // }
+
   getThresholdAnalysis(query: string): {
     threshold: number;
     baseThreshold: number;
     complexity: number;
     adjustment: string;
+    components: {
+      lengthContribution: number;
+      diversityContribution: number;
+      threshold: number;
+    };
   } {
+    const length = query.length;
+
+    // Calculate base threshold
     const baseThreshold = Math.min(
       this.config.maxLevenshteinDistance,
-      Math.floor(query.length * 0.3),
+      Math.floor(length * this.config.lengthThresholdRatio),
     );
 
-    const uniqueChars = new Set(query.toLowerCase()).size;
-    const complexity = uniqueChars / query.length;
+    // Calculate complexity
+    const uniqueChars = this.getUniqueCharCount(query);
+    const complexity = uniqueChars / length;
 
+    // Calculate adjustments
+    let lengthContribution = baseThreshold;
+    let diversityContribution = 0;
     let adjustment = 'none';
-    let threshold = baseThreshold;
 
-    if (query.length <= 3) {
-      threshold = 1;
-      adjustment = 'short query (≤3)';
-    } else if (query.length <= 5) {
-      threshold = 2;
-      adjustment = 'short query (≤5)';
-    } else if (complexity > 0.75) {
-      threshold = Math.min(threshold + 1, this.config.maxLevenshteinDistance);
-      adjustment = 'high diversity (+1)';
-    } else if (complexity < 0.35) {
-      threshold = Math.max(1, threshold - 1);
-      adjustment = 'low diversity (-1)';
+    if (length <= 3) {
+      lengthContribution = Math.min(1, this.config.maxLevenshteinDistance);
+      adjustment = `short query (≤3) [capped at ${lengthContribution}]`;
+    } else if (length <= 5) {
+      lengthContribution = Math.min(2, this.config.maxLevenshteinDistance);
+      adjustment = `short query (≤5) [capped at ${lengthContribution}]`;
+    } else {
+      const highDiversityThreshold = this.config.highDiversityThreshold;
+      const lowDiversityThreshold = this.config.lowDiversityThreshold;
+
+      if (complexity > highDiversityThreshold) {
+        const adjustmentValue = Math.min(
+          1,
+          this.config.maxLevenshteinDistance - baseThreshold,
+        );
+        diversityContribution = adjustmentValue;
+        adjustment = `high diversity (+${adjustmentValue.toFixed(1)})`;
+      } else if (complexity < lowDiversityThreshold) {
+        const adjustmentValue = Math.min(1, baseThreshold - 1);
+        diversityContribution = -adjustmentValue;
+        adjustment = `low diversity (-${adjustmentValue.toFixed(1)})`;
+      }
     }
 
+    const threshold = Math.max(1, lengthContribution + diversityContribution);
+
     return {
-      threshold: Math.max(1, threshold),
+      threshold,
       baseThreshold,
       complexity: Math.round(complexity * 100) / 100,
       adjustment,
+      components: {
+        lengthContribution,
+        diversityContribution,
+        threshold,
+      },
     };
   }
 
@@ -1453,9 +1677,11 @@ export class SuggestionService implements OnModuleInit {
       this.queryStats.clear();
     }
 
-    this.logger.log(`Starting benchmark with ${testQueries.length} queries`);
+    const length = testQueries.length;
 
-    const results: bigint[] = [];
+    this.logger.log(`Starting benchmark with ${length} queries`);
+
+    const times: number[] = [];
     const errors: string[] = [];
     let cacheHits = 0;
 
@@ -1463,47 +1689,45 @@ export class SuggestionService implements OnModuleInit {
     const startTime = process.hrtime.bigint();
 
     for (const query of testQueries) {
-      // const queryStart = performance.now();
       const queryStart = process.hrtime.bigint();
+      const beforeCacheSize = this.getCacheStats().stat.size;
 
       try {
-        const beforeCacheSize = this.getCacheStats().stat.size;
         this.getSuggestions(query);
-        const afterCacheSize = this.getCacheStats().stat.size;
-
-        // If cache size didn't change, it was a cache hit
-        if (afterCacheSize === beforeCacheSize) {
-          cacheHits++;
-        }
-
-        // results.push(performance.now() - queryStart);
-        results.push(process.hrtime.bigint() - queryStart);
       } catch (error) {
         errors.push(
           `${query}: ${error instanceof Error ? error.message : String(error)}`,
         );
-        // results.push(performance.now() - queryStart);
-        results.push(process.hrtime.bigint() - queryStart);
+        // times.push(process.hrtime.bigint() - queryStart);
       }
+      const afterCacheSize = this.getCacheStats().stat.size;
+
+      // If cache size didn't change, it was a cache hit
+      if (afterCacheSize === beforeCacheSize) cacheHits++;
+
+      const elapsed = Number(process.hrtime.bigint() - queryStart) / 1e6; // → ms
+      times.push(elapsed);
     }
 
-    // const totalTime = performance.now() - startTime;
-    const totalTime = Number(process.hrtime.bigint() - startTime);
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1e6;
+    const cacheHitRate = cacheHits / length;
+    const errorRate = errors.length / length;
+    const throughput = length / (totalTime / 1000); // queries per second
+
+    // sort once
+    times.sort((a, b) => Number(a - b));
 
     // Calculate statistics
-    results.sort((a, b) => Number(a - b));
-    const avgResponseTime =
-      results.reduce((sum, time) => sum + Number(time), 0) / results.length;
-    const medianResponseTime = Number(results[Math.floor(results.length / 2)]);
-    const p95ResponseTime = Number(results[Math.floor(results.length * 0.95)]);
-    const throughput = testQueries.length / (totalTime / 1000); // queries per second
-    const cacheHitRate = cacheHits / testQueries.length;
-    const errorRate = errors.length / testQueries.length;
+    const stats = this.calculateDetailedStats(times);
+    // const avgResponseTime =
+    //   results.reduce((sum, time) => sum + Number(time), 0) / results.length;
+    // const medianResponseTime = Number(results[Math.floor(results.length / 2)]);
+    // const p95ResponseTime = Number(results[Math.floor(results.length * 0.95)]);
 
     const result: BenchmarkResult = {
-      avgResponseTime,
-      medianResponseTime,
-      p95ResponseTime,
+      avgResponseTime: stats.avgResponseTime,
+      medianResponseTime: stats.medianResponseTime,
+      p95ResponseTime: stats.p95ResponseTime,
       throughput,
       cacheHitRate,
       errorRate,
@@ -1521,70 +1745,6 @@ export class SuggestionService implements OnModuleInit {
     return result;
   }
 
-  benchmark(testQueries: string[]): BenchmarkResult {
-    if (!this.config.enableBenchmarking) {
-      this.logger.warn('Benchmarking is disabled');
-      return {
-        avgResponseTime: 0,
-        medianResponseTime: 0,
-        p95ResponseTime: 0,
-        throughput: 0,
-        cacheHitRate: 0,
-        errorRate: 0,
-      };
-    }
-
-    // Optional cold-start: clear everything first
-    if (this.config.coldStartBenchmark) {
-      this.clearCaches();
-      this.queryStats.clear();
-    }
-
-    this.logger.log(`Running quick benchmark on ${testQueries.length} queries`);
-
-    const times: number[] = [];
-    let cacheHits = 0,
-      errors = 0;
-
-    // We’ll use high-resolution timestamps
-    const startAll = process.hrtime.bigint();
-
-    for (const q of testQueries) {
-      const start = process.hrtime.bigint();
-      const beforeSize = this.getCacheStats().stat.size;
-
-      try {
-        this.getSuggestions(q);
-      } catch {
-        errors++;
-      }
-
-      const afterSize = this.getCacheStats().stat.size;
-      if (afterSize === beforeSize) cacheHits++;
-
-      const elapsed = Number(process.hrtime.bigint() - start) / 1e6; // → ms
-      times.push(elapsed);
-    }
-
-    const totalMs = Number(process.hrtime.bigint() - startAll) / 1e6;
-    const hitRate = cacheHits / testQueries.length;
-    const errRate = errors / testQueries.length;
-    const throughput = testQueries.length / (totalMs / 1000);
-
-    // sort once
-    times.sort((a, b) => a - b);
-    const stats = this.calculateDetailedStats(times);
-
-    return {
-      avgResponseTime: stats.avgResponseTime,
-      medianResponseTime: stats.medianResponseTime,
-      p95ResponseTime: stats.p95ResponseTime,
-      throughput,
-      cacheHitRate: hitRate,
-      errorRate: errRate,
-    };
-  }
-
   /**
    * Advanced benchmark with cache warming and detailed metrics
    */
@@ -1594,7 +1754,7 @@ export class SuggestionService implements OnModuleInit {
   ): Promise<AdvancedBenchmarkResult> {
     const {
       warmCache = false,
-      clearCacheFirst = false,
+      clearCacheMode = 'none', // 'none', 'once' or 'perIteration'
       iterations = 1,
       measureMemory = false,
     } = options;
@@ -1604,107 +1764,103 @@ export class SuggestionService implements OnModuleInit {
       throw new Error('Benchmarking is disabled in configuration');
     }
 
+    const length = testQueries.length;
     this.logger.log(
-      `Starting advanced benchmark with ${testQueries.length} queries, ${iterations} iterations`,
+      `Starting advanced benchmark with ${length} queries, ${iterations} iterations`,
     );
 
     // Optional cache clearing
-    if (clearCacheFirst) {
+    if (clearCacheMode === 'once') {
       this.clearCaches();
+      this.queryStats.clear();
       this.logger.log('Caches cleared for cold start benchmark');
     }
 
     // Optional cache warming
-    if (warmCache && !clearCacheFirst) {
-      await this.warmupCache(
-        testQueries.slice(0, Math.min(100, testQueries.length)),
-      );
+    if (warmCache && clearCacheMode === 'none') {
+      await this.warmupCache(testQueries.slice(0, Math.min(100, length)));
       this.logger.log('Cache warmed up');
     }
 
-    const allResults: number[] = [];
-    const iterationResults: number[][] = [];
+    const allTimes: number[] = [];
+    const iterationStats: DetailedStats[] = [];
     const errors: string[] = [];
     let totalCacheHits = 0;
 
     // Memory measurement setup
     const memoryBefore = measureMemory ? this.getMemoryUsage() : null;
-
-    // const totalStartTime = performance.now();
     const totalStartTime = process.hrtime.bigint();
 
     for (let i = 0; i < iterations; i++) {
       const iterationTimes: number[] = [];
-      // const iterationStartTime = performance.now();
       const iterationStartTime = process.hrtime.bigint();
 
+      if (clearCacheMode === 'perIteration') {
+        this.clearCaches();
+        this.queryStats.clear();
+      }
+
       for (const query of testQueries) {
-        // const queryStart = performance.now();
         const queryStart = process.hrtime.bigint();
+        const beforeCacheSize = this.getCacheStats().stat.size;
 
         try {
-          const beforeCacheSize = this.getCacheStats().stat.size;
           this.getSuggestions(query);
-          const afterCacheSize = this.getCacheStats().stat.size;
-
-          // If cache size didn't change, it was a cache hit
-          if (afterCacheSize === beforeCacheSize) {
-            totalCacheHits++;
-          }
-
-          // const queryTime = performance.now() - queryStart;
-          const queryTime = Number(process.hrtime.bigint() - queryStart);
-          iterationTimes.push(queryTime);
-          allResults.push(queryTime);
         } catch (error) {
           errors.push(
             `Iteration ${i}, Query "${query}": ${error instanceof Error ? error.message : String(error)}`,
           );
-          // const queryTime = performance.now() - queryStart;
-          const queryTime = Number(process.hrtime.bigint() - queryStart);
-          iterationTimes.push(queryTime);
-          allResults.push(queryTime);
         }
+
+        const afterCacheSize = this.getCacheStats().stat.size;
+
+        // If cache size didn't change, it was a cache hit
+        if (afterCacheSize === beforeCacheSize) totalCacheHits++;
+
+        const elapsed = Number(process.hrtime.bigint() - queryStart) / 1e6;
+        iterationTimes.push(elapsed);
+        allTimes.push(elapsed);
       }
 
-      iterationResults.push(iterationTimes);
-
-      // const iterationTime = performance.now() - iterationStartTime;
-      const iterationTime = Number(
-        process.hrtime.bigint() - iterationStartTime,
-      );
+      const iterationMs =
+        Number(process.hrtime.bigint() - iterationStartTime) / 1e6;
       this.logger.log(
-        `Iteration ${i + 1}/${iterations} completed in ${iterationTime.toFixed(2)}ms`,
+        `Iteration ${i + 1}/${iterations} completed in ${iterationMs.toFixed(2)}ms`,
       );
+
+      iterationStats.push(this.calculateDetailedStats(iterationTimes));
     }
 
-    // const totalTime = performance.now() - totalStartTime;
-    const totalTime = Number(process.hrtime.bigint() - totalStartTime);
+    const totalTime = Number(process.hrtime.bigint() - totalStartTime) / 1e6;
     const memoryAfter = measureMemory ? this.getMemoryUsage() : null;
 
+    // sort once
+    allTimes.sort((a, b) => a - b);
+
     // Calculate comprehensive statistics
-    allResults.sort((a, b) => a - b);
-    const stats = this.calculateDetailedStats(allResults);
+    const stats = this.calculateDetailedStats(allTimes);
+    const totalQueries = length * iterations;
+    const cacheHitRate = totalCacheHits / totalQueries;
+    const errorRate = errors.length / totalQueries;
+    const throughput = totalQueries / (totalTime / 1000);
 
     const result: AdvancedBenchmarkResult = {
       ...stats,
-      totalQueries: testQueries.length * iterations,
+      totalQueries,
       totalTime,
-      throughput: (testQueries.length * iterations) / (totalTime / 1000),
-      cacheHitRate: totalCacheHits / (testQueries.length * iterations),
-      errorRate: errors.length / (testQueries.length * iterations),
-      iterationStats: iterationResults.map((times) =>
-        this.calculateDetailedStats(times),
-      ),
+      throughput,
+      cacheHitRate,
+      errorRate,
+      iterationStats,
       memoryUsage:
         memoryBefore && memoryAfter
           ? {
               before: memoryBefore,
               after: memoryAfter,
-              delta: memoryAfter.used - memoryBefore.used,
+              delta: memoryAfter.heapUsed - memoryBefore.heapUsed,
             }
           : undefined,
-      errors: errors.slice(0, 20), // Keep only first 20 errors
+      errors: errors.slice(0, 25), // Keep only first 25 errors
     };
 
     this.logger.log('Advanced Benchmark Results:', {
@@ -1721,59 +1877,59 @@ export class SuggestionService implements OnModuleInit {
     return result;
   }
 
-  private calculateDetailedStats(times: number[]): DetailedStats {
-    const sorted = [...times].sort((a, b) => a - b);
-    const len = sorted.length;
+  // private calculateDetailedStats(times: number[]): DetailedStats {
+  //   const sorted = [...times].sort((a, b) => a - b);
+  //   const len = sorted.length;
 
-    return {
-      avgResponseTime: times.reduce((sum, time) => sum + time, 0) / len,
-      medianResponseTime:
-        len % 2 === 0
-          ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
-          : sorted[Math.floor(len / 2)],
-      p95ResponseTime: sorted[Math.floor(len * 0.95)],
-      p99ResponseTime: sorted[Math.floor(len * 0.99)],
-      minResponseTime: sorted[0],
-      maxResponseTime: sorted[len - 1],
-      stdDeviation: this.calculateStandardDeviation(times),
-    };
-  }
+  //   return {
+  //     avgResponseTime: times.reduce((sum, time) => sum + time, 0) / len,
+  //     medianResponseTime:
+  //       len % 2 === 0
+  //         ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
+  //         : sorted[Math.floor(len / 2)],
+  //     p95ResponseTime: sorted[Math.floor(len * 0.95)],
+  //     p99ResponseTime: sorted[Math.floor(len * 0.99)],
+  //     minResponseTime: sorted[0],
+  //     maxResponseTime: sorted[len - 1],
+  //     stdDeviation: this.calculateStandardDeviation(times),
+  //   };
+  // }
 
-  private calculateStandardDeviation(values: number[]): number {
-    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-    const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
-    const avgSquaredDiff =
-      squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
-    return Math.sqrt(avgSquaredDiff);
-  }
+  // private calculateStandardDeviation(values: number[]): number {
+  //   const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+  //   const squaredDiffs = values.map((val) => Math.pow(val - mean, 2));
+  //   const avgSquaredDiff =
+  //     squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
+  //   return Math.sqrt(avgSquaredDiff);
+  // }
 
-  private calculateDetailedStats(times: number[]): DetailedStats {
-    const sorted = [...times].sort((a, b) => a - b);
-    const len = sorted.length;
+  // private calculateDetailedStats(times: number[]): DetailedStats {
+  //   const sorted = [...times].sort((a, b) => a - b);
+  //   const len = sorted.length;
 
-    const avgResponseTime = times.reduce((sum, x) => sum + x, 0) / len;
-    const medianResponseTime =
-      len % 2 === 0
-        ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
-        : sorted[Math.floor(len / 2)];
-    const p95ResponseTime = sorted[Math.floor(len * 0.95)];
-    const p99ResponseTime = sorted[Math.floor(len * 0.99)];
-    const minResponseTime = sorted[0];
-    const maxResponseTime = sorted[len - 1];
-    const variance =
-      times.reduce((sum, x) => sum + (x - avgResponseTime) ** 2, 0) / len;
-    const stdDeviation = Math.sqrt(variance);
+  //   const avgResponseTime = times.reduce((sum, x) => sum + x, 0) / len;
+  //   const medianResponseTime =
+  //     len % 2 === 0
+  //       ? (sorted[len / 2 - 1] + sorted[len / 2]) / 2
+  //       : sorted[Math.floor(len / 2)];
+  //   const p95ResponseTime = sorted[Math.floor(len * 0.95)];
+  //   const p99ResponseTime = sorted[Math.floor(len * 0.99)];
+  //   const minResponseTime = sorted[0];
+  //   const maxResponseTime = sorted[len - 1];
+  //   const variance =
+  //     times.reduce((sum, x) => sum + (x - avgResponseTime) ** 2, 0) / len;
+  //   const stdDeviation = Math.sqrt(variance);
 
-    return {
-      avgResponseTime,
-      medianResponseTime,
-      p95ResponseTime,
-      p99ResponseTime,
-      minResponseTime,
-      maxResponseTime,
-      stdDeviation,
-    };
-  }
+  //   return {
+  //     avgResponseTime,
+  //     medianResponseTime,
+  //     p95ResponseTime,
+  //     p99ResponseTime,
+  //     minResponseTime,
+  //     maxResponseTime,
+  //     stdDeviation,
+  //   };
+  // }
 
   calculateDetailedStats(times: number[]): DetailedStats {
     const n = times.length;
@@ -2368,6 +2524,10 @@ export class SuggestionService implements OnModuleInit {
 
     this.queryLimiter.set(query, currentTime);
     return true;
+  }
+
+  private isNumericQuery(query: string): boolean {
+    return /^\d+$/.test(query) && query.length >= 4;
   }
 
   // =================== ADVANCED FEATURES ===================

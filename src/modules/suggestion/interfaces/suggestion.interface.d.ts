@@ -10,7 +10,7 @@ interface BenchmarkResult {
 
 interface BenchmarkOptions {
   warmCache?: boolean;
-  clearCacheFirst?: boolean;
+  clearCacheMode?: 'none' | 'once' | 'perIteration';
   iterations?: number;
   measureMemory?: boolean;
 }
@@ -41,7 +41,7 @@ interface AdvancedBenchmarkResult extends DetailedStats {
 }
 
 interface MemoryUsage {
-  used: number;
+  heapUsed: number;
   total: number;
   external: number;
 }
@@ -96,6 +96,11 @@ interface Candidate {
   trigramScore?: number;
 }
 
+export interface ScoredWord {
+  word: string;
+  distance: number;
+}
+
 // =================== CONFIG ===================
 export interface SuggestionConfig {
   // Trigram filtering
@@ -132,6 +137,12 @@ export interface SuggestionConfig {
   batchProcessingSize: number;
   warmupEnabled: boolean;
   warmpUpSize: number; // Size of the warm-up batch
+
+  // Optional thresholds for diversity and length
+  highDiversityThreshold: number; // Default: 0.75
+  lowDiversityThreshold: number; // Default: 0.35
+  diversityAdjustmentStrength: number; // Default: 1.0
+  lengthThresholdRatio: number; // Default: 0.3
 
   // Eviction policy
   maxWordsPerNode: number; // New: max words per TrieNode

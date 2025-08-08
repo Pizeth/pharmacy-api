@@ -67,6 +67,19 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     minQueryLength: parseInt(process.env.MIN_QUERY_LENGTH ?? '3'),
     warmpUpSize: parseInt(process.env.WAMP_UP_SIZE ?? '500'),
     maxWordsPerNode: parseInt(process.env.MAX_WORDS_PER_NODE ?? '50'),
+    // Optional thresholds for diversity and length
+    highDiversityThreshold: parseFloat(
+      process.env.HIGH_DIVERSITY_THRESHOLD ?? '0.75',
+    ), // Default: 0.75
+    lowDiversityThreshold: parseFloat(
+      process.env.LOW_DIVERSITY_THRESHOLD ?? '0.35',
+    ), // Default: 0.35
+    diversityAdjustmentStrength: parseFloat(
+      process.env.DIVERSITY_ADJUSTMENT_STRENGTH ?? '1.0',
+    ), // Default: 1.0
+    lengthThresholdRatio: parseFloat(
+      process.env.LENGTH_THRESHOLD_RATIO ?? '0.3',
+    ), // Default: 0.3
   };
 
   // Validation: weights should sum to 1 including all weights
@@ -82,6 +95,12 @@ export default registerAs('suggestion', (): SuggestionConfig => {
   //       `prefix=${cfg.prefixWeight}, lengthPenalty=${cfg.lengthPenaltyWeight}`,
   //   );
   // }
+
+  if (cfg.highDiversityThreshold <= cfg.lowDiversityThreshold) {
+    throw new Error(
+      '[suggestion] highDiversityThreshold must be > lowDiversityThreshold',
+    );
+  }
 
   // Validate weights (sum to 1 or adjust dynamically)
   const totalWeight =

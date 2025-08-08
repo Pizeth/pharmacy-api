@@ -5,6 +5,7 @@ import { BKNode } from '../../nodes/node.class';
 import { LevenshteinService } from '../levenshtein/levenshtein.service';
 import suggestionConfig from '../../config/suggestion.config';
 import { ConfigType } from '@nestjs/config';
+import { ScoredWord } from '../../interfaces/suggestion.interface';
 
 // @Injectable()
 // export class BKTreeService {
@@ -188,15 +189,16 @@ export class BKTreeService {
     }
   }
 
-  search(query: string, maxDistance: number, maxResults = 100): string[] {
+  search(query: string, maxDistance: number, maxResults = 100): ScoredWord[] {
     if (!this.root) return [];
 
-    const results: Array<{ word: string; distance: number }> = [];
+    // const results: Array<{ word: string; distance: number }> = [];
+    const results: ScoredWord[] = [];
     const stack: BKNode[] = [this.root];
     const queryLower = query.toLowerCase();
 
     // If exact match with root, return early
-    if (queryLower === this.root.word) return [query];
+    if (queryLower === this.root.word) return [{ word: query, distance: 0 }];
 
     while (stack.length > 0 && results.length < maxResults) {
       const node = stack.pop()!;
@@ -221,7 +223,9 @@ export class BKTreeService {
     }
 
     // Sort by distance to query
-    return results.sort((a, b) => a.distance - b.distance).map((r) => r.word);
+    // return results.sort((a, b) => a.distance - b.distance).map((r) => r.word);
+    // The final sort is now free, as the distance is already known
+    return results.sort((a, b) => a.distance - b.distance);
   }
 
   getStats(): { nodeCount: number } {
