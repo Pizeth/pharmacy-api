@@ -17,6 +17,6 @@ import { TrigramIndexService } from './services/trigram/trigram-index.service';
     TrieService,
     LevenshteinService,
   ],
-  exports: [SuggestionService],
+  exports: [SuggestionService, CacheModule],
 })
 export class SuggestionModule {}

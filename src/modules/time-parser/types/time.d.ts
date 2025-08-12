@@ -3,75 +3,10 @@
 // Location: src/utils/time-parser.constants.ts
 // -----------------------------------------------------------------
 // We'll move the constants and types into their own file for better organization.
-
-// Time multipliers (in milliseconds)
-export const TIME_MULTIPLIERS = {
-  ms: 1,
-  s: 1000,
-  m: 60 * 1000,
-  h: 60 * 60 * 1000,
-  d: 24 * 60 * 60 * 1000,
-  w: 7 * 24 * 60 * 60 * 1000,
-  mo: 30.44 * 24 * 60 * 60 * 1000, // Average month
-  y: 365.25 * 24 * 60 * 60 * 1000, // Average year with leap years
-} as const;
+import { TIME_MULTIPLIERS } from '../../constants/time';
 
 // Base unit type
 export type UnitTime = keyof typeof TIME_MULTIPLIERS;
-
-// Comprehensive alias mapping with case-insensitive support
-export const UNIT_ALIASES: Record<string, UnitTime> = {
-  // Milliseconds
-  ms: 'ms',
-  millisecond: 'ms',
-  milliseconds: 'ms',
-  msec: 'ms',
-  msecs: 'ms',
-
-  // Seconds
-  s: 's',
-  sec: 's',
-  secs: 's',
-  second: 's',
-  seconds: 's',
-
-  // Minutes
-  min: 'm',
-  mins: 'm',
-  minute: 'm',
-  minutes: 'm',
-
-  // Hours
-  h: 'h',
-  hr: 'h',
-  hrs: 'h',
-  hour: 'h',
-  hours: 'h',
-
-  // Days
-  d: 'd',
-  day: 'd',
-  days: 'd',
-
-  // Weeks
-  w: 'w',
-  wk: 'w',
-  wks: 'w',
-  week: 'w',
-  weeks: 'w',
-
-  // Months
-  mo: 'mo',
-  month: 'mo',
-  months: 'mo',
-
-  // Years
-  y: 'y',
-  yr: 'y',
-  yrs: 'y',
-  year: 'y',
-  years: 'y',
-};
 
 // export const LONG_NAMES: Record<UnitTime, string> = {
 //   ms: 'millisecond',
@@ -86,16 +21,6 @@ export const UNIT_ALIASES: Record<string, UnitTime> = {
 
 // Supported For Intl.RelativeTimeFormat units
 type RelativeTimeUnit = Exclude<Intl.RelativeTimeFormatUnit, 'quarter'>;
-const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit> = {
-  ms: 'second', // Fallback for milliseconds
-  s: 'second',
-  m: 'minute',
-  h: 'hour',
-  d: 'day',
-  w: 'week',
-  mo: 'month',
-  y: 'year',
-};
 
 // const mapping: Record<UnitTime, Intl.RelativeTimeFormatUnit> = {
 //   s: 'second',
@@ -107,9 +32,6 @@ const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit> = {
 //   y: 'year',
 //   ms: 'second', // Fallback for milliseconds
 // };
-
-// Ambiguous units that should be explicitly handled
-export const AMBIGUOUS_UNITS = new Set(['m']);
 
 // Configuration interface
 export interface TimeParserConfig {

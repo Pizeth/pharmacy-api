@@ -23,8 +23,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { SuggestionModule } from './src/modules/suggestion/suggestion.module';
 import { SuggestionModule } from './modules/suggestion/suggestion.module';
+// import { SuggestionModule } from './src/modules/suggestion/suggestion.module';
+// import { SuggestionModule } from './modules/suggestion/suggestion.module';
 
 @Module({
   imports: [

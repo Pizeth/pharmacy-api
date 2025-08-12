@@ -663,7 +663,12 @@ export class SuggestionService1 implements OnModuleInit {
             minQueryLength: this.config.minQueryLength, // 3 chars
             maxLocalCacheSize: this.config.maxLocalCacheSize, // 500
             warmpUpSize: this.config.warmpUpSize,
-            coldStartBenchmark: this.config.coldStartBenchmark, // false
+            coldStartBenchmark: this.config.coldStartBenchmark,
+            highDiversityThreshold: this.config.highDiversityThreshold,
+            lowDiversityThreshold: this.config.lowDiversityThreshold,
+            diversityAdjustmentStrength:
+              this.config.diversityAdjustmentStrength,
+            lengthThresholdRatio: this.config.lengthThresholdRatio, // 0.5
           });
         }
       }
@@ -1056,12 +1061,20 @@ export class SuggestionService implements OnModuleInit {
     // }
 
     // Early exit if we have enough high-quality prefix matches
+    // if (candidates.size >= config.maxSuggestions) {
+    //   return this.rankCandidates(
+    //     query,
+    //     Array.from(candidates.values()),
+    //     config,
+    //   );
+    // }
+
     if (candidates.size >= config.maxSuggestions) {
       return this.rankCandidates(
         query,
         Array.from(candidates.values()),
         config,
-      );
+      ).map((item) => item.candidate);
     }
 
     // Strategy 2: BK-Tree search for close typo (fast, good recall)
@@ -1089,12 +1102,19 @@ export class SuggestionService implements OnModuleInit {
         Array.from(candidates.values()),
         config,
       );
-      if (
-        ranked.length > 0 &&
-        this.calculateCompositeScore(query, ranked[0], config) >=
-          config.earlyExitThreshold
-      ) {
-        return ranked.slice(0, config.maxSuggestions);
+      // if (
+      //   ranked.length > 0 &&
+      //   this.calculateCompositeScore(query, ranked[0], config) >=
+      //     config.earlyExitThreshold
+      // ) {
+      //   return ranked.slice(0, config.maxSuggestions);
+      // }
+
+      // Check the score of the top result directly. No re-calculation needed.
+      if (ranked.length > 0 && ranked[0].score >= config.earlyExitThreshold) {
+        return ranked
+          .slice(0, config.maxSuggestions)
+          .map((item) => item.candidate);
       }
     }
 
@@ -1105,81 +1125,61 @@ export class SuggestionService implements OnModuleInit {
         config.maxTrigramCandidates - candidates.size,
         config.minTrigramSimilarity,
       );
-      trigramCandidates.forEach((word) => candidates.add(word));
-    }
+      // trigramCandidates.forEach((word) => candidates.add(word));
 
-    // Score and rank all collected candidates
-    return this.rankCandidates(query, Array.from(candidates), config);
-  }
-
-  private computeSuggestions(
-    query: string,
-    config: SuggestionConfig,
-  ): string[] {
-    const adaptiveThreshold = this.getAdaptiveThreshold(query);
-    const candidates = new Map<string, Candidate>();
-
-    // Strategy 1: Prefix matches (high precision)
-    const prefixMatches = this.trieService.getWordsWithPrefix(
-      query,
-      config.maxSuggestions * 2,
-    );
-    prefixMatches.forEach((word) => {
-      candidates.set(word, { word, isPrefixMatch: true });
-    });
-
-    // Early exit if we have enough high-quality prefix matches
-    if (candidates.size >= config.maxSuggestions) {
-      return this.rankCandidates(
-        query,
-        Array.from(candidates.values()),
-        config,
-      );
-    }
-
-    // Strategy 2: BK-Tree for close typos (fast recall)
-    // This now returns ScoredWord objects, preventing re-calculation
-    const bkResults = this.bkTreeService.search(query, adaptiveThreshold);
-    bkResults.forEach(({ word, distance }) => {
-      if (!candidates.has(word)) {
-        candidates.set(word, {
-          word,
-          isPrefixMatch: false,
-          levenshteinDistance: distance,
-        });
-      }
-    });
-
-    // Strategy 3: Trigram fallback for broader matches
-    if (candidates.size < config.maxTrigramCandidates) {
-      const trigramResults = this.trigramIndexService.getTopCandidates(
-        query,
-        config.maxTrigramCandidates,
-        config.minTrigramSimilarity,
-      );
-      trigramResults.forEach(({ alias, score }) => {
-        const existing = candidates.get(alias);
-        if (existing) {
-          // Enhance existing candidate with trigram score
-          existing.trigramScore = score;
-        } else {
-          candidates.set(alias, {
-            word: alias,
-            isPrefixMatch: false,
-            trigramScore: score,
-          });
+      // Process the string[] returned from getTopCandidates.
+      // The final ranking function will calculate the trigram score.
+      trigramCandidates.forEach((word) => {
+        if (!candidates.has(word)) {
+          candidates.set(word, { word, isPrefixMatch: false });
         }
       });
     }
 
-    return this.rankCandidates(query, Array.from(candidates.values()), config);
+    // Score and rank all collected candidates
+    // return this.rankCandidates(query, Array.from(candidates.values()), config);
+    // Final ranking of all collected candidates
+    return this.rankCandidates(
+      query,
+      Array.from(candidates.values()),
+      config,
+    ).map((item) => item.candidate);
   }
+
+  // private rankCandidates(
+  //   query: string,
+  //   candidates: Candidate[],
+  //   config: SuggestionConfig,
+  // ): string[] {
+  //   if (candidates.length === 0) return [];
+
+  //   // Use heap for efficient top-k selection
+  //   const heap = new MinHeap<{ candidate: string; score: number }>(
+  //     (a, b) => a.score - b.score,
+  //   );
+
+  //   for (const candidate of candidates) {
+  //     const score = this.calculateCompositeScore(query, candidate, config);
+
+  //     if (heap.size() < config.maxSuggestions) {
+  //       heap.push({ candidate: candidate.word, score });
+  //     } else if (score > heap.peek()!.score) {
+  //       heap.pop();
+  //       heap.push({ candidate: candidate.word, score });
+  //     }
+  //   }
+
+  //   return heap
+  //     .toSortedArray()
+  //     .sort((a, b) => b.score - a.score)
+  //     .map((item) => item.candidate);
+  // }
 
   private rankCandidates(
     query: string,
     candidates: Candidate[],
     config: SuggestionConfig,
-  ): string[] {
+  ): Array<{ candidate: string; score: number }> {
     if (candidates.length === 0) return [];
 
     // Use heap for efficient top-k selection
@@ -1198,8 +1198,8 @@ export class SuggestionService implements OnModuleInit {
       }
     }
 
+    // Return the full sorted array of scored objects
     return heap.toSortedArray().sort((a, b) => b.score - a.score);
-    // .map((item) => item.candidate);
   }
 
   private calculateCompositeScore(
@@ -1209,9 +1209,11 @@ export class SuggestionService implements OnModuleInit {
   ): number {
     const word = candidate.word;
     // Prefix bonus
-    const prefixBonus = word.toLowerCase().startsWith(query.toLowerCase())
-      ? 1
-      : 0;
+    const prefixBonus =
+      candidate.isPrefixMatch ||
+      word.toLowerCase().startsWith(query.toLowerCase())
+        ? 1
+        : 0;
 
     // Trigram similarity use pre-calculated scores where available, otherwise calculate on the fly
     const trigramSim =
@@ -2545,6 +2547,7 @@ export class SuggestionService implements OnModuleInit {
 
     return candidates
       .map((candidate) => {
+        // Pass the full candidate object to avoid re-calculating distance
         const breakdown = this.getScoreBreakdown(normalizedQuery, candidate);
         const totalScore = this.calculateCompositeScore(
           normalizedQuery,
@@ -2553,7 +2556,7 @@ export class SuggestionService implements OnModuleInit {
         );
 
         return {
-          word: candidate,
+          word: candidate.word,
           score: totalScore,
           breakdown,
         };
@@ -2562,52 +2565,123 @@ export class SuggestionService implements OnModuleInit {
       .slice(0, this.config.maxSuggestions);
   }
 
-  private getAllCandidates(query: string): string[] {
-    const candidates = new Set<string>();
+  // private getAllCandidates(query: string): string[] {
+  //   const candidates = new Set<string>();
 
-    // Get candidates from all strategies
+  //   // Get candidates from all strategies
+  //   const prefixMatches = this.trieService.getWordsWithPrefix(query, 50);
+  //   const bkResults = this.bkTreeService.search(
+  //     query,
+  //     this.getAdaptiveThreshold(query),
+  //     50,
+  //   );
+  //   const trigramResults = this.trigramIndexService.getTopCandidates(
+  //     query,
+  //     50,
+  //     this.config.minTrigramSimilarity,
+  //   );
+
+  //   prefixMatches.forEach((word) => candidates.add(word));
+  //   bkResults.forEach((scoredWord) => candidates.add(scoredWord.word));
+  //   trigramResults.forEach((word) => candidates.add(word));
+
+  //   return Array.from(candidates);
+  // }
+
+  private getAllCandidates(query: string): Candidate[] {
+    const candidates = new Map<string, Candidate>();
+    const config = this.config; // Use the service's default config
+    const adaptiveThreshold = this.getAdaptiveThreshold(query);
+
+    // Strategy 1: Trie
     const prefixMatches = this.trieService.getWordsWithPrefix(query, 50);
-    const bkResults = this.bkTreeService.search(
-      query,
-      this.getAdaptiveThreshold(query),
-      50,
+    prefixMatches.forEach((word) =>
+      candidates.set(word, { word, isPrefixMatch: true }),
     );
+
+    // Strategy 2: BK-Tree
+    const bkResults = this.bkTreeService.search(query, adaptiveThreshold, 50);
+    bkResults.forEach(({ word, distance }) => {
+      if (!candidates.has(word)) {
+        candidates.set(word, {
+          word,
+          isPrefixMatch: false,
+          levenshteinDistance: distance,
+        });
+      }
+    });
+
+    // Strategy 3: Trigram
     const trigramResults = this.trigramIndexService.getTopCandidates(
       query,
       50,
-      this.config.minTrigramSimilarity,
+      config.minTrigramSimilarity,
     );
+    trigramResults.forEach((word) => {
+      if (!candidates.has(word)) {
+        candidates.set(word, { word, isPrefixMatch: false });
+      }
+    });
 
-    prefixMatches.forEach((word) => candidates.add(word));
-    bkResults.forEach((word) => candidates.add(word));
-    trigramResults.forEach((word) => candidates.add(word));
-
-    return Array.from(candidates);
+    return Array.from(candidates.values());
   }
 
-  private getScoreBreakdown(query: string, candidate: string): ScoreBreakdown {
-    const prefixMatch = candidate.toLowerCase().startsWith(query.toLowerCase());
-    const trigramSim = this.trigramIndexService.calculateSimilarity(
+  // private getScoreBreakdown(query: string, candidate: string): ScoreBreakdown {
+  //   const prefixMatch = candidate.toLowerCase().startsWith(query.toLowerCase());
+  //   const trigramSim = this.trigramIndexService.calculateSimilarity(
+  //     query,
+  //     candidate,
+  //   );
+
+  //   const maxLen = Math.max(query.length, candidate.length);
+  //   const levDistance = this.levenshteinService.calculateDistance(
+  //     query,
+  //     candidate,
+  //   );
+  //   const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
+
+  //   const lengthDiff = Math.abs(query.length - candidate.length);
+  //   const lengthSim = 1 - lengthDiff / Math.max(query.length, candidate.length);
+
+  //   return {
+  //     prefixMatch,
+  //     trigramSimilarity: trigramSim,
+  //     levenshteinSimilarity: levSim,
+  //     lengthSimilarity: lengthSim,
+  //     editDistance: levDistance,
+  //   };
+  // }
+
+  private getScoreBreakdown(
+    query: string,
+    candidate: Candidate,
+  ): ScoreBreakdown {
+    const word = candidate.word.toLowerCase();
+    const prefixMatch =
+      candidate.isPrefixMatch || word.startsWith(query.toLowerCase());
+    const trigramSimilarity = this.trigramIndexService.calculateSimilarity(
       query,
-      candidate,
+      word,
     );
 
-    const maxLen = Math.max(query.length, candidate.length);
-    const levDistance = this.levenshteinService.calculateDistance(
-      query,
-      candidate,
-    );
-    const levSim = maxLen === 0 ? 1 : Math.max(0, 1 - levDistance / maxLen);
+    // Use the pre-calculated distance if available
+    const editDistance =
+      candidate.levenshteinDistance ??
+      this.levenshteinService.calculateDistance(query, word);
 
-    const lengthDiff = Math.abs(query.length - candidate.length);
-    const lengthSim = 1 - lengthDiff / Math.max(query.length, candidate.length);
+    const maxLen = Math.max(query.length, word.length);
+    const levenshteinSimilarity =
+      maxLen === 0 ? 1 : Math.max(0, 1 - editDistance / maxLen);
+
+    const lengthDiff = Math.abs(query.length - word.length);
+    const lengthSimilarity = 1 - lengthDiff / maxLen;
 
     return {
       prefixMatch,
-      trigramSimilarity: trigramSim,
-      levenshteinSimilarity: levSim,
-      lengthSimilarity: lengthSim,
-      editDistance: levDistance,
+      trigramSimilarity,
+      levenshteinSimilarity,
+      lengthSimilarity,
+      editDistance,
     };
   }
 
@@ -2640,46 +2714,46 @@ export class SuggestionService implements OnModuleInit {
     return results;
   }
 
-  async batchGetSuggestions(
-    queries: string[],
-    batchSize: number = 50,
-  ): Promise<Map<string, string[]>> {
-    const results = new Map<string, string[]>();
-    const concurrencyLimit = 4; // Adjust based on CPU cores
+  // async batchGetSuggestions(
+  //   queries: string[],
+  //   batchSize: number = 50,
+  // ): Promise<Map<string, string[]>> {
+  //   const results = new Map<string, string[]>();
+  //   const concurrencyLimit = 4; // Adjust based on CPU cores
 
-    async function processBatch(batch: string[]): Promise<void> {
-      const batchResults = await Promise.all(
-        batch.map((query) =>
-          this.getSuggestions(query).then(
-            (s) => [query, s] as [string, string[]],
-          ),
-        ),
-      );
-      batchResults.forEach(([query, suggestions]) =>
-        results.set(query, suggestions),
-      );
-    }
+  //   async function processBatch(batch: string[]): Promise<void> {
+  //     const batchResults = await Promise.all(
+  //       batch.map((query) =>
+  //         this.getSuggestions(query).then(
+  //           (s) => [query, s] as [string, string[]],
+  //         ),
+  //       ),
+  //     );
+  //     batchResults.forEach(([query, suggestions]) =>
+  //       results.set(query, suggestions),
+  //     );
+  //   }
 
-    const batches = [];
-    for (let i = 0; i < queries.length; i += batchSize) {
-      batches.push(queries.slice(i, i + batchSize));
-    }
+  //   const batches = [];
+  //   for (let i = 0; i < queries.length; i += batchSize) {
+  //     batches.push(queries.slice(i, i + batchSize));
+  //   }
 
-    await Promise.all(
-      batches
-        .map((batch, index) =>
-          new Promise<void>((resolve) => {
-            setTimeout(
-              () => processBatch.call(this, batch).then(resolve),
-              index * 10,
-            );
-          }).catch((err) => this.logger.error(`Batch failed: ${err}`)),
-        )
-        .slice(0, concurrencyLimit),
-    );
+  //   await Promise.all(
+  //     batches
+  //       .map((batch, index) =>
+  //         new Promise<void>((resolve) => {
+  //           setTimeout(
+  //             () => processBatch.call(this, batch).then(resolve),
+  //             index * 10,
+  //           );
+  //         }).catch((err) => this.logger.error(`Batch failed: ${err}`)),
+  //       )
+  //       .slice(0, concurrencyLimit),
+  //   );
 
-    return results;
-  }
+  //   return results;
+  // }
 
   // =================== ENHANCED MONITORING ===================
 
@@ -2703,14 +2777,14 @@ export class SuggestionService implements OnModuleInit {
     if (typeof process !== 'undefined' && process.memoryUsage) {
       const usage = process.memoryUsage();
       return {
-        used: usage.heapUsed,
+        heapUsed: usage.heapUsed,
         total: usage.heapTotal,
         external: usage.external,
       };
     }
     // return undefined;
     // Fallback for non-Node.js environments
-    return { used: 0, total: 0, external: 0 }; // Or throw new Error('Memory usage not supported')
+    return { heapUsed: 0, total: 0, external: 0 }; // Or throw new Error('Memory usage not supported')
   }
 
   // Reset performance metrics (useful for testing/monitoring)

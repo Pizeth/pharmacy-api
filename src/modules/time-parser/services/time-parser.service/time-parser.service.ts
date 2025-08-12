@@ -7,21 +7,27 @@ import { Duration } from 'luxon';
 import path from 'path';
 import fs, { promises } from 'fs';
 import { DurationParseError } from 'src/exceptions/duration-parse.exception';
-import {
-  TIME_MULTIPLIERS,
-  UNIT_ALIASES,
+import type {
+  // TIME_MULTIPLIERS,
+  // UNIT_ALIASES,
   UnitTime,
   ParseOptions,
   FormatOptions,
   ParseResult,
-  AMBIGUOUS_UNITS,
+  // AMBIGUOUS_UNITS,
   DetailedParseResult,
   LocalizationConfig,
   PluralCategory,
   TimeParserConfig,
+  // RELATIVE_TIME_UNITS,
+} from 'src/modules/time-parser/types/time';
+import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
+import {
+  TIME_MULTIPLIERS,
+  UNIT_ALIASES,
+  AMBIGUOUS_UNITS,
   RELATIVE_TIME_UNITS,
-} from 'src/types/time';
-import { SuggestionEngine } from 'src/modules/suggestion/services/suggestion.service';
+} from '../../constants/time';
 
 @Injectable()
 /**
@@ -114,16 +120,17 @@ export class TimeParserService implements OnModuleInit {
   private readonly pluralRulesCache = new Map<string, Intl.PluralRules>();
 
   private localesPath: string;
-  private suggestionEngine: SuggestionEngine;
+  // private suggestionEngine: SuggestionEngine;
 
   // constructor(localesPath: string = path.join(__dirname, 'src/i18n')) {
   constructor(
     config: TimeParserConfig = {},
     preload: boolean = false,
     useLocale: boolean = true,
+    private readonly suggestion: SuggestionService,
   ) {
     // Initialize suggestion engine with all unit aliases
-    this.suggestionEngine = new SuggestionEngine(Object.keys(UNIT_ALIASES));
+    // this.suggestionEngine = new SuggestionEngine(Object.keys(UNIT_ALIASES));
 
     /**
      * Lazily build a precompute sorted units once for efficient formatting [unit, multiplier] tuple list
@@ -1006,7 +1013,8 @@ export class TimeParserService implements OnModuleInit {
       return this.suggestionCache.get(input)!;
     }
 
-    const suggestions = this.suggestionEngine.getSuggestions(input);
+    // const suggestions = this.suggestionEngine.getSuggestions(input);
+    const suggestions = this.suggestion.getSuggestions(input);
     this.suggestionCache.set(input, suggestions);
     return suggestions;
 
@@ -1193,19 +1201,24 @@ export class TimeParserService implements OnModuleInit {
 }
 
 // Export a default singleton instance for convenience
-export const durationParser = new TimeParserService();
+// export const durationParser = new TimeParserService(
+//   {},
+//   false,
+//   false,
+//   new SuggestionService(),
+// );
 
-// Convenience Vercel ms-compatible function that match the ms library API
-export function ms(
-  value: string | number,
-  options?: ParseOptions & FormatOptions,
-): number | string {
-  if (typeof value === 'string') {
-    return durationParser.parse(value, options);
-  } else {
-    return durationParser.format(value, options);
-  }
-}
+// // Convenience Vercel ms-compatible function that match the ms library API
+// export function ms(
+//   value: string | number,
+//   options?: ParseOptions & FormatOptions,
+// ): number | string {
+//   if (typeof value === 'string') {
+//     return durationParser.parse(value, options);
+//   } else {
+//     return durationParser.format(value, options);
+//   }
+// }
 
 // if (typeof input === 'number') {
 //   if (!opts.allowNegative && input < 0) {
