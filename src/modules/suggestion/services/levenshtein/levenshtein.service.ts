@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { CacheService } from 'src/modules/cache/services/cache.service';
 import { LEVENSHTEIN_CACHE } from 'src/modules/cache/tokens/cache.tokens';
-import suggestionConfig from '../../config/suggestion.config';
+import suggestionConfig from '../../configs/suggestion.config';
 
 // @Injectable()
 // export class LevenshteinService {

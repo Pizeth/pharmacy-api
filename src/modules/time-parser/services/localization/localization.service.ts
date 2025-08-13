@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CacheService } from 'src/modules/cache/services/cache.service';
 import { LOCALIZATION_CACHE } from 'src/modules/cache/tokens/cache.tokens';
-import { LocalizationConfig } from 'src/modules/time-parser/types/time';
+import type { LocalizationConfig } from 'src/modules/time-parser/types/time';
 
 @Injectable()
 export class LocalizationService {

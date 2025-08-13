@@ -6,7 +6,7 @@ import {
   LEVENSHTEIN_CACHE,
   SUGGESTION_CACHE,
 } from 'src/modules/cache/tokens/cache.tokens';
-import suggestionConfig from '../config/suggestion.config';
+import suggestionConfig from '../configs/suggestion.config';
 import { BKTreeService } from './bk-tree/bk-tree.service';
 import { LevenshteinService } from './levenshtein/levenshtein.service';
 import { TrieService } from './trie/trie.service';

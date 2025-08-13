@@ -1,5 +1,4 @@
-import { UnitTime } from 'src/types/commons.enum';
-import { RelativeTimeUnit } from '../types/time';
+import { RelativeTimeUnit, UnitTime } from '../types/time';
 
 // Time multipliers (in milliseconds)
 export const TIME_MULTIPLIERS = {

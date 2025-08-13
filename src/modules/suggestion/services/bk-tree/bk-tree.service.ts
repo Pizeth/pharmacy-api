@@ -3,7 +3,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BKNode } from '../../nodes/node.class';
 import { LevenshteinService } from '../levenshtein/levenshtein.service';
-import suggestionConfig from '../../config/suggestion.config';
+import suggestionConfig from '../../configs/suggestion.config';
 import { ConfigType } from '@nestjs/config';
 import { ScoredWord } from '../../interfaces/suggestion.interface';
 

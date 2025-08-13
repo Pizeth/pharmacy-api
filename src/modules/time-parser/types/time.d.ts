@@ -3,7 +3,7 @@
 // Location: src/utils/time-parser.constants.ts
 // -----------------------------------------------------------------
 // We'll move the constants and types into their own file for better organization.
-import { TIME_MULTIPLIERS } from '../../constants/time';
+import { TIME_MULTIPLIERS } from '../constants/time';
 
 // Base unit type
 export type UnitTime = keyof typeof TIME_MULTIPLIERS;
@@ -35,14 +35,16 @@ type RelativeTimeUnit = Exclude<Intl.RelativeTimeFormatUnit, 'quarter'>;
 
 // Configuration interface
 export interface TimeParserConfig {
-  maxInputLength?: number;
-  maxCacheSize?: number;
-  defaultLocale?: string;
-  enableSuggestions?: boolean;
-  localesPath?: string;
-  parseOptions?: ParseOptions;
-  formatOptions?: FormatOptions;
-  localizationConfig?: LocalizationConfig;
+  maxInputLength: number;
+  maxCacheSize: number;
+  defaultLocale: string;
+  enableSuggestions: boolean;
+  localesPath: string;
+  parseOptions: ParseOptions;
+  formatOptions: FormatOptions;
+  preload: boolean;
+  useLocale: boolean;
+  localizationConfig: LocalizationConfig;
 }
 
 // Options interface
