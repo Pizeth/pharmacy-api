@@ -52,8 +52,8 @@ export interface ParseOptions {
   /**
    * How to handle ambiguous units like 'm' (minutes vs months)
    * - 'strict': Throw error for ambiguous units
-   * - 'minutes': Interpret 'm' as minutes
-   * - 'months': Interpret 'm' as months
+   * - 'minutes': Interpret 'm', 'mn' as minutes
+   * - 'months': Interpret 'm', 'mn' as months
    */
   ambiguousUnit?: 'strict' | 'minutes' | 'months';
 

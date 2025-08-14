@@ -5,6 +5,7 @@ import {
   // UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AuditTrail, RefreshToken } from '@prisma/client';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
@@ -102,7 +103,7 @@ export class AuthService {
       // Save refresh token to database
       const refreshToken = await this.tokenService.generateRefreshToken(
         payload,
-        '1hourtt',
+        '1 hour 2min 55 sec',
       );
 
       // After validation succeeds, transform the object by creating a mutable copy of the validated data.
@@ -110,6 +111,8 @@ export class AuthService {
       // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
       delete (result as { password?: string }).password; // Cleanly remove the repassword field
       delete (result as { repassword?: string }).repassword; // Cleanly remove the repassword field
+      delete (result as { refreshTokens?: RefreshToken }).refreshTokens; // Cleanly remove the repassword field
+      delete (result as { auditTrail?: AuditTrail }).auditTrail; // Cleanly remove the repassword field
 
       // TODO: Generate a JWT and return it here
       // instead of the user object

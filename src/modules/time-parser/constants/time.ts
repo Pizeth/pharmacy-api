@@ -78,4 +78,4 @@ export const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit> = {
 };
 
 // Ambiguous units that should be explicitly handled
-export const AMBIGUOUS_UNITS = new Set(['m']);
+export const AMBIGUOUS_UNITS = new Set(['m', 'mn']);
