@@ -2,6 +2,15 @@ import { RelativeTimeUnit, UnitTime } from '../types/time';
 
 // Time multipliers (in milliseconds)
 export const TIME_MULTIPLIERS = {
+  // qs: 0.00000000000000000000000001,
+  // rs: 0.000000000000000000000001,
+  // ys: 0.000000000000000000001,
+  // zs: 0.000000000000000001,
+  // as: 0.000000000000001,
+  // fs: 0.000000000001,
+  // ps: 0.000000001,
+  // ns: 0.000001,
+  // μs: 0.001,
   ms: 1,
   s: 1000,
   m: 60 * 1000,
@@ -14,6 +23,22 @@ export const TIME_MULTIPLIERS = {
 
 // Comprehensive alias mapping with case-insensitive support
 export const UNIT_ALIASES: Record<string, UnitTime> = {
+  // // nanoseconds
+  // ns: 'ns',
+  // nanos: 'ns',
+  // nanosecs: 'ns',
+  // nanosecond: 'ns',
+  // nanoseconds: 'ns',
+
+  // // microseconds (both µ and μ)μ
+  // us: 'μs',
+  // µs: 'μs',
+  // μs: 'μs',
+  // micros: 'μs',
+  // microsecs: 'μs',
+  // microsecond: 'μs',
+  // microseconds: 'μs',
+
   // Milliseconds
   ms: 'ms',
   millisecond: 'ms',
@@ -67,6 +92,15 @@ export const UNIT_ALIASES: Record<string, UnitTime> = {
 };
 
 export const RELATIVE_TIME_UNITS: Record<UnitTime, RelativeTimeUnit> = {
+  // rs: 'second',
+  // qs: 'second',
+  // ys: 'second',
+  // zs: 'second',
+  // as: 'second',
+  // fs: 'second',
+  // ps: 'second',
+  // ns: 'second',
+  // μs: 'second',
   ms: 'second', // Fallback for milliseconds
   s: 'second',
   m: 'minute',

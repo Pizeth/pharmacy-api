@@ -93,8 +93,8 @@ export class UsersService {
         include: {
           profile: true,
           role: true,
-          refreshTokens: true,
-          auditTrail: true,
+          // refreshTokens: true,
+          // auditTrail: true,
         },
       });
     } catch (error) {

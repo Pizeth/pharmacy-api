@@ -216,13 +216,14 @@ export class TokenService {
   // Update generateToken to access config when needed
   async generateToken(
     payload: TokenPayload | { filename: string },
-    expiresIn: number | string = this.expiresIn,
+    duration: number | string = this.expiresIn,
     secret: string | Buffer = this.secretKey,
     issuer: string = this.issuer,
     audience: string = this.audience,
     algorithm: Algorithm = this.algorithm,
   ): Promise<string> {
     try {
+      const expiresIn = this.timeService.getExpiresIn(duration);
       return await this.jwtService.signAsync(payload, {
         expiresIn,
         secret,
@@ -247,9 +248,9 @@ export class TokenService {
     secret: string = this.refreshTokenKey,
   ): Promise<RefreshToken> {
     try {
-      const expiresIn = this.timeService.getExpiresIn(duration);
+      // const expiresIn = this.timeService.getExpiresIn(duration);
       const expiresAt = this.timeService.getExpiresAt(duration);
-      const token = await this.generateToken(payload, expiresIn, secret);
+      const token = await this.generateToken(payload, duration, secret);
       return await this.createRefreshToken(token, payload.sub, expiresAt);
     } catch (error: unknown) {
       console.error('Failed to generated Refresh Token', error);

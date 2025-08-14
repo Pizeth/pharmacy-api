@@ -23,6 +23,15 @@ export class AuthService {
     private readonly tokenService: TokenService,
   ) {}
 
+  async validateUser(username: string, pass: string): Promise<any> {
+    const user = await this.usersService.getUser(username);
+    if (user && user.password === pass) {
+      const { password, ...result } = user;
+      return result;
+    }
+    return null;
+  }
+
   async signIn(username: string, pass: string): Promise<SignedUser> {
     try {
       const user = await this.usersService.getUser(username);
@@ -98,7 +107,7 @@ export class AuthService {
       const payload = this.tokenService.generatePayload(user);
 
       // Generate authentication token
-      const token = await this.tokenService.generateToken(payload);
+      const token = await this.tokenService.generateToken(payload, '10:25:55');
 
       // Save refresh token to database
       const refreshToken = await this.tokenService.generateRefreshToken(

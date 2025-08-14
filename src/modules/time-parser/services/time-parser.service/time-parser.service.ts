@@ -3,19 +3,12 @@
 // Location: src/modules/time-parser/services/time-parser.service.ts
 // -----------------------------------------------------------------
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigType } from '@nestjs/config';
 import { Duration } from 'luxon';
 import path from 'path';
 import fs, { promises } from 'fs';
 import { DurationParseError } from 'src/exceptions/duration-parse.exception';
-import type {
-  UnitTime,
-  ParseOptions,
-  FormatOptions,
-  ParseResult,
-  DetailedParseResult,
-  LocalizationConfig,
-  PluralCategory,
-} from 'src/modules/time-parser/types/time';
+import timeParserConfig from '../../configs/time-parser.config';
 import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
 import {
   TIME_MULTIPLIERS,
@@ -23,14 +16,20 @@ import {
   AMBIGUOUS_UNITS,
   RELATIVE_TIME_UNITS,
 } from '../../constants/time';
-import timeParserConfig from '../../configs/time-parser.config';
-import { ConfigType } from '@nestjs/config';
 import { CacheService } from 'src/modules/cache/services/cache.service';
 import {
   LOCALIZATION_CACHE,
   PLURAL_RULES_CACHE,
   SUGGESTION_CACHE,
 } from 'src/modules/cache/tokens/cache.tokens';
+import {
+  ParseOptions,
+  FormatOptions,
+  ParseResult,
+  DetailedParseResult,
+  LocalizationConfig,
+} from '../../interfaces/time.interface';
+import type { PluralCategory, UnitTime } from '../../types/time';
 
 @Injectable()
 /**
@@ -73,6 +72,8 @@ export class TimeParserService implements OnModuleInit {
     /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*([a-zA-Z]+)$/;
   private readonly NUMBER_WITH_OPTIONAL_UNIT =
     /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*([a-zA-Z]+))?$/;
+  private readonly COMPONENT_REGEX =
+    /(?<value>\d+)\s*(?<unit>[a-zA-Z]+(?:\s+[a-zA-Z]+)*)/g;
 
   private readonly SAFE_EXPONENT = 15;
 
@@ -164,12 +165,28 @@ export class TimeParserService implements OnModuleInit {
 
     // 4) Handle ISO‑8601
     if (/^P/i.test(trimmed)) {
-      this.parseISODuration(input, opts);
+      this.parseISODuration(trimmed, opts);
+    }
+
+    // 1) Timestamp forms like "1:02:03.250" or "02:03"
+    if (trimmed.includes(':')) {
+      this.logger.debug('Parsing as timestamp');
+      return this.parseTimestamp(trimmed, opts);
     }
 
     // 5) Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
     // const components = trimmed.split(/\s+/);
     const components = trimmed.match(/\d+\s*[a-zA-Z]+(?:\s+[a-zA-Z]+)*/g);
+    // let match: RegExpExecArray | null;
+    // const components: Component[] = [];
+    // while ((match = this.COMPONENT_REGEX.exec(trimmed)) !== null) {
+    //   components.push({
+    //     value: Number(match.groups?.value),
+    //     unit: match.groups?.unit,
+    //   });
+    // }
+
+    console.log(components);
 
     if (!components) {
       return this.parseSingleDuration(trimmed, opts);
@@ -179,6 +196,140 @@ export class TimeParserService implements OnModuleInit {
       ? this.parseCompoundDuration(components, opts)
       : this.parseSingleDuration(trimmed, opts);
   }
+
+  // parseDuration(input: string, opts: ParseOptions = {}): ParseResult {
+  //   const {
+  //     defaultUnit = 'second',
+  //     allowTimestamp = true,
+  //     decimalSeparator = '.',
+  //     strict = false,
+  //     allowedUnits,
+  //   } = opts;
+
+  //   const errors: string[] = [];
+  //   const warnings: string[] = [];
+  //   const components: ParsedComponent[] = [];
+
+  //   const trimmed = String(input ?? '').trim();
+  //   if (!trimmed) {
+  //     return {
+  //       ok: false,
+  //       totalMs: 0,
+  //       components,
+  //       rest: '',
+  //       warnings,
+  //       errors: ['Empty input'],
+  //     };
+  //   }
+
+  //   // 1) Timestamp forms like "1:02:03.250" or "02:03"
+  //   if (allowTimestamp && trimmed.includes(':')) {
+  //     const ts = parseTimestamp(trimmed);
+  //     if (ts) {
+  //       return {
+  //         ok: true,
+  //         totalMs: ts.totalMs,
+  //         components: [
+  //           {
+  //             raw: trimmed,
+  //             value: ts.totalMs,
+  //             unit: 'millisecond',
+  //             ms: ts.totalMs,
+  //           },
+  //         ],
+  //         rest: '',
+  //         warnings,
+  //         errors,
+  //       };
+  //     }
+  //   }
+
+  //   // 2) Token-based parsing (value + unit)
+  //   const leftovers: string[] = [];
+  //   let lastIndex = 0;
+  //   let match: RegExpExecArray | null;
+  //   TOKEN_RE.lastIndex = 0;
+
+  //   while ((match = TOKEN_RE.exec(trimmed)) !== null) {
+  //     const raw = match[0];
+  //     const rawValue = match[1];
+  //     const rawUnit = match[2];
+
+  //     // accumulate non-matching segment
+  //     leftovers.push(trimmed.slice(lastIndex, match.index));
+  //     lastIndex = match.index + raw.length;
+
+  //     // normalize decimal separator
+  //     const valueStr =
+  //       decimalSeparator === ','
+  //         ? rawValue.replace(',', '.')
+  //         : rawValue.replace(',', '.');
+
+  //     const value = Number(valueStr);
+  //     if (Number.isNaN(value)) {
+  //       const msg = `Invalid number "${rawValue}" in token "${raw}"`;
+  //       if (strict) errors.push(msg);
+  //       else warnings.push(msg);
+  //       continue;
+  //     }
+
+  //     const unit = canonicalizeUnit(rawUnit, allowedUnits);
+  //     if (!unit) {
+  //       const msg = `Unknown or disallowed unit "${rawUnit}" in token "${raw}"`;
+  //       if (strict) errors.push(msg);
+  //       else warnings.push(msg);
+  //       continue;
+  //     }
+
+  //     const ms = value * UNIT_TO_MS[unit];
+  //     components.push({ raw, value, unit, ms });
+  //   }
+  //   leftovers.push(trimmed.slice(lastIndex));
+
+  //   // 3) Bare number fallback (e.g., "120" -> defaultUnit)
+  //   if (components.length === 0) {
+  //     const bare = trimmed.match(/^[+-]?\d+(?:[.,]\d+)?$/);
+  //     if (bare) {
+  //       const value = Number(bare[0].replace(',', '.'));
+  //       if (!Number.isNaN(value)) {
+  //         const unit =
+  //           allowedUnits && !allowedUnits.includes(defaultUnit)
+  //             ? null
+  //             : defaultUnit;
+  //         if (unit) {
+  //           const ms = value * UNIT_TO_MS[unit];
+  //           components.push({ raw: trimmed, value, unit, ms });
+  //           // consume entire string, so no leftovers
+  //           return {
+  //             ok: true,
+  //             totalMs: ms,
+  //             components,
+  //             rest: '',
+  //             warnings,
+  //             errors,
+  //           };
+  //         } else {
+  //           const msg = `Default unit "${defaultUnit}" is not allowed`;
+  //           if (strict) errors.push(msg);
+  //           else warnings.push(msg);
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // 4) Compute totals and leftovers
+  //   const totalMs = components.reduce((acc, c) => acc + c.ms, 0);
+  //   const rest = leftovers.join('').replace(/\s+/g, ' ').trim();
+
+  //   const ok = strict
+  //     ? errors.length === 0 && components.length > 0
+  //     : components.length > 0;
+  //   if (!ok && errors.length === 0 && components.length === 0) {
+  //     warnings.push('No duration tokens found');
+  //   }
+
+  //   return { ok, totalMs, components, rest, warnings, errors };
+  // }
 
   // ————————————— Formatting —————————————
 
@@ -356,7 +507,6 @@ export class TimeParserService implements OnModuleInit {
   }
 
   // =============== Private HELPER METHODS =============== //
-
   private parseNumeric(
     input: string | number,
     options: Required<ParseOptions>,
@@ -386,8 +536,8 @@ export class TimeParserService implements OnModuleInit {
         ['Example: PT1H30M for 1 hour 30 minutes'],
       );
     }
-
-    const milliseconds = duration.as('milliseconds');
+    const milliseconds = duration.toMillis();
+    // const milliseconds = duration.as('milliseconds');
 
     if (!options.allowNegative && isNegative) {
       throw new DurationParseError(
@@ -409,6 +559,78 @@ export class TimeParserService implements OnModuleInit {
     };
   }
 
+  private parseTimestamp(
+    input: string,
+    options: Required<ParseOptions>,
+  ): DetailedParseResult {
+    if (!options.allowTimestamp)
+      throw new DurationParseError(
+        'Timestamps are not allowed',
+        input,
+        'TIMESTAMP_NOT_ALLOWED',
+      );
+
+    const s = input.trim();
+    // Accept forms: hh:mm[:ss][.ms] and mm:ss[.ms]
+    // Examples: "1:02:03.250", "02:03", "12:34.5"
+    const parts = s.split(':');
+    if (parts.length < 2 || parts.length > 3)
+      throw new DurationParseError(
+        `Invalid timestamp format: ${input}`,
+        input,
+        'INVALID_TIMESTAMP',
+      );
+
+    const sign = s.startsWith('-') ? -1 : 1;
+    // Strip sign from first numeric part if present
+    if (parts[0].startsWith('+') || parts[0].startsWith('-')) {
+      parts[0] = parts[0].replace(/^[+-]/, '');
+    }
+
+    let h = 0,
+      m = 0,
+      sec = 0,
+      ms = 0;
+
+    if (parts.length === 3) {
+      h = Number(parts[0]);
+      m = Number(parts[1]);
+      const [sPart, msPart] = parts[2].split('.');
+      sec = Number(sPart);
+      ms = msPart ? Number((msPart + '000').slice(0, 3)) : 0;
+    } else {
+      m = Number(parts[0]);
+      const [sPart, msPart] = parts[1].split('.');
+      sec = Number(sPart);
+      ms = msPart ? Number((msPart + '000').slice(0, 3)) : 0;
+    }
+
+    if ([h, m, sec, ms].some((n) => Number.isNaN(n)))
+      throw new DurationParseError(
+        `Invalid timestamp format: ${input}`,
+        input,
+        'INVALID_TIMESTAMP',
+      );
+
+    const totalMilliseconds =
+      sign *
+      (h * TIME_MULTIPLIERS.h +
+        m * TIME_MULTIPLIERS.m +
+        sec * TIME_MULTIPLIERS.s +
+        ms);
+
+    return {
+      totalMilliseconds,
+      data: [
+        {
+          duration: totalMilliseconds,
+          unit: 'ms',
+          milliseconds: totalMilliseconds,
+        },
+      ],
+    };
+  }
+
   private parseSingleDuration(
     trimmed: string,
     options: Required<ParseOptions>,
@@ -422,6 +644,7 @@ export class TimeParserService implements OnModuleInit {
 
   private parseCompoundDuration(
     components: string[],
+    // components: Component[],
     options: Required<ParseOptions>,
   ): DetailedParseResult {
     const data: ParseResult[] = [];
@@ -931,6 +1154,13 @@ export class TimeParserService implements OnModuleInit {
     }
 
     return unit;
+  }
+
+  private canonicalizeUnit(raw: string, allowed?: UnitTime[]): UnitTime | null {
+    const key = raw.toLowerCase();
+    const unit = UNIT_ALIASES[key] ?? UNIT_ALIASES[key.replace(/s$/, '')]; // naive singularize
+    if (unit && allowed && !allowed.includes(unit)) return null;
+    return unit ?? null;
   }
 
   // Helper for intelligent similar unit suggestions.

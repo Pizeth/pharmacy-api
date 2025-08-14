@@ -7,7 +7,7 @@ import {
   LocalizationConfig,
   ParseOptions,
   TimeParserConfig,
-} from '../types/time';
+} from '../interfaces/time.interface';
 import path from 'path';
 
 // @Injectable()
@@ -46,6 +46,11 @@ export default registerAs('timeParser', (): TimeParserConfig => {
     allowNegative: false,
     strictNegativePosition: true,
     mergeDuplicates: false,
+    defaultUnit: 'ms',
+    allowTimestamp: true,
+    decimalSeparator: '.',
+    strict: false,
+    allowedUnits: [],
   };
 
   // Default format option
