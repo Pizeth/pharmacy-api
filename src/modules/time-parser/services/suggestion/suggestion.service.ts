@@ -2,7 +2,8 @@
 // src/modules/time-parser/services/suggestion.service.ts
 import { Injectable } from '@nestjs/common';
 import { CacheService } from 'src/modules/cache/services/cache.service';
-import { UNIT_ALIASES } from 'src/types/time';
+import { UNIT_ALIASES } from '../../constants/time';
+// import { UNIT_ALIASES } from 'src/modules/time-parser/types/time';
 
 /**
  * Service to compute and cache fuzzy suggestions for mistyped units.

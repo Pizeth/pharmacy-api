@@ -2,26 +2,35 @@
 // The Duration Parser Service
 // Location: src/modules/time-parser/services/time-parser.service.ts
 // -----------------------------------------------------------------
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Duration } from 'luxon';
 import path from 'path';
 import fs, { promises } from 'fs';
 import { DurationParseError } from 'src/exceptions/duration-parse.exception';
-import {
-  TIME_MULTIPLIERS,
-  UNIT_ALIASES,
+import type {
+  // TIME_MULTIPLIERS,
+  // UNIT_ALIASES,
   UnitTime,
   ParseOptions,
   FormatOptions,
   ParseResult,
-  AMBIGUOUS_UNITS,
+  // AMBIGUOUS_UNITS,
   DetailedParseResult,
   LocalizationConfig,
   PluralCategory,
-  TimeParserConfig,
+  // TimeParserConfig,
+  // RELATIVE_TIME_UNITS,
+} from 'src/modules/time-parser/types/time';
+import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
+import {
+  TIME_MULTIPLIERS,
+  UNIT_ALIASES,
+  AMBIGUOUS_UNITS,
   RELATIVE_TIME_UNITS,
-} from 'src/types/time';
-import { SuggestionEngine } from 'src/modules/suggestion/services/suggestion.service';
+} from '../../constants/time';
+import timeParserConfig from '../../configs/time-parser.config';
+import { ConfigType } from '@nestjs/config';
+import { CacheService } from 'src/modules/cache/services/cache.service';
 
 @Injectable()
 /**
@@ -54,52 +63,59 @@ import { SuggestionEngine } from 'src/modules/suggestion/services/suggestion.ser
 export class TimeParserService implements OnModuleInit {
   private readonly context = TimeParserService.name;
   private readonly logger = new Logger(this.context);
-  private readonly useLocale: boolean;
+  // private readonly useLocale: boolean;
   // matches +/– integers, decimals (.5 or 1. or 1.5), optional exponent
   private readonly SCI_NOTATION =
     /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE]([+-]?\d+))?$/;
+  private readonly NUMBER_WITH_UNIT =
+    /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\s*([a-zA-Z]+)$/;
+  private readonly NUMBER_AND_UNIT =
+    /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*([a-zA-Z]+)$/;
+  private readonly NUMBER_WITH_OPTIONAL_UNIT =
+    /^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*([a-zA-Z]+))?$/;
+
   private readonly SAFE_EXPONENT = 15;
 
   // Configuration
-  private readonly config: Required<TimeParserConfig>;
+  // private readonly config: Required<TimeParserConfig>;
 
   // Pre‑sorted [unit, multiplier] descending
   private readonly sortedUnits: [UnitTime, number][];
 
-  // Default English localization
-  private readonly defaultLocalization: LocalizationConfig = {
-    locale: 'en',
-    units: {
-      ms: { zero: 'just now', one: 'millisecond', other: 'milliseconds' },
-      s: { one: 'second', other: 'seconds' },
-      m: { one: 'minute', other: 'minutes' },
-      h: { one: 'hour', other: 'hours' },
-      d: { one: 'day', other: 'days' },
-      w: { one: 'week', other: 'weeks' },
-      mo: { one: 'month', other: 'months' },
-      y: { one: 'year', other: 'years' },
-    },
-  };
+  // // Default English localization
+  // private readonly defaultLocalization: LocalizationConfig = {
+  //   locale: 'en',
+  //   units: {
+  //     ms: { zero: 'just now', one: 'millisecond', other: 'milliseconds' },
+  //     s: { one: 'second', other: 'seconds' },
+  //     m: { one: 'minute', other: 'minutes' },
+  //     h: { one: 'hour', other: 'hours' },
+  //     d: { one: 'day', other: 'days' },
+  //     w: { one: 'week', other: 'weeks' },
+  //     mo: { one: 'month', other: 'months' },
+  //     y: { one: 'year', other: 'years' },
+  //   },
+  // };
 
-  // Default Parse option
-  private readonly defaultParseOptions: Required<ParseOptions> = {
-    ambiguousUnit: 'strict',
-    maxLength: 100,
-    allowNegative: false,
-    strictNegativePosition: true,
-    mergeDuplicates: false,
-  };
+  // // Default Parse option
+  // private readonly defaultParseOptions: Required<ParseOptions> = {
+  //   ambiguousUnit: 'strict',
+  //   maxLength: 100,
+  //   allowNegative: false,
+  //   strictNegativePosition: true,
+  //   mergeDuplicates: false,
+  // };
 
-  // Default format option
-  private readonly defaultFormatOptions: Required<FormatOptions> = {
-    long: false,
-    precision: -1,
-    preferredUnits: [],
-    compound: false,
-    locale: this.defaultLocalization.locale,
-    useIntl: true,
-    separator: ' ',
-  };
+  // // Default format option
+  // private readonly defaultFormatOptions: Required<FormatOptions> = {
+  //   long: false,
+  //   precision: -1,
+  //   preferredUnits: [],
+  //   compound: false,
+  //   locale: this.defaultLocalization.locale,
+  //   useIntl: true,
+  //   separator: ' ',
+  // };
 
   // Cache for loaded localizations
   private readonly localizationCache = new Map<string, LocalizationConfig>();
@@ -114,16 +130,20 @@ export class TimeParserService implements OnModuleInit {
   private readonly pluralRulesCache = new Map<string, Intl.PluralRules>();
 
   private localesPath: string;
-  private suggestionEngine: SuggestionEngine;
+  // private suggestionEngine: SuggestionEngine;
 
   // constructor(localesPath: string = path.join(__dirname, 'src/i18n')) {
   constructor(
-    config: TimeParserConfig = {},
-    preload: boolean = false,
-    useLocale: boolean = true,
+    // config: TimeParserConfig = {},
+    @Inject(timeParserConfig.KEY)
+    private readonly config: ConfigType<typeof timeParserConfig>,
+    // preload: boolean = false,
+    // useLocale: boolean = true,
+    private readonly suggestion: SuggestionService,
+    private readonly cache: CacheService,
   ) {
     // Initialize suggestion engine with all unit aliases
-    this.suggestionEngine = new SuggestionEngine(Object.keys(UNIT_ALIASES));
+    // this.suggestionEngine = new SuggestionEngine(Object.keys(UNIT_ALIASES));
 
     /**
      * Lazily build a precompute sorted units once for efficient formatting [unit, multiplier] tuple list
@@ -133,36 +153,37 @@ export class TimeParserService implements OnModuleInit {
       Object.entries(TIME_MULTIPLIERS) as [UnitTime, number][]
     ).sort(([, a], [, b]) => b - a);
 
-    this.useLocale = useLocale;
+    // this.useLocale = useLocale;
 
-    this.config = {
-      maxInputLength: config.maxInputLength ?? 100,
-      maxCacheSize: config.maxCacheSize ?? 100,
-      defaultLocale: config.defaultLocale ?? 'en',
-      enableSuggestions: config.enableSuggestions ?? true,
-      localesPath: config.localesPath ?? path.join(process.cwd(), 'src/i18n'),
-      parseOptions: config.parseOptions ?? this.defaultParseOptions,
-      formatOptions: config.formatOptions ?? this.defaultFormatOptions,
-      localizationConfig: config.localizationConfig ?? this.defaultLocalization,
-      ...config,
-    };
+    // this.config = {
+    //   maxInputLength: config.maxInputLength ?? 100,
+    //   maxCacheSize: config.maxCacheSize ?? 100,
+    //   defaultLocale: config.defaultLocale ?? 'en',
+    //   enableSuggestions: config.enableSuggestions ?? true,
+    //   localesPath: config.localesPath ?? path.join(process.cwd(), 'src/i18n'),
+    //   parseOptions: config.parseOptions ?? this.defaultParseOptions,
+    //   formatOptions: config.formatOptions ?? this.defaultFormatOptions,
+    //   localizationConfig: config.localizationConfig ?? this.defaultLocalization,
+    //   ...config,
+    // };
 
     this.localesPath = this.config.localesPath;
 
     // Preload default localization
-    this.localizationCache.set('en', this.defaultLocalization);
+    this.localizationCache.set('en', config.localizationConfig);
 
     // Override default parse options with config values
-    this.defaultParseOptions.maxLength = this.config.maxInputLength;
+    // this.defaultParseOptions.maxLength = this.config.maxInputLength;
 
-    if (preload) {
+    if (this.config.preload) {
       this.preloadLocalizations();
     }
   }
 
   // called by Nest once all DI is wired up
   async onModuleInit(): Promise<void> {
-    if (this.useLocale) await this.preloadLocalesAsync();
+    if (this.config.useLocale) await this.preloadLocalesAsync();
+    // await this.suggestion.initialize(UNIT_ALIASES);
   }
 
   // =============== MAIN API METHODS =============== //
@@ -177,7 +198,7 @@ export class TimeParserService implements OnModuleInit {
    * @returns The total number of milliseconds represented by the input.
    */
   parse(input: string | number, options?: ParseOptions): number {
-    const opts = { ...this.defaultParseOptions, ...options };
+    const opts = { ...this.config.parseOptions, ...options };
     const { totalMilliseconds } = this.parseDetailed(input, opts);
     return totalMilliseconds;
   }
@@ -189,7 +210,10 @@ export class TimeParserService implements OnModuleInit {
     input: string | number,
     options?: ParseOptions,
   ): DetailedParseResult {
-    const opts = { ...this.defaultParseOptions, ...options };
+    const opts: Required<ParseOptions> = {
+      ...this.config.parseOptions,
+      ...options,
+    } as Required<ParseOptions>;
 
     // 1) Number
     if (typeof input === 'number') {
@@ -202,7 +226,8 @@ export class TimeParserService implements OnModuleInit {
     const trimmed = input.trim();
 
     // 3) Handle pure numbers and support for scientific notation (treat as milliseconds)
-    if (/^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
+    // if (/^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
+    if (this.SCI_NOTATION.test(trimmed)) {
       return this.parseNumeric(trimmed, opts);
     }
 
@@ -213,6 +238,8 @@ export class TimeParserService implements OnModuleInit {
 
     // 5) Handle compound durations (e.g., "1h 30m", "2d 4h 30m") - return array of components
     const components = trimmed.split(/\s+/);
+
+    this.logger.debug('Parsed components:', components.length);
 
     return components.length > 1
       ? this.parseCompoundDuration(components, opts)
@@ -234,14 +261,11 @@ export class TimeParserService implements OnModuleInit {
    * @returns The formatted duration string.
    * @throws {DurationParseError} If the input is not a finite number.
    */
-  format(
-    ms: number,
-    options: FormatOptions & { locale?: string } = {},
-  ): string {
-    const opts = {
-      ...this.defaultFormatOptions,
+  format(ms: number, options: FormatOptions): string {
+    const opts: Required<FormatOptions> = {
+      ...this.config.formatOptions,
       ...options,
-    };
+    } as Required<FormatOptions>;
 
     // Validate input
     if (typeof ms !== 'number' || !isFinite(ms)) {
@@ -338,7 +362,7 @@ export class TimeParserService implements OnModuleInit {
     this.pluralRulesCache.clear();
 
     // Re-add default localization
-    this.localizationCache.set('en', this.defaultLocalization);
+    this.localizationCache.set('en', this.config.localizationConfig);
   }
 
   // =============== NEW FEATURES =============== //
@@ -456,6 +480,7 @@ export class TimeParserService implements OnModuleInit {
     trimmed: string,
     options: Required<ParseOptions>,
   ): DetailedParseResult {
+    this.logger.debug('jol here single', trimmed);
     const data = this.parseComponent(trimmed, options);
     return {
       totalMilliseconds: data.milliseconds,
@@ -467,6 +492,7 @@ export class TimeParserService implements OnModuleInit {
     components: string[],
     options: Required<ParseOptions>,
   ): DetailedParseResult {
+    this.logger.debug('jol here compound', components);
     const data: ParseResult[] = [];
     const usedUnits = new Set<UnitTime>();
     let dominantUnit: UnitTime = 'ms';
@@ -508,8 +534,9 @@ export class TimeParserService implements OnModuleInit {
     index: number = 0,
     usedUnits: Set<UnitTime> = new Set<UnitTime>(),
   ): ParseResult {
+    this.logger.debug('Parsing component', { input, index, usedUnits });
     // Enhanced regex to handle scientific notation and various formats in components
-    const match = input.match(this.SCI_NOTATION);
+    const match = input.match(this.NUMBER_WITH_OPTIONAL_UNIT);
     if (!match) {
       throw new DurationParseError(
         `Invalid duration format at position ${index}: "${input}"`,
@@ -521,6 +548,7 @@ export class TimeParserService implements OnModuleInit {
         ].filter(Boolean),
       );
     }
+    this.logger.debug('match', match);
 
     const [, numStr, unitStr] = match;
 
@@ -885,6 +913,12 @@ export class TimeParserService implements OnModuleInit {
     options: Required<ParseOptions>,
     position: number = 0,
   ): number {
+    this.logger.warn(
+      `Validating number input: "${input}" at position ${position}`,
+      {
+        options,
+      },
+    );
     const m = input.match(this.SCI_NOTATION);
     if (!m) {
       throw new DurationParseError(
@@ -978,6 +1012,9 @@ export class TimeParserService implements OnModuleInit {
 
     const unit = UNIT_ALIASES[alias];
     if (!unit) {
+      this.logger.warn(
+        `Suggestion for unit "${this.config.enableSuggestions}"`,
+      );
       // Use advanced suggestion logic if suggestion is enable in the options.
       const suggestions = this.config.enableSuggestions
         ? this.getSuggestionsForUnit(alias)
@@ -1006,7 +1043,8 @@ export class TimeParserService implements OnModuleInit {
       return this.suggestionCache.get(input)!;
     }
 
-    const suggestions = this.suggestionEngine.getSuggestions(input);
+    // const suggestions = this.suggestionEngine.getSuggestions(input);
+    const suggestions = this.suggestion.getSuggestions(input);
     this.suggestionCache.set(input, suggestions);
     return suggestions;
 
@@ -1165,7 +1203,7 @@ export class TimeParserService implements OnModuleInit {
       }
     }
     // Fallback to default local 'en'
-    return this.defaultLocalization;
+    return this.config.localizationConfig;
   }
 
   private isLocalizationConfig(data: unknown): data is LocalizationConfig {
@@ -1182,10 +1220,10 @@ export class TimeParserService implements OnModuleInit {
     config: LocalizationConfig,
   ): LocalizationConfig {
     return {
-      ...this.defaultLocalization,
+      ...this.config.localizationConfig,
       ...config,
       units: {
-        ...this.defaultLocalization.units,
+        ...this.config.localizationConfig.units,
         ...config.units,
       },
     };
@@ -1193,19 +1231,24 @@ export class TimeParserService implements OnModuleInit {
 }
 
 // Export a default singleton instance for convenience
-export const durationParser = new TimeParserService();
+// export const durationParser = new TimeParserService(
+//   {},
+//   false,
+//   false,
+//   new SuggestionService(),
+// );
 
-// Convenience Vercel ms-compatible function that match the ms library API
-export function ms(
-  value: string | number,
-  options?: ParseOptions & FormatOptions,
-): number | string {
-  if (typeof value === 'string') {
-    return durationParser.parse(value, options);
-  } else {
-    return durationParser.format(value, options);
-  }
-}
+// // Convenience Vercel ms-compatible function that match the ms library API
+// export function ms(
+//   value: string | number,
+//   options?: ParseOptions & FormatOptions,
+// ): number | string {
+//   if (typeof value === 'string') {
+//     return durationParser.parse(value, options);
+//   } else {
+//     return durationParser.format(value, options);
+//   }
+// }
 
 // if (typeof input === 'number') {
 //   if (!opts.allowNegative && input < 0) {

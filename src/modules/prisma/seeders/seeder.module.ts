@@ -88,10 +88,12 @@ import { PrismaService } from '../services/prisma.service';
 import { PrismaModule } from '../prisma.module';
 import { logger } from 'nestjs-i18n';
 import { configurationSchema } from 'src/validation/configuration.schema';
-import { ZodError } from 'zod';
+import z, { ZodError } from 'zod';
 import { ClsModule, ClsService } from 'nestjs-cls';
 import { Request } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
+import { ValidationError } from 'src/exceptions/zod-validatoin.exception';
 
 @Module({
   imports: [
@@ -106,17 +108,20 @@ import { v4 as uuidv4 } from 'uuid';
           return validatedConfig;
         } catch (error: unknown) {
           if (error instanceof ZodError) {
-            const errorMessages = error.errors.map((e) => {
-              // e.message already contains the internationalized message from our helpers
-              return `${e.path.join('.')}: ${e.message}`;
-            });
-            logger.error(
-              '❌ Configuration validation error details:',
-              JSON.stringify(error.flatten(), null, 2),
-            );
-            throw new Error(
-              `Configuration validation failed:\n${errorMessages.join('\n')}`,
-            );
+            // const errorMessages = error.errors.map((e) => {
+            //   // e.message already contains the internationalized message from our helpers
+            //   return `${e.path.join('.')}: ${e.message}`;
+            // });
+            // logger.error(
+            //   '❌ Configuration validation error details:',
+            //   JSON.stringify(error.flatten(), null, 2),
+            // );
+            // throw new Error(
+            //   `Configuration validation failed:\n${errorMessages.join('\n')}`,
+            // );
+            if (error instanceof ZodError) {
+              throw new ValidationError(error, z.treeifyError);
+            }
           }
           logger.error(
             '❌ Unexpected error during configuration validation:',
@@ -166,10 +171,11 @@ import { v4 as uuidv4 } from 'uuid';
         prisma: PrismaService,
         config: ConfigService,
         jwt: JwtService,
+        parser: TimeParserService,
         cls: ClsService,
       ) => {
         // 1. Manually create the main TokenService instance, passing in the helper instances.
-        return new TokenService(config, prisma, jwt, cls);
+        return new TokenService(config, prisma, jwt, parser, cls);
       },
       // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
       inject: [PrismaService, ConfigService, JwtService, ClsService],

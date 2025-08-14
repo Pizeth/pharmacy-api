@@ -12,6 +12,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { ImagesModule } from 'src/modules/images/image.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ValidationExceptionFilter } from 'src/filters/validation-exception.filter';
 
 @Module({
   imports: [
@@ -39,6 +40,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: ValidationExceptionFilter,
     },
     {
       provide: APP_FILTER,
