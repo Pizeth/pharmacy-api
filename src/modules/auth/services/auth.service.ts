@@ -9,8 +9,10 @@ import { AuditTrail, RefreshToken } from '@prisma/client';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
+import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
 import { UsersService } from 'src/modules/users/services/users.service';
-import { SignedUser } from 'src/types/dto';
+import User from 'src/modules/users/user';
+import { SignedUser, UserDetail } from 'src/types/dto';
 
 @Injectable()
 export class AuthService {
@@ -23,13 +25,171 @@ export class AuthService {
     private readonly tokenService: TokenService,
   ) {}
 
-  async validateUser(username: string, pass: string): Promise<any> {
+  async validateUser(username: string, pass: string): Promise<SignedUser> {
     const user = await this.usersService.getUser(username);
     if (user && user.password === pass) {
       const { password, ...result } = user;
       return result;
     }
     return null;
+  }
+
+  async validateLocalUser(
+    username: string,
+    password: string,
+  ): Promise<UserDetail> {
+    // const user = await this.usersService.getUser(username);
+    // if (user && (await bcrypt.compare(password, user.password))) {
+    //   // const { password, ...result } = user;
+    //   // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+    //   const result = user;
+    //   // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+    //   delete (result as { password?: string }).password; // Cleanly remove the repassword field
+    //   return result;
+    // }
+    // return user;
+
+    try {
+      const user = await this.usersService.getUser(username);
+
+      // Check if user existed
+      if (!user) {
+        // await loginRepo.recordLoginAttempt(username, req, 'FAILED');
+        throw new AppError(
+          'User not found!',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          `No user associated with ${username}`,
+        );
+      }
+
+      // Check if user is banned or deleted
+      if (user.isBan || !user.enabledFlag) {
+        // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
+        throw new AppError(
+          'Account is banned or inactive!',
+          HttpStatus.FORBIDDEN,
+          this.context,
+          `User ${username} is banned or inactive!`,
+        );
+      }
+
+      // Check if user is locked
+      if (user.isLocked) {
+        // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
+        throw new AppError(
+          'Account locked due to multiple failed attempts!',
+          HttpStatus.FORBIDDEN,
+          this.context,
+          `User ${username} is locked!`,
+        );
+      } else if (
+        user.loginAttempts >= this.configService.get<number>('LOCKED', 5)
+      ) {
+        // If the user has 5 attempts or more then lock this user
+        // await UserRepo.updateUserStatus(user.id, { isLocked: true });
+        // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
+        throw new AppError(
+          'Too many failed attempts, account is locked!',
+          HttpStatus.FORBIDDEN,
+          this.context,
+          `User ${username} is locked, due to multiple failed attempts.`,
+        );
+      }
+
+      if (!this.passwordUtil.compare(password, user.password)) {
+        // Increment login attempts
+        // await UserRepo.incrementLoginAttempts(user.toData());
+        // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
+        // this.logger.error('Username password');
+        throw new AppError(
+          'Invalid credentials',
+          HttpStatus.UNAUTHORIZED,
+          this.context,
+          {
+            cause: 'Invalid username or password!',
+            desription: `User ${username} provided incorrect credentials!`,
+          },
+        );
+      }
+
+      // Reset login attempts on successful login
+      // await UserRepo.resetLoginAttempts(user.id);
+
+      // Record successful login attempt and update last login
+      // await loginRepo.recordLoginAttempt(user, req, 'SUCCESS');
+
+      // Generate payload to use for create token
+      const payload = this.tokenService.generatePayload(user);
+
+      // Generate authentication token
+      const token = await this.tokenService.generateToken(payload, '10:25:55');
+
+      // Save refresh token to database
+      const refreshToken = await this.tokenService.generateRefreshToken(
+        payload,
+        '1 hour 2min 55 sec',
+      );
+
+      // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+      const result = user;
+      // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+      delete (result as { password?: string }).password; // Cleanly remove the repassword field
+
+      // TODO: Generate a JWT and return it here
+      // instead of the user object
+      // const payload = { sub: user.id, username: user.username };
+      return result;
+    } catch (error: unknown) {
+      this.logger.error(
+        'Error occured during authenticate user credentials:',
+        error,
+      );
+      // throw new UnauthorizedException();
+      throw new AppError(
+        'Error occured during authenticate user credentials',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
+  }
+
+  async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
+    // Check by provider ID
+    let user = await this.usersService.findByProviderId(
+      profile.provider,
+      profile.providerId,
+    );
+
+    if (user) return user;
+
+    // Check by email
+    if (profile.email) {
+      user = await this.usersService.findByEmail(profile.email);
+    }
+
+    if (user) {
+      // Link provider to existing account
+      return this.usersService.addProvider(user.id, {
+        provider: profile.provider,
+        providerId: profile.providerId,
+      });
+    }
+
+    // Create new user
+    return this.usersService.create({
+      email: profile.email,
+      name: profile.name,
+      avatar: profile.picture,
+      isEmailVerified: profile.emailVerified,
+      providers: [
+        {
+          provider: profile.provider,
+          providerId: profile.providerId,
+        },
+      ],
+    });
   }
 
   async signIn(username: string, pass: string): Promise<SignedUser> {

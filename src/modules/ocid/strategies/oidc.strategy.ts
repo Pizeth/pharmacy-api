@@ -178,6 +178,23 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
     this.name = config.name;
   }
 
+  authenticate(req: Request, options: any) {
+    const provider = req.params.provider;
+    const config = this.config.getConfig(provider);
+
+    super.authenticate(req, {
+      ...options,
+      ...config,
+      clientID: config.clientID,
+      clientSecret: config.clientSecret,
+      callbackURL: config.callbackURL,
+      scope: config.scope,
+      authorizationURL: config.authorizationURL,
+      tokenURL: config.tokenURL,
+      userInfoURL: config.userInfoURL,
+    });
+  }
+
   // The validate function that passport-openidconnect will call
   async validate(
     issuer: string,
