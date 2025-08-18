@@ -17,19 +17,20 @@ import { OIDCProviderConfig } from '../ocid/interfaces/oidc.interface';
   imports: [
     UserModule,
     PassportModule,
-    ConfigModule.forFeature(oidcProviderConfig), // Makes the config injectable in this module
+    OidcModule.registerAsync(),
+    // ConfigModule.forFeature(oidcProviderConfig), // Makes the config injectable in this module
 
     // Asynchronously register the OidcModule
-    OidcModule.registerAsync({
-      imports: [ConfigModule.forFeature(oidcProviderConfig)], // Import config again
-      // The factory will receive the injected config
-      useFactory: (configs: OIDCProviderConfig[]) => {
-        // 'configs' is now the array of enabled providers from your file
-        return configs;
-      },
-      // Tell NestJS what to inject. `oidcProviderConfig.KEY` is the token.
-      inject: [oidcProviderConfig.KEY],
-    }),
+    // OidcModule.registerAsync({
+    //   imports: [ConfigModule.forFeature(oidcProviderConfig)], // Import config again
+    //   // The factory will receive the injected config
+    //   useFactory: (configs: OIDCProviderConfig[]) => {
+    //     // 'configs' is now the array of enabled providers from your file
+    //     return configs;
+    //   },
+    //   // Tell NestJS what to inject. `oidcProviderConfig.KEY` is the token.
+    //   inject: [oidcProviderConfig.KEY],
+    // }),
     // OidcModule.register(oidcProviderConfigs),
   ],
   providers: [

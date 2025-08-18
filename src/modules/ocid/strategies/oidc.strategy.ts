@@ -48,13 +48,14 @@ import { OIDCProviderConfig } from '../interfaces/oidc.interface';
 //   return DynamicOIDCStrategy;
 // }
 
-import { Strategy, Profile, VerifyCallback } from 'passport-openidconnect';
+import { Profile, Strategy, VerifyCallback } from 'passport-openidconnect';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
 import { NormalizedProfile } from '../interfaces/oidc.interface';
 import { Request } from 'express';
+import { IdentityProvider } from '@prisma/client';
 
 // @Injectable()
 // export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
@@ -158,41 +159,41 @@ import { Request } from 'express';
 export class OidcStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly authService: AuthService,
-    private readonly config: OIDCProviderConfig,
+    private readonly provider: IdentityProvider,
   ) {
-    super(
-      // Strategy options
-      {
-        issuer: config.issuer,
-        authorizationURL: config.authorizationURL,
-        tokenURL: config.tokenURL,
-        userInfoURL: config.userInfoURL,
-        clientID: config.clientID,
-        clientSecret: config.clientSecret,
-        callbackURL: config.callbackURL,
-        scope: config.scope,
-        // passReqToCallback: false, // Set to false, we don't need the req object in validate
-      },
-    );
-    // Dynamically set the strategy name
-    this.name = config.name;
-  }
+    // super(
+    //   Strategy options
+    //   {
+    //     issuer: config.issuer,
+    //     authorizationURL: config.authorizationURL,
+    //     tokenURL: config.tokenURL,
+    //     userInfoURL: config.userInfoURL,
+    //     clientID: config.clientID,
+    //     clientSecret: config.clientSecret,
+    //     callbackURL: config.callbackURL,
+    //     scope: config.scope.split(',').map((s) => s.trim()),
+    //     passReqToCallback: true,
+    //     // pkce: true,
+    //     // state: true,
+    //     // passReqToCallback: false, // Set to false, we don't need the req object in validate
+    //   },
+    //   provider,
+    // );
 
-  authenticate(req: Request, options: any) {
-    const provider = req.params.provider;
-    const config = this.config.getConfig(provider);
-
-    super.authenticate(req, {
-      ...options,
-      ...config,
-      clientID: config.clientID,
-      clientSecret: config.clientSecret,
-      callbackURL: config.callbackURL,
-      scope: config.scope,
-      authorizationURL: config.authorizationURL,
-      tokenURL: config.tokenURL,
-      userInfoURL: config.userInfoURL,
+    super({
+      issuer: provider.issuer,
+      authorizationURL: provider.authorizationURL,
+      tokenURL: provider.tokenURL,
+      userInfoURL: provider.userInfoURL,
+      clientID: provider.clientID,
+      clientSecret: provider.clientSecret,
+      callbackURL: provider.callbackURL,
+      scope: provider.scope?.split(',').map((s) => s.trim()),
+      passReqToCallback: false, // Set to false, we don't need the req object in validate
     });
+
+    // Dynamically set the strategy name
+    this.name = provider.name;
   }
 
   // The validate function that passport-openidconnect will call
@@ -203,8 +204,12 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
   ): Promise<any> {
     try {
       const normalizedProfile = this.normalizeProfile(profile);
-      const user =
-        await this.authService.findOrCreateOidcUser(normalizedProfile);
+      // const user =
+      // await this.authService.findOrCreateOidcUser(normalizedProfile);
+      const user = await this.authService.findOrCreateOidcUser(
+        this.provider.name,
+        normalizedProfile,
+      );
       if (!user) {
         return done(null, false); // Or handle error appropriately
       }
@@ -220,18 +225,76 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
     }
   }
 
+  // async validate(
+  //   issuer: string,
+  //   profile: any,
+  //   context: any, // Contains tokens
+  //   done: VerifyCallback,
+  // ): Promise<any> {
+  //   try {
+  //     const normalizedProfile = this.normalizeProfile(profile);
+  //     const tokens = {
+  //       accessToken: context.accessToken,
+  //       refreshToken: context.refreshToken,
+  //       expiresAt: context.expiresAt
+  //         ? new Date(context.expiresAt * 1000)
+  //         : undefined,
+  //     };
+
+  //     const user = await this.authService.findOrCreateOidcUser(
+  //       this.name,
+  //       normalizedProfile,
+  //       tokens,
+  //     );
+
+  //     if (!user) {
+  //       return done(new Error('User not found or created'), false);
+  //     }
+
+  //     return done(null, user);
+  //   } catch (error) {
+  //     return done(error, false);
+  //   }
+  // }
+
   // Normalize the profile from the OIDC provider
+  // private normalizeProfile(profile: Profile): NormalizedProfile {
+  //   // The profile object from passport-openidconnect is already quite normalized.
+  //   // It uses the standard OIDC claims.
+  //   return {
+  //     provider: this.provider.name,
+  //     providerId: profile.id, // 'sub' claim is mapped to 'id'
+  //     email: profile.emails?.[0]?.value,
+  //     // emailVerified: true, // Assuming OIDC provider verifies email
+  //     emailVerified: profile.emails?.[0]?.verified || false,
+  //     name: profile.displayName,
+  //     picture: profile.photos?.[0]?.value,
+  //     raw: profile._raw, // Keep the original profile for debugging or other uses
+  //   };
+  // }
+
   private normalizeProfile(profile: Profile): NormalizedProfile {
-    // The profile object from passport-openidconnect is already quite normalized.
-    // It uses the standard OIDC claims.
+    // Construct the full name if the name object exists, otherwise use displayName
+    const fullName = profile.name
+      ? `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim()
+      : profile.displayName;
+
     return {
-      provider: this.config.name,
-      providerId: profile.id, // 'sub' claim is mapped to 'id'
+      provider: this.provider.name,
+      providerId: profile.id,
+
+      // Safely access the first email value, which could be undefined
       email: profile.emails?.[0]?.value,
-      emailVerified: true, // Assuming OIDC provider verifies email
-      name: profile.displayName,
+
+      emailVerified: true, // This is an assumption; might need adjustment per provider
+
+      // Use the more robust full name we constructed
+      name: fullName,
+
+      // Safely access the first photo value, which could be undefined
       picture: profile.photos?.[0]?.value,
-      raw: profile._raw, // Keep the original profile for debugging or other uses
+
+      // We remove the `raw` property as it's not part of the standard Profile interface
     };
   }
 }

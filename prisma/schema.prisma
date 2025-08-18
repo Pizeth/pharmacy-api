@@ -155,13 +155,64 @@ model Role {
   @@map("roles")
 }
 
+model IdentityProvider {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique // e.g., "google", "microsoft", etc.
+  displayName     String            @map("display_name") // "Google", "Microsoft", etc.
+  issuer          String            @map("issuer") // OIDC issuer URL
+  authorizationURL String           @map("authorization_url")
+  tokenURL        String            @map("token_url")
+  callbackURL     String            @map("callback_url")
+  userInfoURL     String            @map("user_info_url")
+  clientID        String            @map("client_id")
+  clientSecret    String            @map("client_secret")
+
+  // Optional fields
+  claims          Json?             @map("claims")
+  loginHint       String?           @map("login_hint")
+  maxAge          Int?              @map("max_age")
+  nonce           String?           @map("nonce")
+  responseMode    String?           @map("response_mode")
+  prompt          String?           @map("prompt")
+  // jwksURL         String?           @map("jwks_url")
+  scope           String?   // Comma-separated scopes
+  uniLocale       String?            @map("uni_locale")
+  
+  // Tracking")
+  enabled         Boolean           @default(true)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // users           User[]
+  UserIdentity UserIdentity[]
+
+  @@map("identity_providers")
+}
+
+model UserIdentity {
+  id              Int               @id @default(autoincrement())
+  providerId      Int               @map("provider_id")
+  provider        IdentityProvider  @relation(fields: [providerId], references: [id])
+  userId          Int               @map("user_id")
+  user            User              @relation(fields: [userId], references: [id])
+  providerUserId  String            @map("provider_user_id") // User ID from provider
+  accessToken     String?           @map("access_token")
+  refreshToken    String?           @map("refresh_token")
+  expiresAt       DateTime?         @map("expires_at")
+  
+  @@unique([providerId, providerUserId])
+  @@unique([providerId, userId])
+  @@map("user_identities")
+}
+
 model User {
   id              Int               @id @default(autoincrement())
   username        String            @unique @db.VarChar(50)
   email           String            @unique @db.VarChar(50) 
-  password        String        
+  password        String?        
   avatar          String?           @db.VarChar(150)
   profile         Profile?  
+  identities      UserIdentity[] 
   roleId          Int               @map("role_id")
   // Relation field that links to the Role model.
   role            Role              @relation(fields: [roleId], references: [id])

@@ -52,6 +52,10 @@ import {
 import { OidcStrategy } from './strategies/oidc.strategy';
 import { OIDCProviderConfig } from './interfaces/oidc.interface';
 import { AuthService } from '../auth/services/auth.service';
+import { IdentityProvider } from '@prisma/client';
+import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
+import { OidcProviderService } from './services/oidc-provider.service';
+import * as PASSPORT from '@nestjs/passport';
 
 // Define a constant for the injection token
 export const OIDC_CONFIG = 'OIDC_CONFIG';
@@ -66,9 +70,10 @@ const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN } =
     // to create and provide all the necessary strategy instances.
     {
       provide: 'OIDC_STRATEGIES', // A custom token for the created strategies
-      useFactory: (configs: OIDCProviderConfig[], authService: AuthService) => {
+      // useFactory: (configs: OIDCProviderConfig[], authService: AuthService) => {
+      useFactory: (provider: IdentityProvider[], authService: AuthService) => {
         // This maps over the config array and creates a new strategy for each one
-        return configs.map((config) => new OidcStrategy(authService, config));
+        return provider.map((config) => new OidcStrategy(authService, config));
       },
       // Inject the module options (our config array) and the AuthService
       inject: [MODULE_OPTIONS_TOKEN, AuthService],
@@ -103,3 +108,45 @@ export class OidcModule extends ConfigurableModuleClass {}
 //     };
 //   }
 // }
+
+@Module({})
+export class OidcModule {
+  static registerAsync(): DynamicModule {
+    const providers: Provider[] = [
+      OidcProviderService,
+      OidcStrategyFactory,
+      {
+        provide: 'OIDC_STRATEGIES',
+        useFactory: async (
+          providerService: OidcProviderService,
+          strategyFactory: OidcStrategyFactory,
+          passport: any,
+        ) => {
+          const providers = await providerService.getAllEnabledProviders();
+          const strategies = providers.map((provider) =>
+            strategyFactory.createStrategy(provider),
+          );
+
+          // Register strategies with Passport
+          strategies.forEach((strategy) => {
+            passport.use(strategy.name, strategy);
+          });
+
+          return strategies;
+        },
+        inject: [OidcProviderService, OidcStrategyFactory, PASSPORT],
+      },
+      {
+        provide: 'OIDC_PROVIDER_SERVICE',
+        useClass: OidcProviderService,
+      },
+    ];
+
+    return {
+      module: OidcModule,
+      imports: [PrismaModule],
+      providers: [...providers, AuthService, PrismaService],
+      exports: ['OIDC_STRATEGIES'],
+    };
+  }
+}

@@ -10,8 +10,8 @@ import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
 import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
+import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { UsersService } from 'src/modules/users/services/users.service';
-import User from 'src/modules/users/user';
 import { SignedUser, UserDetail } from 'src/types/dto';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    private readonly oidcServie: OidcProviderService,
     private readonly passwordUtil: PasswordUtils,
     private readonly tokenService: TokenService,
   ) {}
@@ -189,6 +190,114 @@ export class AuthService {
           providerId: profile.providerId,
         },
       ],
+    });
+  }
+
+  async findOrCreateOidcUser(
+    providerName: string,
+    profile: any,
+    tokens: {
+      accessToken: string;
+      refreshToken?: string;
+      idToken?: string;
+      expiresAt?: Date;
+    },
+  ) {
+    // 1. Find provider
+    const provider =
+      await this.oidcServie.getOidcIdentityProvider(providerName);
+
+    if (!provider) throw new Error('Provider not found');
+
+    // 2. Find existing identity
+    const identity = await this.prisma.userIdentity.findFirst({
+      where: {
+        providerId: provider.id,
+        providerUserId: profile.providerId,
+      },
+      include: { user: true },
+    });
+
+    if (identity) {
+      // Update tokens
+      await this.prisma.userIdentity.update({
+        where: { id: identity.id },
+        data: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          idToken: tokens.idToken,
+          expiresAt: tokens.expiresAt,
+        },
+      });
+      return identity.user;
+    }
+
+    // 3. Find user by email to link identity
+    if (profile.email) {
+      const user = await this.prisma.user.findUnique({
+        where: { email: profile.email },
+      });
+
+      if (user) {
+        // Link identity to existing user
+        return this.prisma.userIdentity
+          .create({
+            data: {
+              providerId: provider.id,
+              userId: user.id,
+              providerUserId: profile.providerId,
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              idToken: tokens.idToken,
+              expiresAt: tokens.expiresAt,
+            },
+          })
+          .then(() => user);
+      }
+    }
+
+    // 4. Create new user
+    return this.createUserWithIdentity(provider.id, profile, tokens);
+  }
+
+  private async createUserWithIdentity(
+    providerId: number,
+    profile: any,
+    tokens: {
+      accessToken: string;
+      refreshToken?: string;
+      idToken?: string;
+      expiresAt?: Date;
+    },
+  ) {
+    const username = await this.generateUniqueUsername(profile.email);
+
+    return this.prisma.user.create({
+      data: {
+        email: profile.email,
+        username,
+        avatar: profile.picture,
+        isVerified: true,
+        role: { connect: { id: 2 } }, // Default role
+        identities: {
+          create: {
+            providerId,
+            providerUserId: profile.providerId,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            idToken: tokens.idToken,
+            expiresAt: tokens.expiresAt,
+          },
+        },
+        profile: profile.name
+          ? {
+              create: {
+                first_name: profile.name.split(' ')[0],
+                last_name: profile.name.split(' ').slice(1).join(' ') || '',
+              },
+            }
+          : undefined,
+      },
     });
   }
 
