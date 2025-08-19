@@ -9,9 +9,11 @@ export interface OIDCProviderConfig extends StrategyOptions {
 
 export interface NormalizedProfile {
   provider: string;
-  providerId: string;
-  email?: string;
-  emailVerified: boolean;
+  id: string;
+  displayName?: string;
+  username?: string;
   name?: string;
-  picture?: string;
+  email: string;
+  emailVerified: boolean;
+  photo?: string;
 }

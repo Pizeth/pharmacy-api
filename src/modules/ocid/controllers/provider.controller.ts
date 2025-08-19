@@ -1,9 +1,20 @@
-import { Controller, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  // UseGuards,
+} from '@nestjs/common';
 import { OidcProviderService } from '../services/oidc-provider.service';
 import { CreateProviderDto } from '../dto/create-provider.dto';
 import { UpdateProviderDto } from '../dto/update-provider.dto';
+// import { Roles } from 'src/decorators/roles.decorator';
 
 @Controller('admin/providers')
+// @UseGuards(JwtAuthGuard, RolesGuard)
+// @Roles(UserRole.ADMIN)
 export class ProviderController {
   constructor(private providerService: OidcProviderService) {}
 
@@ -30,9 +41,9 @@ export class ProviderController {
     @Param('id') id: string,
     @Body() data: { enabled: boolean },
   ) {
-    const provider = await this.providerService.updateAndReregisterProvider(
+    const provider = await this.providerService.toggleProvider(
       parseInt(id),
-      { enabled: data.enabled },
+      data.enabled,
     );
     return provider;
   }

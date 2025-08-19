@@ -55,7 +55,7 @@ import { AuthService } from '../auth/services/auth.service';
 import { IdentityProvider } from '@prisma/client';
 import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
 import { OidcProviderService } from './services/oidc-provider.service';
-import * as PASSPORT from '@nestjs/passport';
+import { PassportStatic } from 'passport';
 
 // Define a constant for the injection token
 export const OIDC_CONFIG = 'OIDC_CONFIG';
@@ -83,7 +83,7 @@ const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN } =
   ],
   exports: ['OIDC_STRATEGIES'],
 })
-export class OidcModule extends ConfigurableModuleClass {}
+export class OidcModule1 extends ConfigurableModuleClass {}
 
 // @Module({})
 // export class OidcModule {
@@ -120,7 +120,7 @@ export class OidcModule {
         useFactory: async (
           providerService: OidcProviderService,
           strategyFactory: OidcStrategyFactory,
-          passport: any,
+          passport: PassportStatic,
         ) => {
           const providers = await providerService.getAllEnabledProviders();
           const strategies = providers.map((provider) =>
@@ -134,7 +134,7 @@ export class OidcModule {
 
           return strategies;
         },
-        inject: [OidcProviderService, OidcStrategyFactory, PASSPORT],
+        inject: [OidcProviderService, OidcStrategyFactory],
       },
       {
         provide: 'OIDC_PROVIDER_SERVICE',
@@ -144,8 +144,7 @@ export class OidcModule {
 
     return {
       module: OidcModule,
-      imports: [PrismaModule],
-      providers: [...providers, AuthService, PrismaService],
+      providers: [...providers, AuthService],
       exports: ['OIDC_STRATEGIES'],
     };
   }

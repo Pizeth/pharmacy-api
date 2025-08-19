@@ -6,13 +6,16 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditTrail, RefreshToken } from '@prisma/client';
+import { Profile } from 'passport-openidconnect';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
 import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
+import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-db.service';
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { UsersService } from 'src/modules/users/services/users.service';
 import { SignedUser, UserDetail } from 'src/types/dto';
+import { id } from 'zod/v4/locales';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +24,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-    private readonly oidcServie: OidcProviderService,
+    private readonly oidcProviderServie: OidcProviderService,
+    private readonly oidcIdentityServie: OidcIdentityDbService,
     private readonly passwordUtil: PasswordUtils,
     private readonly tokenService: TokenService,
   ) {}
@@ -98,7 +102,10 @@ export class AuthService {
         );
       }
 
-      if (!this.passwordUtil.compare(password, user.password)) {
+      if (
+        user.password &&
+        !this.passwordUtil.compare(password, user.password)
+      ) {
         // Increment login attempts
         // await UserRepo.incrementLoginAttempts(user.toData());
         // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
@@ -156,113 +163,139 @@ export class AuthService {
     }
   }
 
-  async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
-    // Check by provider ID
-    let user = await this.usersService.findByProviderId(
-      profile.provider,
-      profile.providerId,
-    );
+  // async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
+  //   // Check by provider ID
+  //   let user = await this.usersService.findByProviderId(
+  //     profile.provider,
+  //     profile.providerId,
+  //   );
 
-    if (user) return user;
+  //   if (user) return user;
 
-    // Check by email
-    if (profile.email) {
-      user = await this.usersService.findByEmail(profile.email);
-    }
+  //   // Check by email
+  //   if (profile.email) {
+  //     user = await this.usersService.findByEmail(profile.email);
+  //   }
 
-    if (user) {
-      // Link provider to existing account
-      return this.usersService.addProvider(user.id, {
-        provider: profile.provider,
-        providerId: profile.providerId,
-      });
-    }
+  //   if (user) {
+  //     // Link provider to existing account
+  //     return this.usersService.addProvider(user.id, {
+  //       provider: profile.provider,
+  //       providerId: profile.providerId,
+  //     });
+  //   }
 
-    // Create new user
-    return this.usersService.create({
-      email: profile.email,
-      name: profile.name,
-      avatar: profile.picture,
-      isEmailVerified: profile.emailVerified,
-      providers: [
-        {
-          provider: profile.provider,
-          providerId: profile.providerId,
-        },
-      ],
-    });
-  }
+  //   // Create new user
+  //   return this.usersService.create({
+  //     email: profile.email,
+  //     name: profile.name,
+  //     avatar: profile.picture,
+  //     isEmailVerified: profile.emailVerified,
+  //     providers: [
+  //       {
+  //         provider: profile.provider,
+  //         providerId: profile.providerId,
+  //       },
+  //     ],
+  //   });
+  // }
 
   async findOrCreateOidcUser(
     providerName: string,
-    profile: any,
+    profile: NormalizedProfile,
     tokens: {
       accessToken: string;
       refreshToken?: string;
-      idToken?: string;
       expiresAt?: Date;
     },
   ) {
-    // 1. Find provider
-    const provider =
-      await this.oidcServie.getOidcIdentityProvider(providerName);
+    try {
+      // 1. Find provider
+      const provider =
+        await this.oidcProviderServie.getOidcIdentityProvider(providerName);
 
-    if (!provider) throw new Error('Provider not found');
+      // if (!provider)
+      //   throw new AppError(
+      //     'Provider not found',
+      //     HttpStatus.NOT_FOUND,
+      //     this.context,
+      //     {
+      //       cause: `Provider ${providerName} not found!`,
+      //       validProvider: this.oidcServie.getAllEnabledProviders(),
+      //     },
+      //   );
 
-    // 2. Find existing identity
-    const identity = await this.prisma.userIdentity.findFirst({
-      where: {
-        providerId: provider.id,
-        providerUserId: profile.providerId,
-      },
-      include: { user: true },
-    });
+      // 2. Find existing identity
+      const identity = await this.oidcIdentityServie.getOidcIdentity(
+        provider.id,
+        profile.id,
+      );
+      // const identity = await this.prisma.userIdentity.findFirst({
+      //   where: {
+      //     providerId: provider.id,
+      //     providerUserId: profile.id,
+      //   },
+      //   include: { user: true },
+      // });
 
-    if (identity) {
-      // Update tokens
-      await this.prisma.userIdentity.update({
-        where: { id: identity.id },
-        data: {
+      if (identity) {
+        // Update tokens
+        await this.oidcIdentityServie.update(identity.id, {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-          idToken: tokens.idToken,
           expiresAt: tokens.expiresAt,
-        },
-      });
-      return identity.user;
-    }
-
-    // 3. Find user by email to link identity
-    if (profile.email) {
-      const user = await this.prisma.user.findUnique({
-        where: { email: profile.email },
-      });
-
-      if (user) {
-        // Link identity to existing user
-        return this.prisma.userIdentity
-          .create({
-            data: {
-              providerId: provider.id,
-              userId: user.id,
-              providerUserId: profile.providerId,
-              accessToken: tokens.accessToken,
-              refreshToken: tokens.refreshToken,
-              idToken: tokens.idToken,
-              expiresAt: tokens.expiresAt,
-            },
-          })
-          .then(() => user);
+        });
+        return identity.user;
       }
-    }
 
-    // 4. Create new user
-    return this.createUserWithIdentity(provider.id, profile, tokens);
+      // 3. Find user by email to link identity
+      if (profile.email) {
+        const user = await this.usersService.getUser(profile.email);
+        // const user = await this.prisma .prismauser.findUnique({
+        //   where: { email: profile.email },
+        // });
+
+        if (user) {
+          // Link identity to existing user
+          return await this.oidcIdentityServie.create({
+            providerId: provider.id,
+            userId: user.id,
+            providerUserId: profile.id,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresAt: tokens.expiresAt,
+          });
+          // .create({
+          //   data: {
+          //     providerId: provider.id,
+          //     userId: user.id,
+          //     providerUserId: profile.providerId,
+          //     accessToken: tokens.accessToken,
+          //     refreshToken: tokens.refreshToken,
+          //     idToken: tokens.idToken,
+          //     expiresAt: tokens.expiresAt,
+          //   },
+          // })
+          // .then(() => user);
+        }
+      }
+
+      // 4. Create new user
+      return this.createUserWithIdentity(provider.id, profile, tokens);
+    } catch (error) {
+      this.logger.error('Error occured during findOrCreateOidcUser:', error);
+      throw new AppError(
+        'Error occured during findOrCreateOidcUser',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
   }
 
   private async createUserWithIdentity(
     providerId: number,
-    profile: any,
+    profile: NormalizedProfile,
     tokens: {
       accessToken: string;
       refreshToken?: string;
@@ -299,6 +332,29 @@ export class AuthService {
           : undefined,
       },
     });
+  }
+
+  private async generateUniqueUsername(email: string): Promise<string> {
+    const base = email.split('@')[0];
+    let username = base;
+    let counter = 1;
+
+    while (true) {
+      const existing = await this.usersService.getUser(username);
+
+      if (!existing) return username;
+
+      username = `${base}${counter}`;
+      counter++;
+    }
+  }
+
+  sanitizeUser(user: UserDetail) {
+    const sanitized = { ...user };
+    delete sanitized.password;
+    delete sanitized.mfaSecret;
+    delete sanitized.refreshTokens;
+    return sanitized;
   }
 
   async signIn(username: string, pass: string): Promise<SignedUser> {

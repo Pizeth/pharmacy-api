@@ -1,7 +1,7 @@
 // import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OIDCProviderConfig } from '../interfaces/oidc.interface';
 
-import { OIDCProviderConfig } from '../interfaces/oidc.interface';
+// import { OIDCProviderConfig } from '../interfaces/oidc.interface';
 
 // function createOIDCStrategy(config: OIDCProviderConfig) {
 //   const { Strategy } = require('passport-openidconnect');
@@ -156,30 +156,12 @@ import { IdentityProvider } from '@prisma/client';
 
 // This is a "factory class". It will be instantiated dynamically.
 // We are not using the default @Injectable() decorator.
-export class OidcStrategy extends PassportStrategy(Strategy) {
+@Injectable()
+export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
   constructor(
     private readonly authService: AuthService,
     private readonly provider: IdentityProvider,
   ) {
-    // super(
-    //   Strategy options
-    //   {
-    //     issuer: config.issuer,
-    //     authorizationURL: config.authorizationURL,
-    //     tokenURL: config.tokenURL,
-    //     userInfoURL: config.userInfoURL,
-    //     clientID: config.clientID,
-    //     clientSecret: config.clientSecret,
-    //     callbackURL: config.callbackURL,
-    //     scope: config.scope.split(',').map((s) => s.trim()),
-    //     passReqToCallback: true,
-    //     // pkce: true,
-    //     // state: true,
-    //     // passReqToCallback: false, // Set to false, we don't need the req object in validate
-    //   },
-    //   provider,
-    // );
-
     super({
       issuer: provider.issuer,
       authorizationURL: provider.authorizationURL,
@@ -198,7 +180,7 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
 
   // The validate function that passport-openidconnect will call
   async validate(
-    issuer: string,
+    // issuer: string,
     profile: Profile,
     done: VerifyCallback,
   ): Promise<any> {
@@ -210,6 +192,7 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
         this.provider.name,
         normalizedProfile,
       );
+
       if (!user) {
         return done(null, false); // Or handle error appropriately
       }
@@ -281,18 +264,19 @@ export class OidcStrategy extends PassportStrategy(Strategy) {
 
     return {
       provider: this.provider.name,
-      providerId: profile.id,
-
-      // Safely access the first email value, which could be undefined
-      email: profile.emails?.[0]?.value,
-
-      emailVerified: true, // This is an assumption; might need adjustment per provider
-
+      id: profile.id,
+      displayName: profile.displayName,
+      username: profile.username,
       // Use the more robust full name we constructed
       name: fullName,
 
+      // Safely access the first email value, which could be undefined
+      email: profile.emails?.[0]?.value || '',
+
+      emailVerified: true, // This is an assumption; might need adjustment per provider
+
       // Safely access the first photo value, which could be undefined
-      picture: profile.photos?.[0]?.value,
+      photo: profile.photos?.[0]?.value,
 
       // We remove the `raw` property as it's not part of the standard Profile interface
     };
