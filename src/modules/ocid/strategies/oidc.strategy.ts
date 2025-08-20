@@ -54,7 +54,6 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
 import { NormalizedProfile } from '../interfaces/oidc.interface';
-import { Request } from 'express';
 import { IdentityProvider } from '@prisma/client';
 
 // @Injectable()

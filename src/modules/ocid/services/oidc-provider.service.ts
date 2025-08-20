@@ -61,7 +61,7 @@ export class OidcProviderService implements OnModuleInit {
 
   async getAllEnabledProviders(): Promise<IdentityProvider[]> {
     // const providers = await this.dbService.getAllEnabledProviders();
-    const providers = await this.dbService.getAllProviders();
+    const providers = await this.dbService.getAll();
     return providers.data.filter((p) => p.enabled);
   }
 
@@ -117,7 +117,7 @@ export class OidcProviderService implements OnModuleInit {
 
   async deleteAndUnregisterProvider(id: number) {
     // 1. Get provider first
-    const provider = await this.dbService.getProviderById(id);
+    const provider = await this.dbService.getOne({ id });
 
     // 2. Unregister strategy
     this.unregisterProvider(provider.name);

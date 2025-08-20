@@ -218,7 +218,7 @@ model User {
   role            Role              @relation(fields: [roleId], references: [id])
 
   // Advanced Authentication Fields
-  authMethod      AuthMethod?       @map("auth_method") @default(PASSWORD)
+  authMethod      AuthMethod       @map("auth_method") @default(PASSWORD)
 
   // Multi-Factor Authentication
   mfaSecret       String?           @map("mfa_secret")
@@ -235,13 +235,14 @@ model User {
   isBan           Boolean           @default(false) @map("is_ban")
   enabledFlag     Boolean           @default(true) @map("enabled_flag")
   isLocked        Boolean           @default(false) @map("is_locked")
-  isVerified      Boolean           @default(false) @map("is_verified")  
+  isVerified      Boolean           @default(false) @map("is_verified")
+  isActivated     Boolean           @default(false) @map("is_activated")  
 
   // Audit and Tracking
   deletedAt       DateTime?         @map("deleted_at")
-  createdBy       Int               @map("created_by")
+  createdBy       Int?               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
+  lastUpdatedBy   Int?               @map("last_updated_by")
   lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
   objectVersionId Int               @default(1) @map("object_version_id")
 
@@ -257,21 +258,21 @@ model User {
 
 model Profile {
   id              Int               @id @default(autoincrement())
-  first_name      String            @db.VarChar(50)
-  last_name       String            @db.VarChar(50)
+  firstName       String            @db.VarChar(50) @map("first_name")
+  lastName        String            @db.VarChar(50) @map("last_name")
   sex             Sex       
   dob             DateTime        
   pob             String?           @db.VarChar(50)
   address         String?           @db.VarChar(255)
   phone           String?           @db.VarChar(255)
-  married         Boolean       
+  married         Boolean           @default(false)     
   bio             String?       
   userId          Int               @unique @map("user_id")
   Cashier         Cashier?
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
-  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+  isEnabled       Boolean           @default(true) @map("enabled_flag")
+  isHold          Boolean           @default(false) @map("hold_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -1012,12 +1013,12 @@ enum Sex {
 
 enum AuthMethod {
   PASSWORD
-  GOOGLE
-  MICROSOFT
-  APPLE
-  FACEBOOK
-  TWITTER
-  GITHUB
+  OIDC
+  TOKEN
+  BIO_METRIC
+  MFA
+  CBA
+  QR
 }
 
 enum LoginStatus {

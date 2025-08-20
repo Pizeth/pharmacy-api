@@ -5,17 +5,17 @@ import {
   // UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuditTrail, RefreshToken } from '@prisma/client';
-import { Profile } from 'passport-openidconnect';
+import { AuditTrail, Prisma, RefreshToken } from '@prisma/client';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
 import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
 import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-db.service';
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
+import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { UsersService } from 'src/modules/users/services/users.service';
+import User from 'src/modules/users/user';
 import { SignedUser, UserDetail } from 'src/types/dto';
-import { id } from 'zod/v4/locales';
 
 @Injectable()
 export class AuthService {
@@ -28,32 +28,22 @@ export class AuthService {
     private readonly oidcIdentityServie: OidcIdentityDbService,
     private readonly passwordUtil: PasswordUtils,
     private readonly tokenService: TokenService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  async validateUser(username: string, pass: string): Promise<SignedUser> {
-    const user = await this.usersService.getUser(username);
-    if (user && user.password === pass) {
-      const { password, ...result } = user;
-      return result;
-    }
-    return null;
-  }
+  // async validateUser(username: string, pass: string): Promise<SignedUser> {
+  //   const user = await this.usersService.getUser(username);
+  //   if (user && user.password === pass) {
+  //     const { password, ...result } = user;
+  //     return result;
+  //   }
+  //   return null;
+  // }
 
   async validateLocalUser(
     username: string,
     password: string,
   ): Promise<UserDetail> {
-    // const user = await this.usersService.getUser(username);
-    // if (user && (await bcrypt.compare(password, user.password))) {
-    //   // const { password, ...result } = user;
-    //   // After validation succeeds, transform the object by creating a mutable copy of the validated data.
-    //   const result = user;
-    //   // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
-    //   delete (result as { password?: string }).password; // Cleanly remove the repassword field
-    //   return result;
-    // }
-    // return user;
-
     try {
       const user = await this.usersService.getUser(username);
 
@@ -102,6 +92,15 @@ export class AuthService {
         );
       }
 
+      if (!user.isActivated) {
+        throw new AppError(
+          'Account is not activated!',
+          HttpStatus.FORBIDDEN,
+          this.context,
+          `User ${username} account is not activated!`,
+        );
+      }
+
       if (
         user.password &&
         !this.passwordUtil.compare(password, user.password)
@@ -127,26 +126,11 @@ export class AuthService {
       // Record successful login attempt and update last login
       // await loginRepo.recordLoginAttempt(user, req, 'SUCCESS');
 
-      // Generate payload to use for create token
-      const payload = this.tokenService.generatePayload(user);
-
-      // Generate authentication token
-      const token = await this.tokenService.generateToken(payload, '10:25:55');
-
-      // Save refresh token to database
-      const refreshToken = await this.tokenService.generateRefreshToken(
-        payload,
-        '1 hour 2min 55 sec',
-      );
-
       // After validation succeeds, transform the object by creating a mutable copy of the validated data.
       const result = user;
       // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
       delete (result as { password?: string }).password; // Cleanly remove the repassword field
 
-      // TODO: Generate a JWT and return it here
-      // instead of the user object
-      // const payload = { sub: user.id, username: user.username };
       return result;
     } catch (error: unknown) {
       this.logger.error(
@@ -161,6 +145,29 @@ export class AuthService {
         error,
       );
     }
+  }
+
+  async login(user: UserDetail) {
+    // Generate payload to use for create token
+    const payload = this.tokenService.generatePayload(user);
+
+    // Generate authentication token
+    const token = await this.tokenService.generateToken(payload, '10:25:55');
+
+    // Save refresh token to database
+    const refreshToken = await this.tokenService.generateRefreshToken(
+      payload,
+      '1 hour 2min 55 sec',
+    );
+    // const payload = { username: user.username, sub: user.userId };
+    // return {
+    //   access_token: this.jwtService.sign(payload),
+    // };
+    return {
+      // user: result,
+      token: token,
+      refreshToken: refreshToken.token,
+    };
   }
 
   // async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
@@ -281,7 +288,7 @@ export class AuthService {
       }
 
       // 4. Create new user
-      return this.createUserWithIdentity(provider.id, profile, tokens);
+      return await this.createUserWithIdentity(provider.id, profile, tokens);
     } catch (error) {
       this.logger.error('Error occured during findOrCreateOidcUser:', error);
       throw new AppError(
@@ -299,39 +306,85 @@ export class AuthService {
     tokens: {
       accessToken: string;
       refreshToken?: string;
-      idToken?: string;
       expiresAt?: Date;
     },
   ) {
-    const username = await this.generateUniqueUsername(profile.email);
+    try {
+      const username = await this.generateUniqueUsername(profile.email);
 
-    return this.prisma.user.create({
-      data: {
-        email: profile.email,
-        username,
-        avatar: profile.picture,
-        isVerified: true,
-        role: { connect: { id: 2 } }, // Default role
-        identities: {
-          create: {
-            providerId,
-            providerUserId: profile.providerId,
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            idToken: tokens.idToken,
-            expiresAt: tokens.expiresAt,
-          },
+      const placeholderImage = this.usersService.getImagePlaceholder(username);
+
+      // Use an interactive transaction
+      const user = await this.prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          const createdUser = await this.usersService.create(
+            {
+              username,
+              email: profile.email,
+              authMethod: 'OIDC',
+              avatar: profile.photo ?? placeholderImage,
+              isVerified: true,
+              roleId: 4,
+            },
+            undefined,
+            tx,
+          );
+
+          await this.oidcIdentityServie.create(
+            {
+              providerId,
+              providerUserId: profile.id,
+              userId: createdUser.id,
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              expiresAt: tokens.expiresAt,
+            },
+            tx,
+          );
+
+          // Return the created user from the transaction
+          return createdUser;
         },
-        profile: profile.name
-          ? {
-              create: {
-                first_name: profile.name.split(' ')[0],
-                last_name: profile.name.split(' ').slice(1).join(' ') || '',
-              },
-            }
-          : undefined,
-      },
-    });
+      );
+
+      return user;
+    } catch (error) {
+      this.logger.error('Error creating user with identity:', error);
+      throw new AppError(
+        'Error creating user with identity',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        this.context,
+        error,
+      );
+    }
+
+    // return user;
+
+    // const result = await this.usersService.create({
+    //   username,
+    //   email: profile.email,
+    //   avatar: profile.photo ?? placeholderImage,
+    //   isVerified: true,
+    //   roleId: 4, // Default role User
+    //   identities: {
+    //     create: {
+    //       providerId,
+    //       providerUserId: profile.id,
+    //       userId: user.id,
+    //       accessToken: tokens.accessToken,
+    //       refreshToken: tokens.refreshToken,
+    //       expiresAt: tokens.expiresAt,
+    //     },
+    //   },
+    //   profile: profile.name
+    //     ? {
+    //         create: {
+    //           first_name: profile.name.split(' ')[0],
+    //           last_name: profile.name.split(' ').slice(1).join(' ') || '',
+    //         },
+    //       }
+    //     : undefined,
+    // });
   }
 
   private async generateUniqueUsername(email: string): Promise<string> {
@@ -349,13 +402,13 @@ export class AuthService {
     }
   }
 
-  sanitizeUser(user: UserDetail) {
-    const sanitized = { ...user };
-    delete sanitized.password;
-    delete sanitized.mfaSecret;
-    delete sanitized.refreshTokens;
-    return sanitized;
-  }
+  // sanitizeUser(user: UserDetail) {
+  //   const sanitized = { ...user };
+  //   delete sanitized.password;
+  //   delete sanitized.mfaSecret;
+  //   delete sanitized.refreshTokens;
+  //   return sanitized;
+  // }
 
   async signIn(username: string, pass: string): Promise<SignedUser> {
     try {
@@ -406,7 +459,7 @@ export class AuthService {
         );
       }
 
-      if (!this.passwordUtil.compare(pass, user.password)) {
+      if (user.password && !this.passwordUtil.compare(pass, user.password)) {
         // Increment login attempts
         // await UserRepo.incrementLoginAttempts(user.toData());
         // await loginRepo.recordLoginAttempt(user, req, 'FAILED');

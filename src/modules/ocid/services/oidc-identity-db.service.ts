@@ -91,8 +91,9 @@ export class OidcIdentityDbService {
     });
   }
 
-  async create(data: CreateIdentityDto) {
-    return this.prisma.userIdentity.create({ data: data });
+  async create(data: CreateIdentityDto, tx?: Prisma.TransactionClient) {
+    const prismaClient = tx || this.prisma; // Use the provided tx or the default client
+    return prismaClient.userIdentity.create({ data: data });
   }
 
   async update(id: number, data: UpdateIdentityDto) {

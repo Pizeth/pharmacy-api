@@ -2,6 +2,7 @@
 // Define your DTO using Zod and `createZodDto`
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
+import { AuthMethod } from '@prisma/client';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -30,13 +31,18 @@ export const createUserSchema = z
       description: 'The unique email address for the user.',
       example: 'john.doe@example.com',
     }),
+    authMethod: z.enum(AuthMethod).default(AuthMethod.PASSWORD).meta({
+      description: 'The authentication method used by the user.',
+      example: AuthMethod.PASSWORD,
+    }),
     password: z
       .string()
       .min(10, 'Password must be at least 10 characters long.')
-      .refine((password) => passwordRegex.test(password), {
-        message:
-          'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
-      })
+      .optional()
+      // .refine((password) => passwordRegex.test(password), {
+      //   message:
+      //     'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
+      // })
       .meta({
         description:
           'User password (at least 10 characters, including uppercase, lowercase, number, and special character.).',
@@ -45,7 +51,8 @@ export const createUserSchema = z
       }),
     repassword: z
       .string()
-      .min(10, 'Password must be at least 10 characters long.'),
+      .min(10, 'Password must be at least 10 characters long.')
+      .optional(),
     avatar: z.string().nullable().optional(),
     roleId: z.coerce
       .number({
@@ -60,17 +67,66 @@ export const createUserSchema = z
         description: 'The ID of the role assigned to the user.',
         example: 1,
       }),
-    createdBy: z.coerce.number().int(),
-    lastUpdatedBy: z.coerce.number().int(),
-    objectVersionId: z.coerce.number().int().default(1),
+    isBan: z.boolean().default(false).optional(),
+    enabledFlag: z.boolean().default(true).optional(),
+    isLocked: z.boolean().default(false).optional(),
+    isVerified: z.boolean().default(false).optional(),
+    isActivated: z.boolean().default(false).optional(),
+    createdBy: z.coerce.number().int().optional(),
+    lastUpdatedBy: z.coerce.number().int().optional(),
+    objectVersionId: z.coerce.number().int().default(1).optional(),
   })
-  // Add an object-level refinement to compare password and repassword.
-  .refine((data) => data.password === data.repassword, {
-    // This message will be displayed if the validation fails.
-    message: 'Passwords do not match',
-    // The `path` specifies which field the error should be attached to.
-    path: ['repassword'],
+  // --- Use superRefine for conditional logic ---
+  .superRefine((data, ctx) => {
+    // If the auth method is PASSWORD, we must validate the password fields.
+    if (data.authMethod === 'PASSWORD') {
+      if (!data.password) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Password is required.',
+          path: ['password'],
+        });
+      } else {
+        // Only check regex if password exists
+        if (!passwordRegex.test(data.password)) {
+          ctx.addIssue({
+            code: 'custom',
+            message:
+              'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
+            path: ['password'],
+          });
+        }
+      }
+
+      if (!data.repassword) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Password confirmation is required.',
+          path: ['repassword'],
+        });
+      }
+
+      // If both passwords are provided, check if they match.
+      if (
+        data.password &&
+        data.repassword &&
+        data.password !== data.repassword
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Passwords do not match',
+          path: ['repassword'],
+        });
+      }
+    }
   });
+// // Add an object-level refinement to compare password and repassword.
+// .refine((data) => data.password === data.repassword, {
+//   // This message will be displayed if the validation fails.
+//   message: 'Passwords do not match',
+//   // The `path` specifies which field the error should be attached to.
+//   path: ['repassword'],
+// });
 
 // **THE MAGIC STEP**: Generate a DTO class from the schema.
 // This class can be used by NestJS for type hinting and by @nestjs/swagger for documentation.

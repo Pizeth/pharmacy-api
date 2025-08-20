@@ -94,6 +94,7 @@ export class UserController {
   ) {
     // The DTO is validated and fully typed, just like before.
     this.logger.debug(createUserDto);
+
     try {
       const result = await this.service.create(createUserDto, file);
       return {

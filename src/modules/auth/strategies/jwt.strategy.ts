@@ -1,21 +1,23 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { TokenPayload } from 'src/types/token';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    configService: ConfigService,
-    private prisma: PrismaService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      secretOrKey: configService.get<string>(
+        'JWT_SECRET',
+        'default-secret-key',
+      ),
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: TokenPayload) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -42,3 +44,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     };
   }
 }
+
+// @Injectable()
+// export class JwtStrategy extends PassportStrategy(Strategy) {
+//   constructor(configService: ConfigService) {
+//     super({
+//       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+//       ignoreExpiration: false,
+//       secretOrKey: configService.get<string>('JWT_SECRET'),
+//     });
+//   }
+
+//   async validate(payload: JwtPayload) {
+//     return { userId: payload.sub, email: payload.email };
+//   }
+// }

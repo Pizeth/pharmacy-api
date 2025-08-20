@@ -1,7 +1,15 @@
-import { AuditTrail, Profile, RefreshToken, Role, User } from '@prisma/client';
+import {
+  AuditTrail,
+  Profile,
+  RefreshToken,
+  Role,
+  User,
+  UserIdentity,
+} from '@prisma/client';
 
 export interface UserDetail extends User {
   role: Role;
+  identities: UserIdentity[];
   profile: Profile | null;
   refreshTokens: RefreshToken;
   auditTrail: AuditTrail;

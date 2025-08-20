@@ -21,6 +21,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidationError } from './exceptions/zod-validatoin.exception';
+import { ProfileModule } from './profile/profile.module';
 import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 @Module({
@@ -121,6 +122,7 @@ import oidcProviderConfig from './modules/ocid/configs/oidc.config';
     AuthModule,
     FileModule,
     TimeParserModule,
+    ProfileModule,
     // CacheModule,
     // SuggestionModule,
   ],

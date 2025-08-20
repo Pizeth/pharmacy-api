@@ -67,6 +67,7 @@ export class UsersService {
         },
         include: {
           profile: true,
+          identities: true,
           role: true,
           refreshTokens: true,
           auditTrail: true,
@@ -169,117 +170,117 @@ export class UsersService {
   async create(
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
+    tx?: Prisma.TransactionClient,
   ): Promise<Omit<User, 'password'>> {
+    const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
-      return this.prisma.$transaction(
-        async (tx) => {
-          // Check unique constraints within transaction
-          const [existingUsername, existingEmail] = await Promise.all([
-            this.getOne({ username: createUserDto.username }),
-            this.getOne({ email: createUserDto.email }),
-          ]);
+      // return prismaClient.$transaction(
+      // async (currentx) => {
+      // Check unique constraints within transaction
+      const [existingUsername, existingEmail] = await Promise.all([
+        this.getOne({ username: createUserDto.username }),
+        this.getOne({ email: createUserDto.email }),
+      ]);
 
-          if (existingUsername) {
-            throw new AppError(
-              `Username ${createUserDto.username} already exists!`,
-              HttpStatus.CONFLICT,
-              UsersService.name,
-              {
-                ACTION: 'Register New User',
-                ROOT: 'Duplicate Data!',
-                FIELD: 'username',
-                CODE: 'DUPLICATE_USERNAME',
-                VALUE: createUserDto.username,
-              },
-            );
-          }
+      if (existingUsername) {
+        throw new AppError(
+          `Username ${createUserDto.username} already exists!`,
+          HttpStatus.CONFLICT,
+          UsersService.name,
+          {
+            ACTION: 'Register New User',
+            ROOT: 'Duplicate Data!',
+            FIELD: 'username',
+            CODE: 'DUPLICATE_USERNAME',
+            VALUE: createUserDto.username,
+          },
+        );
+      }
 
-          if (existingEmail) {
-            throw new AppError(
-              `Email ${createUserDto.email} already exists!`,
-              HttpStatus.CONFLICT,
-              UsersService.name,
-              {
-                ACTION: 'Register New User',
-                ROOT: 'Duplicate Data!',
-                FIELD: 'email',
-                CODE: 'DUPLICATE_EMAIL',
-                VALUE: createUserDto.email,
-              },
-            );
-          }
+      if (existingEmail) {
+        throw new AppError(
+          `Email ${createUserDto.email} already exists!`,
+          HttpStatus.CONFLICT,
+          UsersService.name,
+          {
+            ACTION: 'Register New User',
+            ROOT: 'Duplicate Data!',
+            FIELD: 'email',
+            CODE: 'DUPLICATE_EMAIL',
+            VALUE: createUserDto.email,
+          },
+        );
+      }
 
-          // Handle file upload if provided
-          // if (file) {
-          //   const avatar = await this.fileService.uploadFile(file, fileName);
-          //   createUserDto.avatar =
-          //     avatar &&
-          //     avatar.type === type.Upload &&
-          //     avatar.status === HttpStatus.CREATED
-          //       ? avatar.url
-          //       : placeholderImage;
-          // } else {
-          //   createUserDto.avatar =
-          //     this.imageService.generateImage(placeholderImage);
-          // }
+      // Handle file upload if provided
+      // if (file) {
+      //   const avatar = await this.fileService.uploadFile(file, fileName);
+      //   createUserDto.avatar =
+      //     avatar &&
+      //     avatar.type === type.Upload &&
+      //     avatar.status === HttpStatus.CREATED
+      //       ? avatar.url
+      //       : placeholderImage;
+      // } else {
+      //   createUserDto.avatar =
+      //     this.imageService.generateImage(placeholderImage);
+      // }
 
-          const placeholderImage = this.imageService.getUrl(
-            DiceBearStyle.Initials,
-            createUserDto.username,
-          );
-
-          createUserDto.avatar = file
-            ? await this.fileService
-                .uploadFile(file, fileName)
-                .then((avatar) =>
-                  avatar &&
-                  avatar.type === type.Upload &&
-                  avatar.status === HttpStatus.CREATED
-                    ? avatar.url
-                    : placeholderImage,
-                )
-            : placeholderImage;
-
-          // After validation succeeds, transform the object by creating a mutable copy of the validated data.
-          const userData = createUserDto;
-          // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
-          delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
-
-          // Use injected PasswordUtils service to hash the password.
-          const hashedPassword = await this.passwordUtils.hash(
-            userData.password,
-          );
-
-          this.logger.debug('User data:', userData);
-
-          // Create user with more detailed error tracking
-          return tx.user.create({
-            data: {
-              ...userData,
-              password: hashedPassword, // Use the hashed password
-              // Add audit trail information
-              auditTrail: {
-                create: {
-                  action: AuditActionType.CREATE,
-                  targetType: AuditTargetType.User,
-                  targetId: '0', // Placeholder.
-                  userAgent: 'SYSTEM',
-                  timestamp: new Date(),
-                  ipAddress: this.cls.get<string>('ip') || '',
-                  description: 'DEFAULT_ADMIN_SEEDED',
-                },
-              },
-            },
-          });
-        },
-        {
-          maxWait: 5000, // default: 2000
-          timeout: 25000, // default: 5000
-        },
+      const placeholderImage = this.imageService.getUrl(
+        DiceBearStyle.Initials,
+        createUserDto.username,
       );
 
-      // Best practice: don't return the password hash in the response.
+      createUserDto.avatar = file
+        ? await this.fileService
+            .uploadFile(file, fileName)
+            .then((avatar) =>
+              avatar &&
+              avatar.type === type.Upload &&
+              avatar.status === HttpStatus.CREATED
+                ? avatar.url
+                : placeholderImage,
+            )
+        : placeholderImage;
+
+      // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+      const userData = createUserDto;
+      // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+      delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
+
+      // Use injected PasswordUtils service to hash the password.
+      const hashedPassword = userData.password
+        ? await this.passwordUtils.hash(userData.password)
+        : '';
+
+      this.logger.debug('User data:', userData);
+
+      // Create user with more detailed error tracking
+      return prismaClient.user.create({
+        data: {
+          ...userData,
+          password: hashedPassword, // Use the hashed password
+          // Add audit trail information
+          auditTrail: {
+            create: {
+              action: AuditActionType.CREATE,
+              targetType: AuditTargetType.User,
+              targetId: '0', // Placeholder.
+              userAgent: 'SYSTEM',
+              timestamp: new Date(),
+              ipAddress: this.cls.get<string>('ip') || '',
+              description: 'DEFAULT_ADMIN_SEEDED',
+            },
+          },
+        },
+      });
+      // },
+      //   {
+      //     maxWait: 5000, // default: 2000
+      //     timeout: 25000, // default: 5000
+      //   },
+      // );
       // Use the omit helper function for a cleaner approach
       // const result = ObjectOmitter.omit(newUser, 'password');
 
@@ -603,5 +604,9 @@ export class UsersService {
     return this.prisma.user.delete({
       where,
     });
+  }
+
+  getImagePlaceholder(username: string): string {
+    return this.imageService.getUrl(DiceBearStyle.Initials, username);
   }
 }
