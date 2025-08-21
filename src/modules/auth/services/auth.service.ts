@@ -16,6 +16,7 @@ import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { UsersService } from 'src/modules/users/services/users.service';
 import User from 'src/modules/users/user';
 import { SignedUser, UserDetail } from 'src/types/dto';
+import { TokenPayload } from 'src/types/token';
 
 @Injectable()
 export class AuthService {
