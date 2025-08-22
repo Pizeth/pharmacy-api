@@ -85,19 +85,25 @@ export class UsersService {
     }
   }
 
-  async getOne(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
+  async getOne(where: Prisma.UserWhereUniqueInput): Promise<UserDetail | null> {
     try {
       const modelName = 'user';
-      return await this.dbHelper.findOne<typeof modelName, User>({
+      const result = await this.dbHelper.findOne<typeof modelName, User>({
         model: modelName,
         where: where,
         include: {
           profile: true,
           role: true,
-          // refreshTokens: true,
-          // auditTrail: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
+          refreshTokens: true,
+          auditTrail: true,
         },
       });
+      return result as UserDetail | null;
     } catch (error) {
       this.logger.error(
         `Error finding user with ${JSON.stringify(where)}:`,
@@ -395,7 +401,7 @@ export class UsersService {
       page,
       pageSize,
       where: {
-        enabledFlag: true, // Only active users
+        isEnabled: true, // Only active users
         isBan: false, // Not banned
         deletedAt: null, // Not soft-deleted
       },
@@ -430,7 +436,7 @@ export class UsersService {
       page,
       pageSize,
       where: {
-        enabledFlag: true,
+        isEnabled: true,
         deletedAt: null,
         OR: [
           { username: { contains: searchTerm, mode: 'insensitive' } },
@@ -465,7 +471,7 @@ export class UsersService {
       pageSize,
       where: {
         // role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
-        enabledFlag: true,
+        isEnabled: true,
         isBan: false,
         OR: [
           { lastLogin: { lt: lastLoginThreshold } },
@@ -507,7 +513,7 @@ export class UsersService {
       pageSize,
       cursor: cursorArg,
       where: {
-        enabledFlag: true,
+        isEnabled: true,
         deletedAt: null,
       },
       orderBy: { id: 'asc' }, // Cursor pagination requires a stable, unique order

@@ -181,15 +181,25 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
   async validate(
     // issuer: string,
     profile: Profile,
+    // idToken: string | object,
+    accessToken: string,
+    refreshToken: string,
+    expiresAt: Date,
     done: VerifyCallback,
   ): Promise<any> {
     try {
       const normalizedProfile = this.normalizeProfile(profile);
-      // const user =
-      // await this.authService.findOrCreateOidcUser(normalizedProfile);
+      const tokens = {
+        accessToken,
+        refreshToken,
+        // idToken:
+        //   typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
+        expiresAt,
+      };
       const user = await this.authService.findOrCreateOidcUser(
         this.provider.name,
         normalizedProfile,
+        tokens,
       );
 
       if (!user) {

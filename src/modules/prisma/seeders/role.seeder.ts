@@ -25,7 +25,7 @@ export class RoleSeeder {
     }
 
     this.logger.log(`✅ Seeded ${roles.length} roles`);
-    return await this.prisma.role.findMany({ where: { enabledFlag: true } });
+    return await this.prisma.role.findMany({ where: { isEnabled: true } });
   }
 
   private getRolesFromData() {

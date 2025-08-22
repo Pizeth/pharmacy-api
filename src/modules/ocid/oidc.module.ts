@@ -56,6 +56,10 @@ import { IdentityProvider } from '@prisma/client';
 import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
 import { OidcProviderService } from './services/oidc-provider.service';
 import { PassportStatic } from 'passport';
+import { DBHelper } from '../helpers/services/db-helper';
+import { PrismaModule } from '../prisma/prisma.module';
+import { OidcProviderDbService } from './services/oidc-provider-db.service';
+import { OidcIdentityDbService } from './services/oidc-identity-db.service';
 
 // Define a constant for the injection token
 export const OIDC_CONFIG = 'OIDC_CONFIG';
@@ -109,12 +113,14 @@ export class OidcModule1 extends ConfigurableModuleClass {}
 //   }
 // }
 
-@Module({})
+@Module({ imports: [DBHelper, PrismaModule] })
 export class OidcModule {
   static registerAsync(): DynamicModule {
     const providers: Provider[] = [
       OidcProviderService,
       OidcStrategyFactory,
+      OidcProviderDbService,
+      OidcIdentityDbService,
       {
         provide: 'OIDC_STRATEGIES',
         useFactory: async (

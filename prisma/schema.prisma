@@ -142,7 +142,7 @@ model Role {
   description     String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -233,7 +233,7 @@ model User {
 
   // Security Flags
   isBan           Boolean           @default(false) @map("is_ban")
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled       Boolean           @default(true) @map("enabled_flag")
   isLocked        Boolean           @default(false) @map("is_locked")
   isVerified      Boolean           @default(false) @map("is_verified")
   isActivated     Boolean           @default(false) @map("is_activated")  
@@ -292,7 +292,7 @@ model Cashier {
   description     String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   holdFlag        String?           @db.VarChar(1) @map("hold_flag")
   startDate       DateTime          @map("start_date")
   endDate         DateTime?         @map("end_date")
@@ -317,7 +317,7 @@ model Supplier {
   description     String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -335,7 +335,7 @@ model Category {
 
   // Tracking
   image           String?           @db.VarChar(255)
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -356,7 +356,7 @@ model SubCategory {
   image           String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -376,7 +376,7 @@ model Manufacturer {
   phone           String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -394,7 +394,7 @@ model ProductType {
   image           String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -415,7 +415,7 @@ model ProductType {
 //   description     String?           @db.VarChar(255)
   
 //   // Tracking fields
-//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   isEnabled     Boolean           @default(true) @map("enabled_flag")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
@@ -443,7 +443,7 @@ model ProductUnit {
   derivedUnits    ProductUnit[]     @relation("UnitHierarchy")
   
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -468,7 +468,7 @@ model UnitHierarchy {
   quantity        Decimal           @db.Decimal(10, 2)
   
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -503,7 +503,7 @@ model Product {
   baseUnitQty     Decimal           @default(0) @db.Decimal(10, 2) @map("base_unit_quantity")
 
   // Additional tracking      
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -536,7 +536,7 @@ model Cocktail {
   image           String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -556,7 +556,7 @@ model CocktailDetail {
   quantity        Decimal? @db.Decimal(10, 2) 
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -585,7 +585,7 @@ model Stock {
   qrCode          String            @db.VarChar(255) @map("qr_code")
 
   // Tracking 
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -608,7 +608,7 @@ model Stock {
 //   fromUnit        ProductUnit       @relation("FromUnitConversions", fields: [fromUnitId], references: [id])
 //   toUnit          ProductUnit       @relation("ToUnitConversions", fields: [toUnitId], references: [id])
   
-//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   isEnabled     Boolean           @default(true) @map("enabled_flag")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
@@ -626,7 +626,7 @@ model Stock {
 //   baseUnitQty     Decimal           @db.Decimal(10, 2) @map("base_unit_quantity") // Equivalent quantity in base unit 
 
 //   // Additional tracking 
-//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   isEnabled     Boolean           @default(true) @map("enabled_flag")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
@@ -654,7 +654,7 @@ model Stock {
 //   quantity        Int
 //   referenceNumber String?           @unique @db.VarChar(30) @map("reference_number")
 //   image           String?            @db.VarChar(255)      
-//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   isEnabled     Boolean           @default(true) @map("enabled_flag")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
@@ -681,7 +681,7 @@ model Stock {
 //   importedDate    DateTime          @db.Timestamp(6) @map("imported_date")
 //   expiredDate     DateTime?         @db.Timestamp(6) @map("expired_date")
 //   qrCode          String            @db.VarChar(255) @map("qr_code")
-//   enabledFlag     Boolean           @default(true) @map("enabled_flag")
+//   isEnabled     Boolean           @default(true) @map("enabled_flag")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
@@ -698,7 +698,7 @@ model PromoDetail {
   promotionId     Int               @map("promotion_id")
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -718,7 +718,7 @@ model Promotion {
   description     String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -746,7 +746,7 @@ model ProductTransaction {
   cancelReason    String?           @db.VarChar(1000) @map("cancel_reason")
 
   // Additional Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -768,7 +768,7 @@ model Warehouse {
 
   // Tracking
   description     String?           @db.VarChar(255)
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -789,7 +789,7 @@ model Store {
   description     String?           @db.VarChar(255)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -810,7 +810,7 @@ model StoreBranch {
   managerId       Int?              @map("manager_id")
 
    // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -842,7 +842,7 @@ model Order {
   holdFlag        String?           @db.VarChar(1) @map("hold_flag")
 
   // Additional Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -876,7 +876,7 @@ model OrderLine {
   cancelReason    String?           @db.VarChar(1000) @map("cancel_reason") 
 
   // Tracking     
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -902,7 +902,7 @@ model Payment {
   status          String            @db.VarChar(1)
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -926,7 +926,7 @@ model PaymentMethod {
   holdFlag        String?           @db.VarChar(1) @map("hold_flag")
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -948,7 +948,7 @@ model Invoice {
   currencyCode    String            @db.VarChar(3) @map("currency_code")
 
   // Tracking
-  enabledFlag     Boolean           @default(true) @map("enabled_flag")
+  isEnabled     Boolean           @default(true) @map("enabled_flag")
   createdBy       Int               @map("created_by")
   createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
   lastUpdatedBy   Int               @map("last_updated_by")
@@ -973,7 +973,7 @@ model Customer {
   registeredDate  DateTime?
 
   // Tracking
-  enabledFlag     String            @db.VarChar(1)
+  isEnabled     String            @db.VarChar(1)
   holdFlag        String?           @db.VarChar(1)
   
   

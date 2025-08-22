@@ -68,7 +68,7 @@ export const createUserSchema = z
         example: 1,
       }),
     isBan: z.boolean().default(false).optional(),
-    enabledFlag: z.boolean().default(true).optional(),
+    isEnabled: z.boolean().default(true).optional(),
     isLocked: z.boolean().default(false).optional(),
     isVerified: z.boolean().default(false).optional(),
     isActivated: z.boolean().default(false).optional(),

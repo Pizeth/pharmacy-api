@@ -55,8 +55,8 @@ export class UserSeeder {
             // Using nested writes for related data.
             profile: {
               create: {
-                first_name: superAdminData.profile.firstName,
-                last_name: superAdminData.profile.lastName,
+                firstName: superAdminData.profile.firstName,
+                lastName: superAdminData.profile.lastName,
                 sex: superAdminData.profile.sex,
                 dob: new Date(superAdminData.profile.dob),
                 pob: superAdminData.profile.pob,
@@ -266,7 +266,7 @@ export class UserSeeder {
             id: 1,
             name: 'SUPER_ADMIN',
             description: 'Super Administrator Role',
-            enabledFlag: true,
+            isEnabled: true,
             createdBy: 0,
             createdDate: new Date(),
             lastUpdatedBy: 0,

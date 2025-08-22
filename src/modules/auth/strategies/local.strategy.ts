@@ -1,14 +1,8 @@
 import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
-import {
-  HttpStatus,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { AppError } from 'src/exceptions/app.exception';
-// import { AuthService } from '../auth.service';
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
@@ -19,21 +13,38 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
   }
 
   async validate(credential: string, password: string): Promise<any> {
-    const user = await this.authService.validateLocalUser(credential, password);
-    if (!user) {
-      this.logger.warn(
-        `Invalid credentials for user: ${credential}`,
-        this.context,
+    try {
+      const user = await this.authService.validateLocalUser(
+        credential,
+        password,
       );
+      return user;
+    } catch (error) {
+      this.logger.error(`Error validating user credentials`, error);
       throw new AppError(
-        'Invalid credentials',
+        'Error validating user credentials',
         HttpStatus.UNAUTHORIZED,
         this.context,
         {
-          cause: new UnauthorizedException(),
+          cause: error,
         },
       );
     }
-    return user;
+
+    // if (!user) {
+    //   this.logger.warn(
+    //     `Invalid credentials for user: ${credential}`,
+    //     this.context,
+    //   );
+    //   throw new AppError(
+    //     'Invalid credentials',
+    //     HttpStatus.UNAUTHORIZED,
+    //     this.context,
+    //     {
+    //       cause: new UnauthorizedException(),
+    //     },
+    //   );
+    // }
+    // return user;
   }
 }

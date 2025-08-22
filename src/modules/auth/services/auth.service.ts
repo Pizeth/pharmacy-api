@@ -5,7 +5,7 @@ import {
   // UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuditTrail, Prisma, RefreshToken } from '@prisma/client';
+import { AuditTrail, Prisma, RefreshToken, UserIdentity } from '@prisma/client';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
@@ -14,7 +14,6 @@ import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-d
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { UsersService } from 'src/modules/users/services/users.service';
-import User from 'src/modules/users/user';
 import { SignedUser, UserDetail } from 'src/types/dto';
 import { TokenPayload } from 'src/types/token';
 
@@ -41,6 +40,19 @@ export class AuthService {
   //   return null;
   // }
 
+  private sanitizeUser(user: UserDetail) {
+    // Transform the object by creating a mutable copy of the validated data.
+    const sanitized = { ...user };
+
+    // Explicitly delete the unwanted and sensitive properties.
+    delete (sanitized as { password?: string }).password;
+    delete (sanitized as { mfaSecret?: string }).mfaSecret;
+    delete (sanitized as { identities?: UserIdentity[] }).identities;
+    delete (sanitized as { refreshTokens?: RefreshToken }).refreshTokens;
+    delete (sanitized as { auditTrail?: AuditTrail }).auditTrail;
+    return sanitized;
+  }
+
   async validateLocalUser(
     username: string,
     password: string,
@@ -60,7 +72,7 @@ export class AuthService {
       }
 
       // Check if user is banned or deleted
-      if (user.isBan || !user.enabledFlag) {
+      if (user.isBan || !user.isEnabled) {
         // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
         throw new AppError(
           'Account is banned or inactive!',
@@ -127,12 +139,14 @@ export class AuthService {
       // Record successful login attempt and update last login
       // await loginRepo.recordLoginAttempt(user, req, 'SUCCESS');
 
-      // After validation succeeds, transform the object by creating a mutable copy of the validated data.
-      const result = user;
-      // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
-      delete (result as { password?: string }).password; // Cleanly remove the repassword field
+      // // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+      // const result = user;
+      // // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+      // delete (result as { password?: string }).password; // Cleanly remove the repassword field
 
-      return result;
+      // return result;
+
+      return this.sanitizeUser(user);
     } catch (error: unknown) {
       this.logger.error(
         'Error occured during authenticate user credentials:',
@@ -148,16 +162,16 @@ export class AuthService {
     }
   }
 
-  async login(user: UserDetail) {
+  async login(user: TokenPayload) {
     // Generate payload to use for create token
-    const payload = this.tokenService.generatePayload(user);
+    // const payload = this.tokenService.generatePayload(user);
 
     // Generate authentication token
-    const token = await this.tokenService.generateToken(payload, '10:25:55');
+    const token = await this.tokenService.generateToken(user, '10:25:55');
 
     // Save refresh token to database
     const refreshToken = await this.tokenService.generateRefreshToken(
-      payload,
+      user,
       '1 hour 2min 55 sec',
     );
     // const payload = { username: user.username, sub: user.userId };
@@ -265,7 +279,7 @@ export class AuthService {
 
         if (user) {
           // Link identity to existing user
-          return await this.oidcIdentityServie.create({
+          await this.oidcIdentityServie.create({
             providerId: provider.id,
             userId: user.id,
             providerUserId: profile.id,
@@ -273,6 +287,7 @@ export class AuthService {
             refreshToken: tokens.refreshToken,
             expiresAt: tokens.expiresAt,
           });
+          return this.sanitizeUser(user);
           // .create({
           //   data: {
           //     providerId: provider.id,
@@ -427,7 +442,7 @@ export class AuthService {
       }
 
       // Check if user is banned or deleted
-      if (user.isBan || !user.enabledFlag) {
+      if (user.isBan || !user.isEnabled) {
         // await loginRepo.recordLoginAttempt(user, req, 'FAILED');
         throw new AppError(
           'Account is banned or inactive!',
