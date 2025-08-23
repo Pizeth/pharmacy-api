@@ -35,4 +35,11 @@ export class PasswordUtils {
   getSalt(salt: number = this.salt) {
     return bcrypt.genSaltSync(salt);
   }
+
+  hash(plain: string) {
+    return argon2.hash(plain, { type: argon2.argon2id });
+  }
+  verify(hash: string, plain: string) {
+    return argon2.verify(hash, plain);
+  }
 }

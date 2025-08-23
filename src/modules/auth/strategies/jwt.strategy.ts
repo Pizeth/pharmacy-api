@@ -36,22 +36,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     ) {
       return null;
     }
+    return user;
 
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      role: {
-        id: user.role.id,
-        name: user.role.name,
-        description: user.role.description,
-      },
-      authMethod: user.authMethod,
-      providers: user.identities.map((i) => i.provider.name),
-      isVerified: user.isVerified,
-      ip: payload.ip,
-    };
+    // return {
+    //   id: user.id,
+    //   username: user.username,
+    //   email: user.email,
+    //   avatar: user.avatar,
+    //   role: {
+    //     id: user.role.id,
+    //     name: user.role.name,
+    //     description: user.role.description,
+    //   },
+    //   authMethod: user.authMethod,
+    //   providers: user.identities.map((i) => i.provider.name),
+    //   isVerified: user.isVerified,
+    //   ip: payload.ip,
+    // };
   }
 }
 

@@ -418,6 +418,25 @@ export class AuthService {
     }
   }
 
+  async refresh(refreshToken: string): Promise<TokenPayload> {
+    try {
+      // const decoded = await this.jwt.verifyAsync<{ sub: string }>(
+      //   refreshToken,
+      //   {
+      //     secret:
+      //       this.cfg.get<string>('JWT_REFRESH_SECRET') ||
+      //       this.cfg.get<string>('JWT_SECRET'),
+      //   },
+      // );
+      const token = await this.tokenService.verifyTokenClaims(refreshToken);
+      const user = await this.usersService.getOne({ id: token.sub });
+      if (!user) throw new UnauthorizedException('User not found');
+      return this.issueTokens(user);
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   // sanitizeUser(user: UserDetail) {
   //   const sanitized = { ...user };
   //   delete sanitized.password;

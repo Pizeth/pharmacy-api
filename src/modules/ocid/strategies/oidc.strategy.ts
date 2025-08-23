@@ -179,7 +179,7 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
 
   // The validate function that passport-openidconnect will call
   async validate(
-    // issuer: string,
+    issuer: string,
     profile: Profile,
     // idToken: string | object,
     accessToken: string,

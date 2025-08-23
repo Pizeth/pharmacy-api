@@ -103,6 +103,15 @@ export class AuthController {
     res.redirect(
       `${process.env.FRONTEND_URL}/auth/callback?token=${token.token}`,
     );
+    // Option B: redirect back to your frontend with tokens as fragments or set cookies.
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(token.token)}&refresh=${encodeURIComponent(token.refreshToken)}`;
+    return res.redirect(redirectUrl);
+  }
+
+  // Token refresh
+  @Post('refresh')
+  async refresh(@Body() refreshToken: string) {
+    return this.authService.refresh(refreshToken);
   }
 
   // @Get(':provider')
