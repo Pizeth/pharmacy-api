@@ -43,16 +43,8 @@
 //   }
 // }
 
-import {
-  ConfigurableModuleBuilder,
-  DynamicModule,
-  Module,
-  Provider,
-} from '@nestjs/common';
-import { OidcStrategy } from './strategies/oidc.strategy';
-import { OIDCProviderConfig } from './interfaces/oidc.interface';
+import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { AuthService } from '../auth/services/auth.service';
-import { IdentityProvider } from '@prisma/client';
 import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
 import { OidcProviderService } from './services/oidc-provider.service';
 import { PassportStatic } from 'passport';
@@ -60,58 +52,6 @@ import { DBHelper } from '../helpers/services/db-helper';
 import { PrismaModule } from '../prisma/prisma.module';
 import { OidcProviderDbService } from './services/oidc-provider-db.service';
 import { OidcIdentityDbService } from './services/oidc-identity-db.service';
-
-// Define a constant for the injection token
-export const OIDC_CONFIG = 'OIDC_CONFIG';
-
-// This builder simplifies creating dynamic modules that accept options.
-const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN } =
-  new ConfigurableModuleBuilder<OIDCProviderConfig[]>().build();
-
-@Module({
-  providers: [
-    // This provider uses the options passed to register/registerAsync
-    // to create and provide all the necessary strategy instances.
-    {
-      provide: 'OIDC_STRATEGIES', // A custom token for the created strategies
-      // useFactory: (configs: OIDCProviderConfig[], authService: AuthService) => {
-      useFactory: (provider: IdentityProvider[], authService: AuthService) => {
-        // This maps over the config array and creates a new strategy for each one
-        return provider.map((config) => new OidcStrategy(authService, config));
-      },
-      // Inject the module options (our config array) and the AuthService
-      inject: [MODULE_OPTIONS_TOKEN, AuthService],
-    },
-    // AuthService is needed by the factory, so it must be available here.
-    AuthService,
-  ],
-  exports: ['OIDC_STRATEGIES'],
-})
-export class OidcModule1 extends ConfigurableModuleClass {}
-
-// @Module({})
-// export class OidcModule {
-//   static register(configs: OIDCProviderConfig[]): DynamicModule {
-//     const strategyProviders: Provider[] = configs.map((config) => ({
-//       // Provide a unique token for each strategy
-//       provide: `${config.name.toUpperCase()}_OIDC_STRATEGY`,
-//       // useFactory allows us to dynamically create the provider
-//       useFactory: (authService: AuthService) => {
-//         return new OidcStrategy(authService, config);
-//       },
-//       // Inject the AuthService, which the factory needs
-//       inject: [AuthService],
-//     }));
-
-//     return {
-//       module: OidcModule,
-//       // The providers array will contain an OidcStrategy for each config
-//       providers: [...strategyProviders],
-//       // Export them so they are available to the rest of the NestJS application
-//       exports: [...strategyProviders],
-//     };
-//   }
-// }
 
 @Module({ imports: [DBHelper, PrismaModule] })
 export class OidcModule {
@@ -155,3 +95,55 @@ export class OidcModule {
     };
   }
 }
+
+// Define a constant for the injection token
+// export const OIDC_CONFIG = 'OIDC_CONFIG';
+
+// This builder simplifies creating dynamic modules that accept options.
+// const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN } =
+//   new ConfigurableModuleBuilder<OIDCProviderConfig[]>().build();
+
+// @Module({
+//   providers: [
+//     // This provider uses the options passed to register/registerAsync
+//     // to create and provide all the necessary strategy instances.
+//     {
+//       provide: 'OIDC_STRATEGIES', // A custom token for the created strategies
+//       // useFactory: (configs: OIDCProviderConfig[], authService: AuthService) => {
+//       useFactory: (provider: IdentityProvider[], authService: AuthService) => {
+//         // This maps over the config array and creates a new strategy for each one
+//         return provider.map((config) => new OidcStrategy(authService, config));
+//       },
+//       // Inject the module options (our config array) and the AuthService
+//       inject: [MODULE_OPTIONS_TOKEN, AuthService],
+//     },
+//     // AuthService is needed by the factory, so it must be available here.
+//     AuthService,
+//   ],
+//   exports: ['OIDC_STRATEGIES'],
+// })
+// export class OidcModule1 extends ConfigurableModuleClass {}
+
+// @Module({})
+// export class OidcModule {
+//   static register(configs: OIDCProviderConfig[]): DynamicModule {
+//     const strategyProviders: Provider[] = configs.map((config) => ({
+//       // Provide a unique token for each strategy
+//       provide: `${config.name.toUpperCase()}_OIDC_STRATEGY`,
+//       // useFactory allows us to dynamically create the provider
+//       useFactory: (authService: AuthService) => {
+//         return new OidcStrategy(authService, config);
+//       },
+//       // Inject the AuthService, which the factory needs
+//       inject: [AuthService],
+//     }));
+
+//     return {
+//       module: OidcModule,
+//       // The providers array will contain an OidcStrategy for each config
+//       providers: [...strategyProviders],
+//       // Export them so they are available to the rest of the NestJS application
+//       exports: [...strategyProviders],
+//     };
+//   }
+// }

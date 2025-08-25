@@ -17,7 +17,7 @@ import {
   UnitTime,
 } from 'src/types/commons.enum';
 import { ClsService } from 'nestjs-cls';
-import { UserDetail } from 'src/types/dto';
+import { SanitizedUser } from 'src/types/dto';
 import { Algorithm } from 'jsonwebtoken';
 import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
 
@@ -177,7 +177,7 @@ export class TokenService {
   //   return this.getRequiredConfig('JWT_ALGORITHM', (raw) => raw as Algorithm);
   // }
 
-  generatePayload(payload: UserDetail): TokenPayload {
+  generatePayload(payload: SanitizedUser): TokenPayload {
     const ip = this.cls.get<string>('ip') || '';
     return {
       sub: payload.id,

@@ -30,6 +30,7 @@ async function bootstrap() {
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080').split(','),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   });
 
   // 1. Use the global ZodValidationPipe from `nestjs-zod`

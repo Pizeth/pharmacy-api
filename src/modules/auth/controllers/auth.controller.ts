@@ -11,6 +11,8 @@ import {
   Res,
   Request,
   UseGuards,
+  Put,
+  Delete,
 } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { SignInDto } from '../dto/signIn.dto';
@@ -21,6 +23,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { AppError } from 'src/exceptions/app.exception';
 import { LocalAuthGuard } from '../guards/local.guard';
 import { TokenPayload } from 'src/types/token';
+import User from 'src/modules/users/user';
+import { SanitizedUser, UserDetail } from 'src/types/dto';
+import { JwtAuthGuard } from '../guards/jwt.guard';
+import { CurrentUser } from 'src/decorators/current-user.decorator';
 @Controller('auth')
 export class AuthController {
   private readonly context = AuthController.name;
@@ -40,7 +46,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Request() req: ExpressRequest & { user: TokenPayload }) {
+  async login(@Request() req: ExpressRequest & { user: SanitizedUser }) {
     return this.authService.login(req.user);
   }
 
@@ -54,25 +60,25 @@ export class AuthController {
   @UseGuards(AuthGuard('oidc'))
   oidcLogin(@Param('provider') provider: string) {
     // Initiates OIDC flow
-    // const strategy = this.providerService.getStrategy(provider);
-    // if (!strategy) {
-    //   throw new AppError(
-    //     'Provider not found',
-    //     HttpStatus.NOT_FOUND,
-    //     this.context,
-    //     {
-    //       cause: `Provider ${provider} not found!`,
-    //       validProvider: this.providerService.getAllEnabledProviders(),
-    //     },
-    //   );
-    // }
+    const strategy = this.providerService.getStrategy(provider);
+    if (!strategy) {
+      throw new AppError(
+        'Provider not found',
+        HttpStatus.NOT_FOUND,
+        this.context,
+        {
+          cause: `Provider ${provider} not found!`,
+          validProvider: this.providerService.getAllEnabledProviders(),
+        },
+      );
+    }
   }
 
   @Get(':provider/callback')
   @UseGuards(AuthGuard('oidc'))
   async oidcCallback(
     @Param('provider') provider: string,
-    @Req() req: ExpressRequest & { user: TokenPayload },
+    @Req() req: ExpressRequest & { user: SanitizedUser },
     @Res() res: Response,
   ) {
     const strategy = this.providerService.getStrategy(provider);
@@ -104,7 +110,7 @@ export class AuthController {
       `${process.env.FRONTEND_URL}/auth/callback?token=${token.token}`,
     );
     // Option B: redirect back to your frontend with tokens as fragments or set cookies.
-    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(token.token)}&refresh=${encodeURIComponent(token.refreshToken)}`;
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(token.token)}&refresh=${encodeURIComponent(token.refreshToken)}&provider=${provider}`;
     return res.redirect(redirectUrl);
   }
 
@@ -112,6 +118,29 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Body() refreshToken: string) {
     return this.authService.refresh(refreshToken);
+  }
+
+  @Put('link-oidc')
+  @UseGuards(JwtAuthGuard)
+  async linkGoogleAccount(@CurrentUser('id') userId: string) {
+    // This would typically redirect to Google OAuth with a state parameter
+    // indicating this is a linking operation
+    return { message: 'Redirect to Google OAuth for linking' };
+  }
+
+  @Delete('unlink-oidc')
+  @UseGuards(JwtAuthGuard)
+  async unlinkGoogleAccount(@CurrentUser('id') userId: string) {
+    await this.authService.unlinkGoogleAccount(userId);
+    return { message: 'Google account unlinked successfully' };
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout() {
+    // With JWT, logout is typically handled client-side by removing the token
+    // You could implement a blacklist if needed
+    return { message: 'Logged out successfully' };
   }
 
   // @Get(':provider')

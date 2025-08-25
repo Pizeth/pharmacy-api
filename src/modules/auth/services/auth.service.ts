@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditTrail, Prisma, RefreshToken, UserIdentity } from '@prisma/client';
+import { Profile } from 'passport-openidconnect';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
@@ -13,8 +14,14 @@ import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
 import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-db.service';
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { CreateUserDto } from 'src/modules/users/dto/create-user.dto';
 import { UsersService } from 'src/modules/users/services/users.service';
-import { SignedUser, UserDetail } from 'src/types/dto';
+import {
+  AccessToken,
+  SanitizedUser,
+  SignedUser,
+  UserDetail,
+} from 'src/types/dto';
 import { TokenPayload } from 'src/types/token';
 
 @Injectable()
@@ -40,7 +47,7 @@ export class AuthService {
   //   return null;
   // }
 
-  private sanitizeUser(user: UserDetail) {
+  private sanitizeUser(user: UserDetail): SanitizedUser {
     // Transform the object by creating a mutable copy of the validated data.
     const sanitized = { ...user };
 
@@ -56,12 +63,12 @@ export class AuthService {
   async validateLocalUser(
     username: string,
     password: string,
-  ): Promise<UserDetail> {
+  ): Promise<SanitizedUser> {
     try {
       const user = await this.usersService.getUser(username);
 
       // Check if user existed
-      if (!user) {
+      if (!user || !user.password) {
         // await loginRepo.recordLoginAttempt(username, req, 'FAILED');
         throw new AppError(
           'User not found!',
@@ -162,16 +169,37 @@ export class AuthService {
     }
   }
 
-  async login(user: TokenPayload) {
+  async validateJwtPayload(payload: TokenPayload): Promise<SanitizedUser> {
+    const user = await this.usersService.getOne({ id: payload.sub });
+    if (
+      !user ||
+      user.isBan ||
+      user.isLocked ||
+      !user.isEnabled ||
+      !user.isVerified ||
+      !user.isActivated
+    ) {
+      throw new AppError(
+        'User not found or inactive',
+        HttpStatus.NOT_FOUND,
+        this.context,
+        `No user associated with ${payload.sub}`,
+      );
+    }
+
+    return user;
+  }
+
+  async login(user: SanitizedUser): Promise<SignedUser> {
     // Generate payload to use for create token
-    // const payload = this.tokenService.generatePayload(user);
+    const payload = this.tokenService.generatePayload(user);
 
     // Generate authentication token
-    const token = await this.tokenService.generateToken(user, '10:25:55');
+    const token = await this.tokenService.generateToken(payload, '10:25:55');
 
     // Save refresh token to database
     const refreshToken = await this.tokenService.generateRefreshToken(
-      user,
+      payload,
       '1 hour 2min 55 sec',
     );
     // const payload = { username: user.username, sub: user.userId };
@@ -179,10 +207,41 @@ export class AuthService {
     //   access_token: this.jwtService.sign(payload),
     // };
     return {
-      // user: result,
-      token: token,
+      user,
+      accessToken: token,
       refreshToken: refreshToken.token,
     };
+  }
+
+  async register(registerDto: CreateUserDto, file?: Express.Multer.File) {
+    // // Check if user already exists
+    // const existingUser = await this.usersService.findByEmailOrUsername(
+    //   registerDto.email || registerDto.username,
+    // );
+
+    // if (existingUser) {
+    //   throw new ConflictException(
+    //     'User with this email or username already exists',
+    //   );
+    // }
+
+    // // Hash password
+    // const hashedPassword = await bcrypt.hash(registerDto.password, 12);
+
+    try {
+      // Create user
+      const user = await this.usersService.create(registerDto, file);
+
+      return this.login(user);
+    } catch (error) {
+      this.logger.error('Error occured during user registration:', error);
+      throw new AppError(
+        'Error occured during user registration',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        this.context,
+        error,
+      );
+    }
   }
 
   // async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
@@ -225,11 +284,11 @@ export class AuthService {
   async findOrCreateOidcUser(
     providerName: string,
     profile: NormalizedProfile,
-    tokens: {
-      accessToken: string;
-      refreshToken?: string;
-      expiresAt?: Date;
-    },
+    // tokens: {
+    //   accessToken: string;
+    //   refreshToken?: string;
+    //   expiresAt?: Date;
+    // },
   ) {
     try {
       // 1. Find provider
@@ -261,13 +320,18 @@ export class AuthService {
       // });
 
       if (identity) {
+        const token = this.login;
         // Update tokens
-        await this.oidcIdentityServie.update(identity.id, {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          expiresAt: tokens.expiresAt,
-        });
-        return identity.user;
+        const updatedIdentity = await this.oidcIdentityServie.update(
+          identity.id,
+          {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresAt: tokens.expiresAt,
+          },
+        );
+        const user = updatedIdentity.user as SanitizedUser;
+        return this.login(user);
       }
 
       // 3. Find user by email to link identity
@@ -287,7 +351,7 @@ export class AuthService {
             refreshToken: tokens.refreshToken,
             expiresAt: tokens.expiresAt,
           });
-          return this.sanitizeUser(user);
+          return this.login(this.sanitizeUser(user));
           // .create({
           //   data: {
           //     providerId: provider.id,
@@ -304,7 +368,12 @@ export class AuthService {
       }
 
       // 4. Create new user
-      return await this.createUserWithIdentity(provider.id, profile, tokens);
+      const user = await this.createUserWithIdentity(
+        provider.id,
+        profile,
+        tokens,
+      );
+      return this.login(user);
     } catch (error) {
       this.logger.error('Error occured during findOrCreateOidcUser:', error);
       throw new AppError(
@@ -418,23 +487,102 @@ export class AuthService {
     }
   }
 
-  async refresh(refreshToken: string): Promise<TokenPayload> {
+  async refresh(refreshToken: string): Promise<AccessToken> {
     try {
-      // const decoded = await this.jwt.verifyAsync<{ sub: string }>(
-      //   refreshToken,
-      //   {
-      //     secret:
-      //       this.cfg.get<string>('JWT_REFRESH_SECRET') ||
-      //       this.cfg.get<string>('JWT_SECRET'),
-      //   },
-      // );
       const token = await this.tokenService.verifyTokenClaims(refreshToken);
       const user = await this.usersService.getOne({ id: token.sub });
-      if (!user) throw new UnauthorizedException('User not found');
-      return this.issueTokens(user);
+
+      if (!user)
+        throw new AppError(
+          'User not found!',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          {
+            cause: `No user associated with ${token.sub}, posibly deleted or false token!`,
+          },
+        );
+
+      return this.login(user);
     } catch {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new AppError(
+        'Invalid refresh token',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        `Failed to verify refresh token: ${refreshToken}`,
+      );
     }
+  }
+
+  async linkGoogleAccount(userId: string, profile: GoogleProfile) {
+    // Check if Google ID is already linked to another account
+    const existingGoogleUser = await this.usersService.findByGoogleId(
+      profile.id,
+    );
+    if (existingGoogleUser && existingGoogleUser.id !== userId) {
+      throw new ConflictException(
+        'This Google account is already linked to another user',
+      );
+    }
+
+    // Link Google account
+    return await this.usersService.update(userId, {
+      googleId: profile.id,
+      picture: profile.picture,
+    });
+  }
+
+  async unlinkGoogleAccount(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user.password && user.googleId) {
+      throw new ConflictException(
+        'Cannot unlink Google account without setting a password first',
+      );
+    }
+
+    return await this.usersService.update(userId, {
+      googleId: null,
+    });
+  }
+
+  async linkOIDCAccount(userId: string, profile: NormalizedProfile) {
+    const providerField = `${profile.provider}Id`;
+
+    // Check if OIDC ID is already linked to another account
+    const existingOIDCUser = await this.findOrCreateOidcUser(
+      profile.provider,
+      profile,
+    );
+    if (existingOIDCUser && existingOIDCUser.id !== userId) {
+      throw new ConflictException(
+        `This ${profile.provider} account is already linked to another user`,
+      );
+    }
+
+    // Link OIDC account
+    const updateData = {
+      [providerField]: profile.id,
+    };
+
+    if (profile.picture) {
+      updateData.picture = profile.picture;
+    }
+
+    return await this.usersService.update(userId, updateData);
+  }
+
+  async unlinkOIDCAccount(userId: string, provider: string) {
+    const user = await this.usersService.findById(userId);
+    const providerField = `${provider}Id`;
+
+    if (!user.password && user[providerField]) {
+      throw new ConflictException(
+        `Cannot unlink ${provider} account without setting a password first`,
+      );
+    }
+
+    return await this.usersService.update(userId, {
+      [providerField]: null,
+    });
   }
 
   // sanitizeUser(user: UserDetail) {
@@ -542,7 +690,7 @@ export class AuthService {
       return {
         // access_token: await this.jwtService.signAsync(payload),
         user: result,
-        token: token,
+        accessToken: token,
         refreshToken: refreshToken.token,
       };
     } catch (error: unknown) {

@@ -23,7 +23,22 @@ export class OidcIdentityDbService {
           providerId,
           providerUserId: identityId,
         },
-        include: { user: true, provider: true },
+        include: {
+          user: {
+            include: {
+              role: true,
+              profile: true,
+              identities: {
+                include: {
+                  provider: true,
+                },
+              },
+              refreshTokens: true,
+              auditTrail: true,
+            },
+          },
+          provider: true,
+        },
       });
 
       if (!identity)
@@ -93,13 +108,47 @@ export class OidcIdentityDbService {
 
   async create(data: CreateIdentityDto, tx?: Prisma.TransactionClient) {
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
-    return prismaClient.userIdentity.create({ data: data });
+    return prismaClient.userIdentity.create({
+      data: data,
+      include: {
+        user: {
+          include: {
+            role: true,
+            profile: true,
+            identities: {
+              include: {
+                provider: true,
+              },
+            },
+            refreshTokens: true,
+            auditTrail: true,
+          },
+        },
+        provider: true,
+      },
+    });
   }
 
   async update(id: number, data: UpdateIdentityDto) {
     return this.prisma.userIdentity.update({
       where: { id },
       data,
+      include: {
+        user: {
+          include: {
+            role: true,
+            profile: true,
+            identities: {
+              include: {
+                provider: true,
+              },
+            },
+            refreshTokens: true,
+            auditTrail: true,
+          },
+        },
+        provider: true,
+      },
     });
   }
 

@@ -12,7 +12,7 @@ import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
 import { DiceBearStyle, type } from 'src/types/commons.enum';
 import { ImagesService } from 'src/modules/images/services/images.service';
-import { UserDetail } from 'src/types/dto';
+import { SanitizedUser, UserDetail } from 'src/types/dto';
 
 @Injectable()
 export class UsersService {
@@ -66,9 +66,13 @@ export class UsersService {
           ],
         },
         include: {
-          profile: true,
-          identities: true,
           role: true,
+          profile: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
           refreshTokens: true,
           auditTrail: true,
         },
@@ -92,8 +96,8 @@ export class UsersService {
         model: modelName,
         where: where,
         include: {
-          profile: true,
           role: true,
+          profile: true,
           identities: {
             include: {
               provider: true,
@@ -177,7 +181,7 @@ export class UsersService {
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
     tx?: Prisma.TransactionClient,
-  ): Promise<Omit<User, 'password'>> {
+  ): Promise<SanitizedUser> {
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
@@ -263,10 +267,11 @@ export class UsersService {
       this.logger.debug('User data:', userData);
 
       // Create user with more detailed error tracking
-      return prismaClient.user.create({
+      const result = await prismaClient.user.create({
         data: {
           ...userData,
           password: hashedPassword, // Use the hashed password
+
           // Add audit trail information
           auditTrail: {
             create: {
@@ -280,7 +285,20 @@ export class UsersService {
             },
           },
         },
+        include: {
+          role: true,
+          profile: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
+          refreshTokens: true,
+          auditTrail: true,
+        },
       });
+
+      return result as unknown as SanitizedUser;
       // },
       //   {
       //     maxWait: 5000, // default: 2000

@@ -1,17 +1,19 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TokenPayload } from 'src/types/token';
-import { UsersService } from 'src/modules/users/services/users.service';
-import { TokenService } from 'src/commons/services/token.service';
+import { AppError } from 'src/exceptions/app.exception';
+import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly context = JwtStrategy.name;
+  private readonly logger = new Logger(this.context);
+
   constructor(
     private readonly configService: ConfigService,
-    private readonly userService: UsersService,
-    private readonly tokenService: TokenService,
+    private readonly authService: AuthService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -24,19 +26,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: TokenPayload) {
-    const user = await this.userService.getOne({ id: payload.sub });
+    // const user = await this.userService.getOne({ id: payload.sub });
 
-    if (
-      !user ||
-      user.isBan ||
-      user.isLocked ||
-      !user.isEnabled ||
-      !user.isVerified ||
-      !user.isActivated
-    ) {
-      return null;
+    // if (
+    //   !user ||
+    //   user.isBan ||
+    //   user.isLocked ||
+    //   !user.isEnabled ||
+    //   !user.isVerified ||
+    //   !user.isActivated
+    // ) {
+    //   return null;
+    // }
+    // return user;
+
+    try {
+      return await this.authService.validateJwtPayload(payload);
+    } catch (error) {
+      this.logger.error(`Error validating token payload`, error);
+      throw new AppError(
+        'Invalid token payload',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
     }
-    return user;
 
     // return {
     //   id: user.id,
