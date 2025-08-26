@@ -13,6 +13,7 @@ import { ClsService } from 'nestjs-cls';
 import { DiceBearStyle, type } from 'src/types/commons.enum';
 import { ImagesService } from 'src/modules/images/services/images.service';
 import { SanitizedUser, UserDetail } from 'src/types/dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -91,10 +92,10 @@ export class UsersService {
 
   async getOne(where: Prisma.UserWhereUniqueInput): Promise<UserDetail | null> {
     try {
-      const modelName = 'user';
-      const result = await this.dbHelper.findOne<typeof modelName, User>({
-        model: modelName,
-        where: where,
+      const model = 'user';
+      const result = await this.dbHelper.findOne<typeof model, User>({
+        model,
+        where,
         include: {
           role: true,
           profile: true,
@@ -107,6 +108,7 @@ export class UsersService {
           auditTrail: true,
         },
       });
+
       return result as UserDetail | null;
     } catch (error) {
       this.logger.error(
@@ -148,9 +150,9 @@ export class UsersService {
     orderBy?: Prisma.UserOrderByWithRelationInput,
     select?: Prisma.UserSelect,
   ): Promise<PaginatedDataResult<User>> {
-    const modelName = 'user';
+    const model = 'user';
     return this.dbHelper.getPaginatedData({
-      model: modelName,
+      model,
       page,
       pageSize,
       cursor,
@@ -361,7 +363,6 @@ export class UsersService {
       //   },
       // );
     } catch (error: unknown) {
-      this.logger.error('jom yeak error!', error);
       this.logger.debug('File name:', fileName);
       if (fileName) {
         try {
@@ -399,6 +400,13 @@ export class UsersService {
     // this.logger.debug(result);
 
     // return result;
+  }
+
+  async update(id: number, data: UpdateUserDto): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
   }
 
   /**

@@ -6,6 +6,7 @@ import { PaginatedDataResult } from 'src/types/types';
 import { DBHelper } from 'src/modules/helpers/services/db-helper';
 import { UpdateIdentityDto } from '../dto/update-identity.dto';
 import { CreateIdentityDto } from '../dto/create-identity.dto';
+import { UserIdentityDetail } from 'src/types/dto';
 
 @Injectable()
 export class OidcIdentityDbService {
@@ -16,75 +17,93 @@ export class OidcIdentityDbService {
     private readonly dbHelper: DBHelper,
   ) {}
 
-  async getOidcIdentity(providerId: number, identityId: string) {
+  // async getOidcIdentity(providerId: number, identityId: string) {
+  //   try {
+  //     const identity = await this.prisma.userIdentity.findFirst({
+  //       where: {
+  //         providerId,
+  //         providerUserId: identityId,
+  //       },
+  //       include: {
+  //         user: {
+  //           include: {
+  //             role: true,
+  //             profile: true,
+  //             identities: {
+  //               include: {
+  //                 provider: true,
+  //               },
+  //             },
+  //             refreshTokens: true,
+  //             auditTrail: true,
+  //           },
+  //         },
+  //         provider: true,
+  //       },
+  //     });
+
+  //     if (!identity)
+  //       throw new AppError(
+  //         'Invalid provider!',
+  //         HttpStatus.NOT_FOUND,
+  //         this.context,
+  //         {
+  //           cause: `Identity id: ${identityId} associated with providerId ${providerId} does not exist!`,
+  //           // validProviderId: (await this.getAllProviders()).data.filter(
+  //           //   (p) => p.id !== id,
+  //           // ),
+  //         },
+  //       );
+
+  //     return identity;
+  //   } catch (error) {
+  //     this.logger.error(error);
+  //     return null;
+  //   }
+  // }
+
+  async getOidcIdentity(where: Prisma.UserIdentityWhereUniqueInput) {
     try {
-      const identity = await this.prisma.userIdentity.findFirst({
-        where: {
-          providerId,
-          providerUserId: identityId,
-        },
+      const model = 'userIdentity';
+      const result = await this.dbHelper.findOne<
+        typeof model,
+        UserIdentityDetail
+      >({
+        model,
+        where,
         include: {
-          user: {
-            include: {
-              role: true,
-              profile: true,
-              identities: {
-                include: {
-                  provider: true,
-                },
-              },
-              refreshTokens: true,
-              auditTrail: true,
-            },
-          },
+          // user: {
+          //   include: {
+          //     role: true,
+          //     profile: true,
+          //     identities: {
+          //       include: {
+          //         provider: true,
+          //       },
+          //     },
+          //     refreshTokens: true,
+          //     auditTrail: true,
+          //   },
+          // },
           provider: true,
+          user: true,
         },
       });
 
-      if (!identity)
-        throw new AppError(
-          'Invalid provider!',
-          HttpStatus.NOT_FOUND,
-          this.context,
-          {
-            cause: `Identity id: ${identityId} associated with providerId ${providerId} does not exist!`,
-            // validProviderId: (await this.getAllProviders()).data.filter(
-            //   (p) => p.id !== id,
-            // ),
-          },
-        );
-
-      return identity;
+      return result;
     } catch (error) {
-      this.logger.error(error);
-      return null;
+      this.logger.error(
+        `Error finding identity with  ${JSON.stringify(where)}:`,
+        error,
+      );
+      throw new AppError(
+        'Failed to retrieve OCID Identity that match with ${JSON.stringify(where)}!',
+        HttpStatus.NOT_FOUND,
+        this.context,
+        error,
+      );
     }
   }
-
-  //   async getProviderByName(name: string): Promise<IdentityProvider> {
-  //     try {
-  //       const provider = await this.prisma.identityProvider.findUnique({
-  //         where: { name },
-  //       });
-
-  //       if (!provider)
-  //         throw new AppError(
-  //           'Invalid provider!',
-  //           HttpStatus.NOT_FOUND,
-  //           this.context,
-  //           {
-  //             cause: `Provider with name ${name} does not exist!`,
-  //             // validProvider: this.getAllEnabledProviders(),
-  //             validProvider: this.getAllProviders(),
-  //           },
-  //         );
-
-  //       return provider;
-  //     } catch (error) {
-  //       this.logger.error(error);
-  //       throw error;
-  //     }
-  //   }
 
   async getAllRegisteredIdentities(
     page: number = 1,

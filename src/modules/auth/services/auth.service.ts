@@ -1,12 +1,6 @@
-import {
-  HttpStatus,
-  Injectable,
-  Logger,
-  // UnauthorizedException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditTrail, Prisma, RefreshToken, UserIdentity } from '@prisma/client';
-import { Profile } from 'passport-openidconnect';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
@@ -38,26 +32,26 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // async validateUser(username: string, pass: string): Promise<SignedUser> {
-  //   const user = await this.usersService.getUser(username);
-  //   if (user && user.password === pass) {
-  //     const { password, ...result } = user;
-  //     return result;
-  //   }
-  //   return null;
-  // }
-
-  private sanitizeUser(user: UserDetail): SanitizedUser {
-    // Transform the object by creating a mutable copy of the validated data.
-    const sanitized = { ...user };
-
-    // Explicitly delete the unwanted and sensitive properties.
-    delete (sanitized as { password?: string }).password;
-    delete (sanitized as { mfaSecret?: string }).mfaSecret;
-    delete (sanitized as { identities?: UserIdentity[] }).identities;
-    delete (sanitized as { refreshTokens?: RefreshToken }).refreshTokens;
-    delete (sanitized as { auditTrail?: AuditTrail }).auditTrail;
-    return sanitized;
+  async recordLoginAttempt(
+    username: string,
+    status: LoginStatus,
+    ipAddress: string,
+    userAgent: string,
+  ) {
+    try {
+      const result = await this.prisma.loginAttempt.create({
+        data: {
+          userId: null,
+          username,
+          ipAddress,
+          userAgent,
+          status,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.logger.error('Error recording user login attempt:', error);
+    }
   }
 
   async validateLocalUser(
@@ -69,7 +63,7 @@ export class AuthService {
 
       // Check if user existed
       if (!user || !user.password) {
-        // await loginRepo.recordLoginAttempt(username, req, 'FAILED');
+        await this.recordLoginAttempt(username, req, 'FAILED');
         throw new AppError(
           'User not found!',
           HttpStatus.NOT_FOUND,
@@ -202,10 +196,8 @@ export class AuthService {
       payload,
       '1 hour 2min 55 sec',
     );
-    // const payload = { username: user.username, sub: user.userId };
-    // return {
-    //   access_token: this.jwtService.sign(payload),
-    // };
+
+    await this.usersService.update(user.id, { lastLogin: new Date() });
     return {
       user,
       accessToken: token,
@@ -213,25 +205,28 @@ export class AuthService {
     };
   }
 
+  async oidcLogin(
+    providerName: string,
+    profile: NormalizedProfile,
+  ): Promise<SignedUser> {
+    try {
+      const user = await this.findOrCreateOidcUser(providerName, profile);
+      return this.login(user);
+    } catch (error) {
+      this.logger.error('Error occured during OIDC login:', error);
+      throw new AppError(
+        'Error occured during OIDC login',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
+  }
+
   async register(registerDto: CreateUserDto, file?: Express.Multer.File) {
-    // // Check if user already exists
-    // const existingUser = await this.usersService.findByEmailOrUsername(
-    //   registerDto.email || registerDto.username,
-    // );
-
-    // if (existingUser) {
-    //   throw new ConflictException(
-    //     'User with this email or username already exists',
-    //   );
-    // }
-
-    // // Hash password
-    // const hashedPassword = await bcrypt.hash(registerDto.password, 12);
-
     try {
       // Create user
       const user = await this.usersService.create(registerDto, file);
-
       return this.login(user);
     } catch (error) {
       this.logger.error('Error occured during user registration:', error);
@@ -244,43 +239,6 @@ export class AuthService {
     }
   }
 
-  // async findOrCreateOidcUser(profile: NormalizedProfile): Promise<any> {
-  //   // Check by provider ID
-  //   let user = await this.usersService.findByProviderId(
-  //     profile.provider,
-  //     profile.providerId,
-  //   );
-
-  //   if (user) return user;
-
-  //   // Check by email
-  //   if (profile.email) {
-  //     user = await this.usersService.findByEmail(profile.email);
-  //   }
-
-  //   if (user) {
-  //     // Link provider to existing account
-  //     return this.usersService.addProvider(user.id, {
-  //       provider: profile.provider,
-  //       providerId: profile.providerId,
-  //     });
-  //   }
-
-  //   // Create new user
-  //   return this.usersService.create({
-  //     email: profile.email,
-  //     name: profile.name,
-  //     avatar: profile.picture,
-  //     isEmailVerified: profile.emailVerified,
-  //     providers: [
-  //       {
-  //         provider: profile.provider,
-  //         providerId: profile.providerId,
-  //       },
-  //     ],
-  //   });
-  // }
-
   async findOrCreateOidcUser(
     providerName: string,
     profile: NormalizedProfile,
@@ -289,49 +247,43 @@ export class AuthService {
     //   refreshToken?: string;
     //   expiresAt?: Date;
     // },
-  ) {
+  ): Promise<SanitizedUser> {
     try {
       // 1. Find provider
       const provider =
         await this.oidcProviderServie.getOidcIdentityProvider(providerName);
 
-      // if (!provider)
-      //   throw new AppError(
-      //     'Provider not found',
-      //     HttpStatus.NOT_FOUND,
-      //     this.context,
-      //     {
-      //       cause: `Provider ${providerName} not found!`,
-      //       validProvider: this.oidcServie.getAllEnabledProviders(),
-      //     },
-      //   );
+      if (!provider) {
+        throw new AppError(
+          'Provider not found',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          {
+            cause: `Provider with name ${providerName} does not exist!`,
+            validProvider: this.oidcProviderServie.getAllEnabledProviders(),
+          },
+        );
+      }
 
       // 2. Find existing identity
       const identity = await this.oidcIdentityServie.getOidcIdentity(
-        provider.id,
-        profile.id,
+        // provider.id,
+        { id: Number(profile.id) },
       );
-      // const identity = await this.prisma.userIdentity.findFirst({
-      //   where: {
-      //     providerId: provider.id,
-      //     providerUserId: profile.id,
-      //   },
-      //   include: { user: true },
-      // });
 
       if (identity) {
-        const token = this.login;
-        // Update tokens
-        const updatedIdentity = await this.oidcIdentityServie.update(
-          identity.id,
-          {
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            expiresAt: tokens.expiresAt,
-          },
-        );
-        const user = updatedIdentity.user as SanitizedUser;
-        return this.login(user);
+        // const token = await this.login(identity.user);
+        // // Update tokens
+        // const updatedIdentity = await this.oidcIdentityServie.update(
+        //   identity.id,
+        //   {
+        //     accessToken: token.accessToken,
+        //     refreshToken: token.refreshToken,
+        //     expiresAt: token.expiresAt,
+        //   },
+        // );
+        // return updatedIdentity.user;
+        return identity.user;
       }
 
       // 3. Find user by email to link identity
@@ -343,15 +295,17 @@ export class AuthService {
 
         if (user) {
           // Link identity to existing user
-          await this.oidcIdentityServie.create({
-            providerId: provider.id,
-            userId: user.id,
-            providerUserId: profile.id,
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            expiresAt: tokens.expiresAt,
-          });
-          return this.login(this.sanitizeUser(user));
+          await this.linkOIDCAccount(user.id, profile);
+          return this.sanitizeUser(user);
+          // // .create({
+          //   providerId: provider.id,
+          //   userId: user.id,
+          //   providerUserId: profile.id,
+          //   // accessToken: tokens.accessToken,
+          //   // refreshToken: tokens.refreshToken,
+          //   // expiresAt: tokens.expiresAt,
+          // });
+          // return this.sanitizeUser(user);
           // .create({
           //   data: {
           //     providerId: provider.id,
@@ -371,9 +325,9 @@ export class AuthService {
       const user = await this.createUserWithIdentity(
         provider.id,
         profile,
-        tokens,
+        // tokens,
       );
-      return this.login(user);
+      return user;
     } catch (error) {
       this.logger.error('Error occured during findOrCreateOidcUser:', error);
       throw new AppError(
@@ -388,11 +342,11 @@ export class AuthService {
   private async createUserWithIdentity(
     providerId: number,
     profile: NormalizedProfile,
-    tokens: {
-      accessToken: string;
-      refreshToken?: string;
-      expiresAt?: Date;
-    },
+    // tokens: {
+    //   accessToken: string;
+    //   refreshToken?: string;
+    //   expiresAt?: Date;
+    // },
   ) {
     try {
       const username = await this.generateUniqueUsername(profile.email);
@@ -406,7 +360,7 @@ export class AuthService {
             {
               username,
               email: profile.email,
-              authMethod: 'OIDC',
+              authMethod: ['OIDC'],
               avatar: profile.photo ?? placeholderImage,
               isVerified: true,
               roleId: 4,
@@ -420,9 +374,9 @@ export class AuthService {
               providerId,
               providerUserId: profile.id,
               userId: createdUser.id,
-              accessToken: tokens.accessToken,
-              refreshToken: tokens.refreshToken,
-              expiresAt: tokens.expiresAt,
+              // accessToken: tokens.accessToken,
+              // refreshToken: tokens.refreshToken,
+              // expiresAt: tokens.expiresAt,
             },
             tx,
           );
@@ -441,49 +395,6 @@ export class AuthService {
         this.context,
         error,
       );
-    }
-
-    // return user;
-
-    // const result = await this.usersService.create({
-    //   username,
-    //   email: profile.email,
-    //   avatar: profile.photo ?? placeholderImage,
-    //   isVerified: true,
-    //   roleId: 4, // Default role User
-    //   identities: {
-    //     create: {
-    //       providerId,
-    //       providerUserId: profile.id,
-    //       userId: user.id,
-    //       accessToken: tokens.accessToken,
-    //       refreshToken: tokens.refreshToken,
-    //       expiresAt: tokens.expiresAt,
-    //     },
-    //   },
-    //   profile: profile.name
-    //     ? {
-    //         create: {
-    //           first_name: profile.name.split(' ')[0],
-    //           last_name: profile.name.split(' ').slice(1).join(' ') || '',
-    //         },
-    //       }
-    //     : undefined,
-    // });
-  }
-
-  private async generateUniqueUsername(email: string): Promise<string> {
-    const base = email.split('@')[0];
-    let username = base;
-    let counter = 1;
-
-    while (true) {
-      const existing = await this.usersService.getUser(username);
-
-      if (!existing) return username;
-
-      username = `${base}${counter}`;
-      counter++;
     }
   }
 
@@ -513,85 +424,154 @@ export class AuthService {
     }
   }
 
-  async linkGoogleAccount(userId: string, profile: GoogleProfile) {
-    // Check if Google ID is already linked to another account
-    const existingGoogleUser = await this.usersService.findByGoogleId(
-      profile.id,
-    );
-    if (existingGoogleUser && existingGoogleUser.id !== userId) {
-      throw new ConflictException(
-        'This Google account is already linked to another user',
-      );
-    }
+  // async linkGoogleAccount(userId: string, profile: GoogleProfile) {
+  //   // Check if Google ID is already linked to another account
+  //   const existingGoogleUser = await this.usersService.findByGoogleId(
+  //     profile.id,
+  //   );
+  //   if (existingGoogleUser && existingGoogleUser.id !== userId) {
+  //     throw new ConflictException(
+  //       'This Google account is already linked to another user',
+  //     );
+  //   }
 
-    // Link Google account
-    return await this.usersService.update(userId, {
-      googleId: profile.id,
-      picture: profile.picture,
-    });
-  }
-
-  async unlinkGoogleAccount(userId: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user.password && user.googleId) {
-      throw new ConflictException(
-        'Cannot unlink Google account without setting a password first',
-      );
-    }
-
-    return await this.usersService.update(userId, {
-      googleId: null,
-    });
-  }
-
-  async linkOIDCAccount(userId: string, profile: NormalizedProfile) {
-    const providerField = `${profile.provider}Id`;
-
-    // Check if OIDC ID is already linked to another account
-    const existingOIDCUser = await this.findOrCreateOidcUser(
-      profile.provider,
-      profile,
-    );
-    if (existingOIDCUser && existingOIDCUser.id !== userId) {
-      throw new ConflictException(
-        `This ${profile.provider} account is already linked to another user`,
-      );
-    }
-
-    // Link OIDC account
-    const updateData = {
-      [providerField]: profile.id,
-    };
-
-    if (profile.picture) {
-      updateData.picture = profile.picture;
-    }
-
-    return await this.usersService.update(userId, updateData);
-  }
-
-  async unlinkOIDCAccount(userId: string, provider: string) {
-    const user = await this.usersService.findById(userId);
-    const providerField = `${provider}Id`;
-
-    if (!user.password && user[providerField]) {
-      throw new ConflictException(
-        `Cannot unlink ${provider} account without setting a password first`,
-      );
-    }
-
-    return await this.usersService.update(userId, {
-      [providerField]: null,
-    });
-  }
-
-  // sanitizeUser(user: UserDetail) {
-  //   const sanitized = { ...user };
-  //   delete sanitized.password;
-  //   delete sanitized.mfaSecret;
-  //   delete sanitized.refreshTokens;
-  //   return sanitized;
+  //   // Link Google account
+  //   return await this.usersService.update(userId, {
+  //     googleId: profile.id,
+  //     picture: profile.picture,
+  //   });
   // }
+
+  // async unlinkGoogleAccount(userId: string) {
+  //   const user = await this.usersService.findById(userId);
+  //   if (!user.password && user.googleId) {
+  //     throw new ConflictException(
+  //       'Cannot unlink Google account without setting a password first',
+  //     );
+  //   }
+
+  //   return await this.usersService.update(userId, {
+  //     googleId: null,
+  //   });
+  // }
+
+  async linkOIDCAccount(userId: number, profile: NormalizedProfile) {
+    try {
+      // 1. Find provider
+      const provider = await this.oidcProviderServie.getOidcIdentityProvider(
+        profile.provider,
+      );
+
+      if (!provider) {
+        throw new AppError(
+          'Provider not found',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          {
+            cause: `Provider ${profile.provider} not found!`,
+            validProvider: this.oidcProviderServie.getAllEnabledProviders(),
+          },
+        );
+      }
+
+      // 2. Check if OIDC ID is already linked to another account
+      const existingOIDCUser = await this.findOrCreateOidcUser(
+        profile.provider,
+        profile,
+      );
+
+      if (existingOIDCUser && existingOIDCUser.id !== userId) {
+        throw new AppError(
+          `This ${profile.provider} account is already linked to another user`,
+          HttpStatus.CONFLICT,
+          this.context,
+          {
+            cause: `This ${profile.provider} account is currently linked to ${existingOIDCUser.email}!`,
+          },
+        );
+      }
+
+      // Prepare data to link OIDC account
+      const data = {
+        providerId: provider.id,
+        userId,
+        providerUserId: profile.id,
+      };
+
+      // Update avatar if not set
+      if (profile.photo && !existingOIDCUser.avatar) {
+        await this.usersService.update(userId, {
+          avatar: profile.photo,
+        });
+      }
+
+      // Link OIDC account
+      return await this.oidcIdentityServie.create({
+        ...data,
+      });
+    } catch (error) {
+      this.logger.error('Error occured during linkOIDCAccount:', error);
+      throw new AppError(
+        'Error occured during linkOIDCAccount',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
+  }
+
+  async unlinkOIDCAccount(id: number, provider: string) {
+    try {
+      const user = await this.usersService.getOne({ id });
+
+      // Check if user existed
+      if (!user) {
+        throw new AppError(
+          'User not found!',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          `No user associated with ${id}`,
+        );
+      }
+
+      // Find oidc identity
+      const identity = user.identities.find(
+        (identity) => identity.provider.displayName === provider,
+      );
+
+      // Check if oidc identity existed
+      if (!identity) {
+        throw new AppError(
+          'No OIDC account found!',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          `No ${provider} account associated with ${user.email}`,
+        );
+      }
+
+      // Check if user has set password before unlinking
+      if (!user.password && identity.providerUserId) {
+        throw new AppError(
+          `Cannot unlink ${provider} account without setting a password first`,
+          HttpStatus.CONFLICT,
+          this.context,
+        );
+      }
+
+      // Unlink OIDC account
+      return await this.oidcIdentityServie.update(identity.id, {
+        isEnabled: false,
+      });
+    } catch (error) {
+      this.logger.error('Error occured during unlinkOIDCAccount:', error);
+      throw new AppError(
+        'Error occured during unlinkOIDCAccount',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
+  }
 
   async signIn(username: string, pass: string): Promise<SignedUser> {
     try {
@@ -706,5 +686,33 @@ export class AuthService {
         error,
       );
     }
+  }
+
+  private async generateUniqueUsername(email: string): Promise<string> {
+    const base = email.split('@')[0];
+    let username = base;
+    let counter = 1;
+
+    while (true) {
+      const existing = await this.usersService.getUser(username);
+
+      if (!existing) return username;
+
+      username = `${base}${counter}`;
+      counter++;
+    }
+  }
+
+  private sanitizeUser(user: UserDetail): SanitizedUser {
+    // Transform the object by creating a mutable copy of the validated data.
+    const sanitized = { ...user };
+
+    // Explicitly delete the unwanted and sensitive properties.
+    delete (sanitized as { password?: string }).password;
+    delete (sanitized as { mfaSecret?: string }).mfaSecret;
+    delete (sanitized as { identities?: UserIdentity[] }).identities;
+    delete (sanitized as { refreshTokens?: RefreshToken }).refreshTokens;
+    delete (sanitized as { auditTrail?: AuditTrail }).auditTrail;
+    return sanitized;
   }
 }

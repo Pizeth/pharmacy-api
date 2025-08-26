@@ -31,28 +31,26 @@ export const createUserSchema = z
       description: 'The unique email address for the user.',
       example: 'john.doe@example.com',
     }),
-    authMethod: z.enum(AuthMethod).default(AuthMethod.PASSWORD).meta({
-      description: 'The authentication method used by the user.',
-      example: AuthMethod.PASSWORD,
-    }),
     password: z
       .string()
       .min(10, 'Password must be at least 10 characters long.')
       .optional()
-      // .refine((password) => passwordRegex.test(password), {
-      //   message:
-      //     'Password must be at least 10 characters, including uppercase, lowercase, number, and special character!',
-      // })
       .meta({
         description:
           'User password (at least 10 characters, including uppercase, lowercase, number, and special character.).',
         example: 'S3cureP@ssword!',
-        format: 'password', // This will hide the value in Swagger UI
+        format: 'password',
       }),
     repassword: z
       .string()
       .min(10, 'Password must be at least 10 characters long.')
-      .optional(),
+      .optional()
+      .meta({
+        description:
+          'User re password (at least 10 characters, including uppercase, lowercase, number, and special character.).',
+        example: 'S3cureR3P@ssword!',
+        format: 'password',
+      }),
     avatar: z.string().nullable().optional(),
     roleId: z.coerce
       .number({
@@ -67,11 +65,36 @@ export const createUserSchema = z
         description: 'The ID of the role assigned to the user.',
         example: 1,
       }),
+    // authMethod: z
+    //   .enum(AuthMethod)
+    //   .default(AuthMethod.PASSWORD)
+    //   .optional()
+    //   .meta({
+    //     description: 'The authentication method used by the user.',
+    //     example: AuthMethod,
+    //   }),
+    authMethod: z
+      .array(z.enum(AuthMethod)) // Expect an array of AuthMethod enums
+      .nonempty({ message: 'At least one auth method is required.' }) // Good practice
+      .default([AuthMethod.PASSWORD])
+      .optional()
+      .meta({
+        description: 'The authentication methods used by the user.',
+        example: [AuthMethod.PASSWORD, AuthMethod.OIDC],
+      }),
+    // Multi-Factor Authentication
+    mfaSecret: z.string().nullable().optional(),
+    mfaEnabled: z.coerce.boolean().default(false).optional(),
+    // Authentication tracking
+    loginAttempts: z.coerce.number().int().default(0).optional(),
+    lastLogin: z.coerce.date().nullable().optional(),
+    // Security Flags
     isBan: z.boolean().default(false).optional(),
     isEnabled: z.boolean().default(true).optional(),
     isLocked: z.boolean().default(false).optional(),
     isVerified: z.boolean().default(false).optional(),
     isActivated: z.boolean().default(false).optional(),
+    // Audit and Tracking
     createdBy: z.coerce.number().int().optional(),
     lastUpdatedBy: z.coerce.number().int().optional(),
     objectVersionId: z.coerce.number().int().default(1).optional(),
@@ -79,7 +102,8 @@ export const createUserSchema = z
   // --- Use superRefine for conditional logic ---
   .superRefine((data, ctx) => {
     // If the auth method is PASSWORD, we must validate the password fields.
-    if (data.authMethod === 'PASSWORD') {
+    // if (data.authMethod === 'PASSWORD') {
+    if (data.authMethod?.includes('PASSWORD')) {
       if (!data.password) {
         ctx.addIssue({
           code: 'custom',

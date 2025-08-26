@@ -10,6 +10,7 @@ import {
 
 export interface UserIdentityDetail extends UserIdentity {
   provider: IdentityProvider;
+  user: SanitizedUser;
 }
 
 export interface UserDetail extends User {

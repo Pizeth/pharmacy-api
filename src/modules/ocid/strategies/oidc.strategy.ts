@@ -198,7 +198,7 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
       //   //   typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
       //   expiresAt,
       // };
-      const user = await this.authService.findOrCreateOidcUser(
+      const user = await this.authService.oidcLogin(
         this.provider.name,
         normalizedProfile,
         // tokens,

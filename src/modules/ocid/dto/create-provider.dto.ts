@@ -96,8 +96,8 @@ export const createUserSchema = z.object({
     description: 'The universal locale for the identity provider.',
     example: 'en',
   }),
-  enabled: z.boolean().default(true).meta({
-    description: 'The enable for the identity provider.',
+  isEnabled: z.boolean().default(true).optional().meta({
+    description: 'Whether the identity provider is enabled.',
     example: true,
   }),
 });
