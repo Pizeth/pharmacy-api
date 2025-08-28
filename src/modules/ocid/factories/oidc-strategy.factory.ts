@@ -2,15 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
 import { OidcStrategy } from '../strategies/oidc.strategy';
 import { IdentityProvider } from '@prisma/client';
+import { OidcProviderService } from '../services/oidc-provider.service';
 
 @Injectable()
 export class OidcStrategyFactory {
   constructor(
-    // private providerService: OidcProviderService,
-    private authService: AuthService,
+    private readonly providerService: OidcProviderService,
+    private readonly authService: AuthService,
   ) {}
 
   createStrategy(provider: IdentityProvider): OidcStrategy {
-    return new OidcStrategy(this.authService, provider);
+    return new OidcStrategy(this.authService, this.providerService, provider);
   }
 }

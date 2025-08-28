@@ -17,7 +17,7 @@ import {
   UnitTime,
 } from 'src/types/commons.enum';
 import { ClsService } from 'nestjs-cls';
-import { UserDetail } from 'src/types/dto';
+import { SanitizedUser } from 'src/types/dto';
 import { Algorithm } from 'jsonwebtoken';
 import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
 
@@ -177,7 +177,7 @@ export class TokenService {
   //   return this.getRequiredConfig('JWT_ALGORITHM', (raw) => raw as Algorithm);
   // }
 
-  generatePayload(payload: UserDetail): TokenPayload {
+  generatePayload(payload: SanitizedUser): TokenPayload {
     const ip = this.cls.get<string>('ip') || '';
     return {
       sub: payload.id,
@@ -270,13 +270,13 @@ export class TokenService {
   }
 
   // Verify the access token
-  async verifyTokenClaims(token: string, req: Request): Promise<TokenPayload> {
+  async verifyTokenClaims(token: string, req?: Request): Promise<TokenPayload> {
     try {
       // Verify the token with your secret key
       const verifiedToken = await this.jwtService.verifyAsync<TokenPayload>(
         token,
         {
-          secret: this.secretKey,
+          secret: this.secretKey || this.refreshTokenKey,
           algorithms: ['HS256'], // Specify allowed algorithms
           // Optional: add additional verification options
           complete: false, // Returns the decoded payload
@@ -316,7 +316,7 @@ export class TokenService {
       if (error instanceof TokenExpiredError) {
         this.logger.error('JWT Token Expired', {
           error: error.message,
-          ip: req.ip,
+          ip: req?.ip,
         });
         throw new AppError(
           'Authentication failed: Token has expired',
@@ -330,7 +330,7 @@ export class TokenService {
         // Signature verification failed
         this.logger.error('JWT Signature Verification Failed', {
           error: error.message,
-          ip: req.ip, // Assuming you have a method to get current IP
+          ip: req?.ip, // Assuming you have a method to get current IP
         });
         throw new AppError(
           'Authentication failed: Invalid token signature',

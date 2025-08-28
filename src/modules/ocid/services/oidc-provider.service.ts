@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PassportStatic } from 'passport';
 import { OidcStrategy } from '../strategies/oidc.strategy';
 import { OidcStrategyFactory } from '../factories/oidc-strategy.factory';
@@ -8,6 +8,7 @@ import { CreateProviderDto } from '../dto/create-provider.dto';
 import { UpdateProviderDto } from '../dto/update-provider.dto';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { AppError } from 'src/exceptions/app.exception';
 
 @Injectable()
 export class OidcProviderService implements OnModuleInit {
@@ -54,15 +55,15 @@ export class OidcProviderService implements OnModuleInit {
   }
 
   async getOidcIdentityProvider(
-    providerName: string,
-  ): Promise<IdentityProvider> {
-    return this.dbService.getProviderByName(providerName);
+    name: string,
+  ): Promise<IdentityProvider | null> {
+    return this.dbService.getOne({ name });
   }
 
   async getAllEnabledProviders(): Promise<IdentityProvider[]> {
     // const providers = await this.dbService.getAllEnabledProviders();
     const providers = await this.dbService.getAll();
-    return providers.data.filter((p) => p.enabled);
+    return providers.data.filter((p) => p.isEnabled);
   }
 
   async createAndRegisterProvider(data: CreateProviderDto) {
@@ -74,7 +75,7 @@ export class OidcProviderService implements OnModuleInit {
     const provider = await this.dbService.createProvider(data);
 
     // 3. Register strategy if enabled
-    if (provider.enabled) {
+    if (provider.isEnabled) {
       this.registerProvider(provider);
     }
 
@@ -96,17 +97,17 @@ export class OidcProviderService implements OnModuleInit {
     this.unregisterProvider(provider.name);
 
     // 4. Register new strategy if enabled
-    if (provider.enabled) {
+    if (provider.isEnabled) {
       this.registerProvider(provider);
     }
 
     return provider;
   }
 
-  async toggleProvider(id: number, enabled: boolean) {
-    const provider = await this.dbService.updateProvider(id, { enabled });
+  async toggleProvider(id: number, isEnabled: boolean) {
+    const provider = await this.dbService.updateProvider(id, { isEnabled });
 
-    if (enabled) {
+    if (isEnabled) {
       this.registerProvider(provider);
     } else {
       this.unregisterProvider(provider.name);
@@ -116,14 +117,28 @@ export class OidcProviderService implements OnModuleInit {
   }
 
   async deleteAndUnregisterProvider(id: number) {
-    // 1. Get provider first
-    const provider = await this.dbService.getOne({ id });
+    try {
+      // 1. Get provider first
+      const provider = await this.dbService.getOne({ id });
+      if (!provider)
+        throw new AppError(
+          'Provider not found',
+          HttpStatus.NOT_FOUND,
+          this.context,
+          {
+            cause: `Provider with id ${id} does not exist!`,
+          },
+        );
 
-    // 2. Unregister strategy
-    this.unregisterProvider(provider.name);
+      // 2. Unregister strategy
+      this.unregisterProvider(provider.name);
 
-    // 3. Delete from database
-    return this.dbService.deleteProvider(id);
+      // 3. Delete from database
+      return this.dbService.deleteProvider(id);
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 
   getStrategy(providerName: string): OidcStrategy | undefined {

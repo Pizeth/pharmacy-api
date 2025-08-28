@@ -18,29 +18,29 @@ export class OidcProviderDbService {
 
   async getOne(
     where: Prisma.IdentityProviderWhereUniqueInput,
-  ): Promise<IdentityProvider> {
+  ): Promise<IdentityProvider | null> {
     try {
-      const modelName = 'identityProvider';
+      const model = 'identityProvider';
       const provider = await this.dbHelper.findOne<
-        typeof modelName,
+        typeof model,
         IdentityProvider
       >({
-        model: modelName,
+        model,
         where: where,
       });
 
-      if (!provider)
-        throw new AppError(
-          'Invalid provider!',
-          HttpStatus.NOT_FOUND,
-          this.context,
-          {
-            cause: `Provider with ${JSON.stringify(where)} does not exist!`,
-            // validProviderId: (await this.getAll()).data.filter(
-            //   (p) => p.id !== id,
-            // ),
-          },
-        );
+      // if (!provider)
+      //   throw new AppError(
+      //     'Invalid provider!',
+      //     HttpStatus.NOT_FOUND,
+      //     this.context,
+      //     {
+      //       cause: `Provider with ${JSON.stringify(where)} does not exist!`,
+      //       // validProviderId: (await this.getAll()).data.filter(
+      //       //   (p) => p.id !== id,
+      //       // ),
+      //     },
+      //   );
 
       return provider;
     } catch (error) {
@@ -52,35 +52,35 @@ export class OidcProviderDbService {
         `Error finding provider that match with ${JSON.stringify(where)}`,
         HttpStatus.NOT_FOUND,
         this.context,
-        error,
+        { error, validProvider: this.getAll() },
       );
     }
   }
 
-  async getProviderByName(name: string): Promise<IdentityProvider> {
-    try {
-      const provider = await this.prisma.identityProvider.findUnique({
-        where: { name },
-      });
+  // async getProviderByName(name: string): Promise<IdentityProvider> {
+  //   try {
+  //     const provider = await this.prisma.identityProvider.findUnique({
+  //       where: { name },
+  //     });
 
-      if (!provider)
-        throw new AppError(
-          'Invalid provider!',
-          HttpStatus.NOT_FOUND,
-          this.context,
-          {
-            cause: `Provider with name ${name} does not exist!`,
-            // validProvider: this.getAllEnabledProviders(),
-            validProvider: this.getAll(),
-          },
-        );
+  //     if (!provider)
+  //       throw new AppError(
+  //         'Invalid provider!',
+  //         HttpStatus.NOT_FOUND,
+  //         this.context,
+  //         {
+  //           cause: `Provider with name ${name} does not exist!`,
+  //           // validProvider: this.getAllEnabledProviders(),
+  //           validProvider: this.getAll(),
+  //         },
+  //       );
 
-      return provider;
-    } catch (error) {
-      this.logger.error(error);
-      throw error;
-    }
-  }
+  //     return provider;
+  //   } catch (error) {
+  //     this.logger.error(error);
+  //     throw error;
+  //   }
+  // }
 
   async getAll(
     page: number = 1,

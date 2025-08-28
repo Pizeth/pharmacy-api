@@ -21,7 +21,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidationError } from './exceptions/zod-validatoin.exception';
-import { ProfileModule } from './profile/profile.module';
+import { ProfileModule } from './modules/profiles/profile.module';
 import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 @Module({
@@ -81,8 +81,13 @@ import oidcProviderConfig from './modules/ocid/configs/oidc.config';
           cls.set('userId', req.headers['x-user-id']);
           cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
           cls.set('userAgent', req.headers['user-agent']);
+          cls.set('acceptLanguage', req.headers['accept-language']);
+          cls.set('referer', req.headers['referer']);
+          cls.set('origin', req.headers['origin']);
           cls.set('url', req.url);
           cls.set('method', req.method);
+          cls.set('user', req.user);
+
           // If you use an auth guard that sets `req.user`, you can set it here too
           // cls.set('user', req.user);
         },

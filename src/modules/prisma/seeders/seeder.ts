@@ -145,6 +145,7 @@ import { UserSeeder } from './user.seeder';
 import { ConfigService } from '@nestjs/config';
 import { TokenService } from 'src/commons/services/token.service';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { OidcSeeder } from './oidc.seeder';
 
 @Injectable()
 export class Seeder {
@@ -216,11 +217,16 @@ export class Seeder {
       this.tokenService,
       this.passwordUtils,
     );
+    const oidcSeeder = new OidcSeeder(this.prisma, this.config);
+
     this.logger.log('🔧 Seeding roles...');
     const roles = await roleSeeder.seed();
 
     this.logger.log('👤 Seeding users...');
-    await userSeeder.seed(roles);
+    const user = await userSeeder.seed(roles);
+
+    this.logger.log('🔐 Seeding OIDC Providers...');
+    await oidcSeeder.seed(user);
 
     this.logger.log('📊 Database Seeding completed');
   }
@@ -234,6 +240,7 @@ export class Seeder {
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
       this.prisma.role.deleteMany(),
+      this.prisma.identityProvider.deleteMany(),
       // Add other cleanup as needed
     ]);
     this.logger.log('✅ Database cleared');

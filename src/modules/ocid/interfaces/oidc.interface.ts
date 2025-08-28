@@ -1,4 +1,4 @@
-import { StrategyOptions } from 'passport-openidconnect';
+import { Profile, StrategyOptions } from 'passport-openidconnect';
 
 export interface OIDCProviderConfig extends StrategyOptions {
   // provider: string;
@@ -8,12 +8,14 @@ export interface OIDCProviderConfig extends StrategyOptions {
 }
 
 export interface NormalizedProfile {
-  provider: string;
   id: string;
+  providerId: number;
+  provider: string;
   displayName?: string;
   username?: string;
   name?: string;
   email: string;
   emailVerified: boolean;
   photo?: string;
+  raw: Profile;
 }

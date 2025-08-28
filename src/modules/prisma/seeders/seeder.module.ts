@@ -94,10 +94,12 @@ import { Request } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
 import { ValidationError } from 'src/exceptions/zod-validatoin.exception';
+import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
 
 @Module({
   imports: [
     PrismaModule, // Ensure PrismaModule is also imported
+    TimeParserModule,
     ConfigModule.forRoot({
       isGlobal: true, // Recommended to avoid re-importing in sub-dependencies
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',

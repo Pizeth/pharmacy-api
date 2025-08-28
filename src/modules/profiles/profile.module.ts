@@ -9,4 +9,4 @@ import { ProfilesService } from './services/profile.service';
   exports: [ProfilesService],
   controllers: [ProfilesController],
 })
-export class AuthModule {}
+export class ProfileModule {}

@@ -55,6 +55,7 @@ import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
 import { NormalizedProfile } from '../interfaces/oidc.interface';
 import { IdentityProvider } from '@prisma/client';
+import { OidcProviderService } from '../services/oidc-provider.service';
 
 // @Injectable()
 // export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
@@ -159,6 +160,7 @@ import { IdentityProvider } from '@prisma/client';
 export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
   constructor(
     private readonly authService: AuthService,
+    private readonly providerService: OidcProviderService,
     private readonly provider: IdentityProvider,
   ) {
     super({
@@ -179,17 +181,27 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
 
   // The validate function that passport-openidconnect will call
   async validate(
-    // issuer: string,
+    issuer: string,
     profile: Profile,
+    // idToken: string | object,
+    // accessToken: string,
+    // refreshToken: string,
+    // expiresAt: Date,
     done: VerifyCallback,
   ): Promise<any> {
     try {
-      const normalizedProfile = this.normalizeProfile(profile);
-      // const user =
-      // await this.authService.findOrCreateOidcUser(normalizedProfile);
-      const user = await this.authService.findOrCreateOidcUser(
+      const normalizedProfile = await this.normalizeProfile(profile, issuer);
+      // const tokens = {
+      //   accessToken,
+      //   refreshToken,
+      //   // idToken:
+      //   //   typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
+      //   expiresAt,
+      // };
+      const user = await this.authService.oidcLogin(
         this.provider.name,
         normalizedProfile,
+        // tokens,
       );
 
       if (!user) {
@@ -255,15 +267,23 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
   //   };
   // }
 
-  private normalizeProfile(profile: Profile): NormalizedProfile {
+  private async normalizeProfile(
+    profile: Profile,
+    issuer: string,
+  ): Promise<NormalizedProfile> {
     // Construct the full name if the name object exists, otherwise use displayName
     const fullName = profile.name
       ? `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim()
       : profile.displayName;
 
+    // Attempt to determine the provider name from the issuer URL
+    const provider =
+      (await this.extractProviderName(issuer)) || profile.provider || this.name;
+
     return {
-      provider: this.provider.name,
       id: profile.id,
+      providerId: this.provider.id,
+      provider,
       displayName: profile.displayName,
       username: profile.username,
       // Use the more robust full name we constructed
@@ -278,6 +298,41 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
       photo: profile.photos?.[0]?.value,
 
       // We remove the `raw` property as it's not part of the standard Profile interface
+      raw: profile,
     };
+  }
+
+  private async extractProviderName(
+    issuer: string,
+  ): Promise<string | undefined> {
+    const providers = await this.providerService.getAllEnabledProviders();
+    // Map common OIDC issuers to provider names
+    // const providerMap: Record<string, string> = {
+    //   'https://accounts.google.com': 'google',
+    //   'https://login.microsoftonline.com': 'microsoft',
+    //   'https://auth0.com': 'auth0',
+    //   'https://login.salesforce.com': 'salesforce',
+    //   'https://appleid.apple.com': 'apple',
+    // };
+
+    // for (const [issuerPattern, provider] of Object.entries(providerMap)) {
+    //   if (issuer.includes(issuerPattern)) {
+    //     return provider;
+    //   }
+    // }
+
+    for (const provider of providers) {
+      if (issuer.includes(provider.issuer)) {
+        return provider.name;
+      }
+    }
+
+    // Extract domain as fallback
+    try {
+      const url = new URL(issuer);
+      return url.hostname.replace(/^(www\.|auth\.|login\.)/, '').split('.')[0];
+    } catch {
+      return undefined;
+    }
   }
 }

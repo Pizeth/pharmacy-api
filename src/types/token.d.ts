@@ -23,7 +23,7 @@ export interface TokenPayload {
   email: string;
   avatar: string | null;
   role: RoleToken;
-  authMethod: AuthMethod | null;
+  authMethod: AuthMethod[] | null;
   ip: string;
 }
 

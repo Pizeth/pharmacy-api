@@ -31,6 +31,6 @@ import { CacheService } from './services/cache.service';
     CacheService, // Assuming you have a CachesService that uses these caches
   ],
   // Export the tokens so other modules can inject them
-  exports: [USERS_CACHE, PRODUCTS_CACHE, CacheService],
+  exports: [CacheService],
 })
 export class CacheModule {}

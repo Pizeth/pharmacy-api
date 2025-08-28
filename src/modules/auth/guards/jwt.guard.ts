@@ -1,4 +1,4 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { TokenService } from 'src/commons/services/token.service';
@@ -6,6 +6,8 @@ import { AccessLevel } from 'src/types/commons.enum';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private readonly context = JwtAuthGuard.name;
+  private readonly logger = new Logger(this.context);
   constructor(
     // private jwtService: JwtService,
     private readonly tokenService: TokenService,
@@ -25,6 +27,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
+    // const request = context.switchToHttp().getRequest<Request>();
     return super.canActivate(context);
   }
 

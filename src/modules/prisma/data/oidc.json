@@ -1,0 +1,34 @@
+{
+  "oidc": [
+    {
+      "name": "google",
+      "displayName": "Google",
+      "issuer": "https://accounts.google.com",
+      "authorizationURL": "https://accounts.google.com/o/oauth2/v2/auth",
+      "tokenURL": "https://oauth2.googleapis.com/token",
+      "callbackURL": "http://localhost:3000/api/v1/auth/google/callback",
+      "userInfoURL": "https://openidconnect.googleapis.com/v1/userinfo",
+      "scope": "openid,email,profile"
+    },
+    {
+      "name": "facebook",
+      "displayName": "Facebook",
+      "issuer": "https://www.facebook.com",
+      "authorizationURL": "https://facebook.com/dialog/oauth/",
+      "tokenURL": "https://graph.facebook.com/v23.0/oauth/access_token",
+      "callbackURL": "http://localhost:3000/api/v1/auth/facebook/callback",
+      "userInfoURL": "https://graph.facebook.com/v23.0/me",
+      "scope": "openid,email,profile"
+    },
+    {
+      "name": "discord",
+      "displayName": "Discord",
+      "issuer": "https://discord.com",
+      "authorizationURL": "https://discord.com/api/oauth2/authorize",
+      "tokenURL": "https://discord.com/api/oauth2/token",
+      "callbackURL": "http://localhost:3000/api/v1/auth/discord/callback",
+      "userInfoURL": "https://discord.com/api/oauth2/userinfo",
+      "scope": "openid,email,profile"
+    }
+  ]
+}

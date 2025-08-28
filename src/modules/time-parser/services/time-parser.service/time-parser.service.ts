@@ -101,6 +101,8 @@ export class TimeParserService implements OnModuleInit {
 
     this.localesPath = this.config.localesPath;
 
+    this.logger.debug(this.cache);
+
     // Preload default localization
     this.cache.set(LOCALIZATION_CACHE, 'en', config.localizationConfig);
 

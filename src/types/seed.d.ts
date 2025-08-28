@@ -8,7 +8,7 @@ export interface SuperAdminData {
   avatar: string;
   roleId: number;
   role: Role;
-  authMethod: AuthMethod | null;
+  authMethod: AuthMethod[];
   profile: {
     firstName: string;
     lastName: string;

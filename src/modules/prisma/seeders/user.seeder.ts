@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'src/types/seed';
@@ -8,10 +8,13 @@ import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { RoleToken } from 'src/types/token';
 import { AuditActionType, AuditTargetType, Sex } from 'src/types/commons.enum';
 import { nanoid } from 'nanoid';
+import { UserDetail } from 'src/types/dto';
+import { AppError } from 'src/exceptions/app.exception';
 
 @Injectable()
 export class UserSeeder {
-  private readonly logger = new Logger(UserSeeder.name);
+  private readonly context = UserSeeder.name;
+  private readonly logger = new Logger(this.context);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,7 +29,7 @@ export class UserSeeder {
     this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
   }
 
-  async seed(roles: Role[]) {
+  async seed(roles: Role[]): Promise<UserDetail> {
     this.logger.log('🌱 Seeding super admin user...');
     this.logger.debug(`PrismaService resolved: ${!!this.prisma}`);
     this.logger.debug(`ConfigService resolved: ${!!this.config}`);
@@ -55,8 +58,8 @@ export class UserSeeder {
             // Using nested writes for related data.
             profile: {
               create: {
-                first_name: superAdminData.profile.firstName,
-                last_name: superAdminData.profile.lastName,
+                firstName: superAdminData.profile.firstName,
+                lastName: superAdminData.profile.lastName,
                 sex: superAdminData.profile.sex,
                 dob: new Date(superAdminData.profile.dob),
                 pob: superAdminData.profile.pob,
@@ -170,9 +173,15 @@ export class UserSeeder {
             },
           },
           include: {
-            profile: true,
             role: true,
+            profile: true,
+            identities: {
+              include: {
+                provider: true,
+              },
+            },
             refreshTokens: true,
+            auditTrail: true,
           },
         });
 
@@ -211,10 +220,16 @@ export class UserSeeder {
       }
 
       this.logger.log(`✅ Super admin created/verified: ${result.email}`);
-      return result;
+      return result as unknown as UserDetail;
     } catch (error: unknown) {
       this.logger.error(
         `Failed to seed Super Admin ${roles.map((r) => r.name).join(', ')}:`,
+        error,
+      );
+      throw new AppError(
+        'Failed to seed Super Admin!',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        this.context,
         error,
       );
     }
@@ -266,7 +281,7 @@ export class UserSeeder {
             id: 1,
             name: 'SUPER_ADMIN',
             description: 'Super Administrator Role',
-            enabledFlag: true,
+            isEnabled: true,
             createdBy: 0,
             createdDate: new Date(),
             lastUpdatedBy: 0,
@@ -293,7 +308,7 @@ export class UserSeeder {
         'SEED_ADMIN_AVATAR',
         'https://i.pinimg.com/736x/36/08/fe/3608fede746d1d6b429e58b945a90e1a.jpg',
       ),
-      authMethod: this.config.get('SEED_ADMIN_AUTH_METHOD', 'PASSWORD'),
+      authMethod: [this.config.get('SEED_ADMIN_AUTH_METHOD', 'PASSWORD')],
       profile: {
         firstName: this.config.get('SEED_ADMIN_FIRST_NAME', 'Piseth'),
         lastName: this.config.get('SEED_ADMIN_LAST_NAME', 'Mam'),
