@@ -5,6 +5,6 @@ import { DBHelper } from './services/db-helper';
 @Module({
   imports: [PrismaModule],
   providers: [DBHelper],
-  exports: [DBHelper],
+  exports: [DBHelper, PrismaModule],
 })
 export class DBHelperModule {}

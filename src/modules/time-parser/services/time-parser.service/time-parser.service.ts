@@ -91,6 +91,7 @@ export class TimeParserService implements OnModuleInit {
     private readonly suggestion: SuggestionService,
     private readonly cache: CacheService,
   ) {
+    this.logger.debug('TimeParserService constructed (DI completed soon)');
     /**
      * Lazily build a precompute sorted units once for efficient formatting [unit, multiplier] tuple list
      * from TIME_MULTIPLIERS. Sorted descending (largest unit first).
@@ -101,18 +102,38 @@ export class TimeParserService implements OnModuleInit {
 
     this.localesPath = this.config.localesPath;
 
-    this.logger.debug(this.cache);
-
     // Preload default localization
-    this.cache.set(LOCALIZATION_CACHE, 'en', config.localizationConfig);
+    // this.cache.set(LOCALIZATION_CACHE, 'en', config.localizationConfig);
 
-    if (this.config.preload) {
-      this.preloadLocalizations();
-    }
+    // if (this.config.preload) {
+    //   this.preloadLocalizations();
+    // }
   }
 
   // called by Nest once all DI is wired up
   async onModuleInit(): Promise<void> {
+    // defensive check to get clearer error if DI still failed
+    this.logger.error('TimeParserService: onModuleInit - cache:', this.cache);
+    if (!this.cache) {
+      throw new Error(
+        'TimeParserService: CacheService was not injected (cache is undefined)',
+      );
+    }
+    if (!this.config) {
+      throw new Error(
+        'TimeParserService: config (timeParserConfig) was not injected',
+      );
+    }
+
+    this.logger.debug('TimeParserService onModuleInit - cache:', this.cache);
+
+    // safe to call runtime logic now
+    this.cache.set(LOCALIZATION_CACHE, 'en', this.config.localizationConfig);
+
+    if (this.config.preload) {
+      this.preloadLocalizations();
+    }
+
     if (this.config.useLocale) await this.preloadLocalesAsync();
     const aliases = Object.keys(UNIT_ALIASES);
 

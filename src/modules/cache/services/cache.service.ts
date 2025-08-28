@@ -1,13 +1,24 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CacheOptions } from '../interfaces/caches';
 import { CentralizedCacheManager } from './centralized-cache-manager.service';
+import cacheConfig from '../configs/cache.config';
+import { ConfigType } from '@nestjs/config';
 
 // Type-safe cache service with enhanced functionality
+@Injectable()
 export class CacheService {
   private readonly cacheManager: CentralizedCacheManager;
+  private readonly context = CacheService.name;
+  private readonly logger = new Logger(this.context);
 
-  constructor(defaultConfig?: CacheOptions<string, unknown>) {
-    this.cacheManager = CentralizedCacheManager.getInstance(defaultConfig);
+  constructor(
+    // defaultConfig?: CacheOptions<string, unknown>,
+    @Inject(cacheConfig.KEY)
+    private readonly config: ConfigType<typeof cacheConfig>,
+  ) {
+    this.logger.debug('CacheService initialized with config:', this.config);
+    this.cacheManager = CentralizedCacheManager.getInstance(this.config);
   }
 
   // Enhanced function caching with proper type inference

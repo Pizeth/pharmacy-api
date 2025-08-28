@@ -1,5 +1,4 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AuditTrail,
@@ -17,14 +16,7 @@ import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-d
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { PrismaService } from 'src/modules/prisma/services/prisma.service';
 import { CreateUserDto } from 'src/modules/users/dto/create-user.dto';
-import { CreateUserDto } from 'src/modules/users/dto/create-user.dto';
 import { UsersService } from 'src/modules/users/services/users.service';
-import {
-  AccessToken,
-  SanitizedUser,
-  SignedUser,
-  UserDetail,
-} from 'src/types/dto';
 import {
   AccessToken,
   SanitizedUser,
@@ -61,7 +53,6 @@ export class AuthService {
   async validateLocalUser(
     username: string,
     password: string,
-  ): Promise<SanitizedUser> {
   ): Promise<SanitizedUser> {
     try {
       const user = await this.usersService.getUser(username);
@@ -248,28 +239,8 @@ export class AuthService {
     return {
       user,
       accessToken: token,
-      user,
-      accessToken: token,
       refreshToken: refreshToken.token,
     };
-  }
-
-  async oidcLogin(
-    providerName: string,
-    profile: NormalizedProfile,
-  ): Promise<SignedUser> {
-    try {
-      const user = await this.findOrCreateOidcUser(providerName, profile);
-      return this.login(user);
-    } catch (error) {
-      this.logger.error('Error occured during OIDC login:', error);
-      throw new AppError(
-        'Error occured during OIDC login',
-        HttpStatus.UNAUTHORIZED,
-        this.context,
-        error,
-      );
-    }
   }
 
   async oidcLogin(
@@ -340,9 +311,6 @@ export class AuthService {
 
       // 2. Find existing identity
       const identity = await this.oidcIdentityServie.getOidcIdentity(
-        // provider.id,
-        { id: Number(profile.id) },
-      );
         // provider.id,
         { id: Number(profile.id) },
       );
@@ -556,7 +524,6 @@ export class AuthService {
             {
               username,
               email: profile.email,
-              authMethod: ['OIDC'],
               authMethod: ['OIDC'],
               avatar: profile.photo ?? placeholderImage,
               isVerified: true,

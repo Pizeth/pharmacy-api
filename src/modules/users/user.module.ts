@@ -5,9 +5,10 @@ import { DBHelperModule } from '../helpers/helper.module';
 import { CommonModule } from 'src/commons/common.module';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [DBHelperModule, CommonModule],
+  imports: [DBHelperModule, CommonModule, ConfigModule],
   providers: [UsersService, PasswordUtils, TokenService],
   exports: [
     UsersService,

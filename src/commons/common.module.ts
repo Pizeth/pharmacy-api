@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-// import { PasswordUtils } from 'src/commons/services/password-utils.service';
-// import { TokenService } from './services/token.service';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -16,7 +14,6 @@ import { ValidationExceptionFilter } from 'src/filters/validation-exception.filt
 
 @Module({
   imports: [
-    // HttpModule,
     FileModule,
     ImagesModule,
     JwtModule.registerAsync({
@@ -30,10 +27,6 @@ import { ValidationExceptionFilter } from 'src/filters/validation-exception.filt
     }),
   ],
   providers: [
-    // PasswordUtils,
-    // TokenService,
-    // VirusScanService,
-    // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
@@ -55,17 +48,12 @@ import { ValidationExceptionFilter } from 'src/filters/validation-exception.filt
     },
   ],
   exports: [
-    // PasswordUtils,
-    // TokenService,
-    // VirusScanService,
-    // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
     FileModule,
     ImagesModule,
     JwtModule,
-    // HttpModule,
   ],
 })
 export class CommonModule {}

@@ -1,4 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { AuthMethod } from '@prisma/client';
 import { Request } from 'express';
 import { SanitizedUser } from 'src/types/dto';
 
@@ -18,6 +19,7 @@ export const CurrentUser = createParamDecorator(
     | number
     | boolean
     | Date
+    | AuthMethod[]
     | null => {
     const request = ctx.switchToHttp().getRequest<Request>();
     const user = request.user as SanitizedUser;
