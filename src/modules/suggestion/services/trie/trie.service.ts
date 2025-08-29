@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TrieNode } from '../../nodes/node.class';
 import { MaxHeap } from '../../helpers/max-heap.helper';
 
@@ -117,25 +117,99 @@ import { MaxHeap } from '../../helpers/max-heap.helper';
 // }
 @Injectable()
 export class TrieService {
+  private readonly context = TrieService.name;
+  private readonly logger = new Logger(this.context);
   private root = new TrieNode();
   private readonly maxCacheDepth = 3; // Cache only short prefixes
 
-  buildTrie(words: string[]): void {
+  constructor() {
+    console.log('[BOOT] TrieService constructor');
+  }
+
+  // buildTrie(words: string[]): void {
+  //   const start = performance.now();
+  //   this.logger.log(`TrieService.buildTrie START (words=${words.length})`);
+  //   this.root = new TrieNode();
+
+  //   // Build trie with frequency tracking
+  //   const wordFreq = new Map<string, number>();
+  //   words.forEach((word) => {
+  //     const lower = word.toLowerCase();
+  //     wordFreq.set(lower, (wordFreq.get(lower) || 0) + 1);
+  //   });
+
+  //   for (const [word, freq] of wordFreq) {
+  //     this.insert(word, freq);
+  //   }
+
+  //   // Pre-cache popular prefixes
+  //   this.precachePopularPrefixes();
+  //   this.logger.log(
+  //     `TrieService.buildTrie END in ${performance.now() - start}ms`,
+  //   );
+  // }
+
+  // in TrieService
+  async buildTrie(words: string[]): Promise<void> {
+    const start = performance.now();
+    this.logger.log(`TrieService.buildTrie START (words=${words.length})`);
     this.root = new TrieNode();
 
-    // Build trie with frequency tracking
+    // Build frequency map
     const wordFreq = new Map<string, number>();
-    words.forEach((word) => {
-      const lower = word.toLowerCase();
+    for (const w of words) {
+      const lower = w.toLowerCase();
       wordFreq.set(lower, (wordFreq.get(lower) || 0) + 1);
-    });
-
-    for (const [word, freq] of wordFreq) {
-      this.insert(word, freq);
     }
 
-    // Pre-cache popular prefixes
-    this.precachePopularPrefixes();
+    const entries = Array.from(wordFreq.entries());
+
+    const BATCH = Math.max(500, Math.floor(entries.length / 200) || 500);
+
+    // Insert with yielding
+    for (let i = 0; i < entries.length; i++) {
+      const [word, freq] = entries[i];
+      this.insert(word, freq);
+
+      if (i > 0 && i % BATCH === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
+
+    // Pre-cache popular prefixes (this may be heavy — make it cooperative too)
+    await this.precachePopularPrefixesAsync();
+
+    this.logger.log(
+      `TrieService.buildTrie END in ${performance.now() - start}ms`,
+    );
+  }
+
+  private async precachePopularPrefixesAsync(): Promise<void> {
+    // similar to your precachePopularPrefixes but yield periodically
+    const queue: [TrieNode, string, number][] = [[this.root, '', 0]];
+    while (queue.length > 0) {
+      const [node, prefix, depth] = queue.shift()!;
+
+      // Cache prefixes with high word count OR high frequency words
+      if (
+        depth > 0 &&
+        depth <= this.maxCacheDepth &&
+        (node.wordCount > 10 || (node.isEndOfWord && node.frequency > 5))
+      ) {
+        // Now efficiently collects words starting from this node
+        node.cachedWords = this.collectWordsSync(node, prefix, 50);
+      }
+
+      if (depth < this.maxCacheDepth) {
+        for (const [char, child] of node.children) {
+          queue.push([child, prefix + char, depth + 1]);
+        }
+      }
+
+      if (queue.length % 500 === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
   }
 
   private insert(word: string, frequency: number): void {

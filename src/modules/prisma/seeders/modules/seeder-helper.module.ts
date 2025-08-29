@@ -14,7 +14,12 @@ import { TimeParserService } from 'src/modules/time-parser/services/time-parser.
   providers: [
     {
       provide: PasswordUtils,
-      useFactory: (config: ConfigService) => new PasswordUtils(config),
+      useFactory: (config: ConfigService) => {
+        console.log('[BOOT] PasswordUtils factory start');
+        const csv = new PasswordUtils(config);
+        console.log('[BOOT] PasswordUtils factory done');
+        return csv;
+      },
       inject: [ConfigService],
     },
     {
@@ -25,7 +30,12 @@ import { TimeParserService } from 'src/modules/time-parser/services/time-parser.
         jwt: JwtService,
         parser: TimeParserService,
         cls: ClsService,
-      ) => new TokenService(config, prisma, jwt, parser, cls),
+      ) => {
+        console.log('[BOOT] TokenService factory start');
+        const csv = new TokenService(config, prisma, jwt, parser, cls);
+        console.log('[BOOT] TokenService factory done');
+        return csv;
+      },
       inject: [
         ConfigService,
         PrismaService,
@@ -35,6 +45,6 @@ import { TimeParserService } from 'src/modules/time-parser/services/time-parser.
       ],
     },
   ],
-  exports: [PasswordUtils, TokenService],
+  exports: [PasswordUtils, TokenService, TimeParserModule],
 })
 export class SeedHelpersModule {}

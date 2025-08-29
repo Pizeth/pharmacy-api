@@ -662,13 +662,16 @@ export class SuggestionService1 implements OnModuleInit {
             defaultQueryTTLMs: this.config.defaultQueryTTLMs, // 5 minutes
             minQueryLength: this.config.minQueryLength, // 3 chars
             maxLocalCacheSize: this.config.maxLocalCacheSize, // 500
-            warmpUpSize: this.config.warmpUpSize,
+            warmUpSize: this.config.warmUpSize,
             coldStartBenchmark: this.config.coldStartBenchmark,
             highDiversityThreshold: this.config.highDiversityThreshold,
             lowDiversityThreshold: this.config.lowDiversityThreshold,
             diversityAdjustmentStrength:
               this.config.diversityAdjustmentStrength,
-            lengthThresholdRatio: this.config.lengthThresholdRatio, // 0.5
+            lengthThresholdRatio: this.config.lengthThresholdRatio,
+            initTimeboxMs: this.config.initTimeboxMs,
+            warmupTimeboxMs: this.config.warmupTimeboxMs,
+            maxWarmupWords: this.config.maxWarmupWords,
           });
         }
       }
@@ -701,6 +704,7 @@ export class SuggestionService1 implements OnModuleInit {
   }
 }
 
+console.log('[DEBUG] Loaded SuggestionService file');
 // =================== ENHANCED SUGGESTION SERVICE ===================
 @Injectable()
 export class SuggestionService implements OnModuleInit {
@@ -738,7 +742,10 @@ export class SuggestionService implements OnModuleInit {
     private readonly trieService: TrieService,
     private readonly levenshteinService: LevenshteinService,
     private readonly cache: CacheService,
-  ) {}
+  ) {
+    console.log('[DEBUG] SuggestionService.constructor');
+    this.logger.log('SuggestionService constructed');
+  }
 
   /**
    * Lifecycle hook that is called when the module is initialized.
@@ -747,6 +754,7 @@ export class SuggestionService implements OnModuleInit {
    * - Cleans up old query statistics every hour.
    */
   onModuleInit() {
+    console.log('[DEBUG] SuggestionService.onModuleInit');
     this.logger.log('SuggestionService initialized');
 
     // Update popular queries every 3 minutes
@@ -757,64 +765,267 @@ export class SuggestionService implements OnModuleInit {
     setInterval(() => this.logPerformanceMetrics(), 10 * 60_000);
   }
 
+  // helper: run a promise but only wait 'ms' milliseconds for it to finish
+  private async withTimeout<T>(p: Promise<T>, ms: number) {
+    let timer: NodeJS.Timeout | null = null;
+    let timedOut = false;
+
+    const timeoutPromise = new Promise<never>((_res, rej) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        rej(new Error('timeout'));
+      }, ms);
+    });
+
+    try {
+      const result = await Promise.race([p, timeoutPromise]);
+      if (timer) clearTimeout(timer);
+      return { finished: true, timedOut: false, result: result as T };
+    } catch (err) {
+      if (timer) clearTimeout(timer);
+      return {
+        finished: !timedOut ? false : false,
+        timedOut: true,
+        error: err,
+      };
+    }
+  }
+
+  /**
+   * Initialize the suggestion indices and optionally warm up cache.
+   *
+   * - Timeboxed: will wait up to config.initTimeboxMs for index builds and
+   *   config.warmupTimeboxMs for warmup. If timeboxes are exceeded, the
+   *   remaining work continues in background and bootstrap is not blocked.
+   *
+   * - This is defensive: quick runs will still fully complete synchronously.
+   */
+  async initialize2(
+    words: string[],
+    options?: { blockingMs: number },
+  ): Promise<void> {
+    const uniqueWords = [...new Set(words.filter((w) => w && w.trim()))];
+    this.logger.log(`Initializing with ${uniqueWords.length} unique words`);
+
+    const start = process.hrtime.bigint();
+
+    // Kick off the builds but don't necessarily wait forever.
+    const compPromises = {
+      bk: this.safeInitialize(
+        () => this.bkTreeService.buildTree(uniqueWords),
+        'BK-Tree',
+      ),
+      trigram: this.safeInitialize(
+        () => this.trigramIndexService.buildIndex(uniqueWords),
+        'Trigram Index',
+      ),
+      trie: this.safeInitialize(
+        () => this.trieService.buildTrie(uniqueWords),
+        'Trie',
+      ),
+    };
+
+    // Determine timebox values (ms). Allow caller override via options.
+    const initTimeboxMs =
+      options?.blockingMs ?? this.config.initTimeboxMs ?? 3000;
+
+    // Wait up to initTimeboxMs for all builds to settle.
+    const allSettledPromise = Promise.allSettled([
+      compPromises.bk,
+      compPromises.trigram,
+      compPromises.trie,
+    ]);
+
+    const waitResult = await this.withTimeout(allSettledPromise, initTimeboxMs);
+
+    if (waitResult.timedOut) {
+      // Timeboxed: don't block further. Let builds continue in background.
+      this.logger.warn(
+        `Index builds not finished within ${initTimeboxMs}ms — continuing bootstrap and letting initialization finish in background.`,
+      );
+
+      // Attach catchers so background failures are logged.
+      compPromises.bk.catch((e) =>
+        this.logger.error('BK-Tree background init failed', e),
+      );
+      compPromises.trigram.catch((e) =>
+        this.logger.error('Trigram background init failed', e),
+      );
+      compPromises.trie.catch((e) =>
+        this.logger.error('Trie background init failed', e),
+      );
+
+      // We won't throw; bootstrap proceeds.
+    } else {
+      // All finished (either fulfilled or rejected).
+      const results = waitResult.result as PromiseSettledResult<void>[];
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        this.logger.error(
+          `Failed to initialize ${failures.length} component(s):`,
+          failures,
+        );
+        // Re-throw to preserve original error semantics.
+        throw new Error(
+          `Initialization failed for ${failures.length} components`,
+        );
+      }
+    }
+
+    const durationNs = process.hrtime.bigint() - start;
+    // convert to ms for logging clarity
+    const durationMs = Number(durationNs / BigInt(1_000_000));
+    this.logger.log(
+      `Indices build orchestration completed (observed): ${durationMs}ms`,
+    );
+
+    // Conditional warmup (timeboxed similarly)
+    try {
+      if (
+        this.config.warmupEnabled &&
+        uniqueWords.length <= (this.config.maxWarmupWords ?? 10000)
+      ) {
+        const warmupTimeboxMs = this.config.warmupTimeboxMs ?? 3000;
+
+        const warmupPromise = this.warmupCache(
+          this.generateWarmupQueries(uniqueWords),
+        );
+
+        const warmupWait = await this.withTimeout(
+          warmupPromise,
+          warmupTimeboxMs,
+        );
+
+        if (warmupWait.timedOut) {
+          this.logger.warn(
+            `Warmup didn't finish within ${warmupTimeboxMs}ms — continuing bootstrap while warmup completes in background.`,
+          );
+          // Ensure background errors are logged.
+          warmupPromise.catch((e) =>
+            this.logger.error('Background warmup failed', e),
+          );
+        } else {
+          this.isWarmedUp = true;
+        }
+      } else if (uniqueWords.length > (this.config.maxWarmupWords ?? 50_000)) {
+        this.logger.log('Skipping warmup for large dataset (> maxWarmupWords)');
+      }
+    } catch (err) {
+      this.logger.error('Error during conditional warmup:', err);
+      // do not rethrow so that initialization doesn't block forever
+    }
+  }
+
   async initialize(words: string[]): Promise<void> {
     const uniqueWords = [...new Set(words.filter((w) => w && w.trim()))];
     this.logger.log(`Initializing with ${uniqueWords.length} unique words`);
 
-    // const start = performance.now();
     const start = process.hrtime.bigint();
 
-    // // Parallel initialization
-    // await Promise.all([
-    //   Promise.resolve(this.bkTreeService.buildTree(uniqueWords)),
-    //   Promise.resolve(this.trigramIndexService.buildIndex(uniqueWords)),
-    //   Promise.resolve(this.trieService.buildTrie(uniqueWords)),
-    // ]);
-
-    // Parallel initialization with error handling
-    const initPromises = [
-      this.safeInitialize(
+    // Build promise that runs the three index builds sequentially with safeInitialize
+    const buildPromise = (async () => {
+      await this.safeInitialize(
         () => this.bkTreeService.buildTree(uniqueWords),
         'BK-Tree',
-      ),
-      this.safeInitialize(
+      );
+      await this.safeInitialize(
         () => this.trigramIndexService.buildIndex(uniqueWords),
         'Trigram Index',
-      ),
-      this.safeInitialize(
+      );
+      await this.safeInitialize(
         () => this.trieService.buildTrie(uniqueWords),
         'Trie',
+      );
+    })();
+
+    // Timebox for the initial bootstrap phase (configurable)
+    const initTimeboxMs = this.config.initTimeboxMs ?? 3000;
+
+    // If the build finishes within timebox, await it and continue normally.
+    // Otherwise return early (so bootstrap completes) and let the build continue in background.
+    const finishedInTime = await Promise.race([
+      buildPromise
+        .then(() => true)
+        .catch((err) => {
+          // ensure any synchronous thrown errors bubble up and are logged
+          this.logger.error('Index build failed during init:', err);
+          return true;
+        }),
+      new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), initTimeboxMs),
       ),
-    ];
+    ]);
 
-    const results = await Promise.allSettled(initPromises);
-    const failures = results.filter((r) => r.status === 'rejected');
+    if (!finishedInTime) {
+      const elapsed = Number(process.hrtime.bigint() - start);
+      this.logger.warn(
+        `Index build did not finish within ${initTimeboxMs}ms (elapsed ${elapsed}ns). Continuing bootstrap; index build continues in background.`,
+      );
 
-    if (failures.length > 0) {
-      this.logger.error(
-        `Failed to initialize ${failures.length} components:`,
-        failures,
-      );
-      throw new Error(
-        `Initialization failed for ${failures.length} components`,
-      );
+      // attach a handler so any background errors are logged
+      buildPromise
+        .then(() => {
+          const elapsedNs = Number(process.hrtime.bigint() - start);
+          this.logger.log(
+            `Background index build completed in ${elapsedNs}ns (total words ${uniqueWords.length}).`,
+          );
+        })
+        .catch((err) => {
+          this.logger.error('Background index build failed:', err);
+        });
+
+      // optionally kick off background warmup later (see warmupTimebox handling)
+    } else {
+      const durationNs = Number(process.hrtime.bigint() - start);
+      this.logger.log(`Indices built in ${durationNs.toFixed(2)}ns`);
     }
 
-    // const duration = performance.now() - start;
-    const duration = Number(process.hrtime.bigint() - start);
-    this.logger.log(`Indices built in ${duration.toFixed(2)}ns`);
+    // Warmup only if enabled — run with its own timebox and detach if it overruns
+    if (
+      this.config.warmupEnabled &&
+      uniqueWords.length <= (this.config.maxWarmupWords ?? 10000)
+    ) {
+      try {
+        const warmupQueries = this.generateWarmupQueries(uniqueWords);
+        const warmupPromise = this.warmupCache(warmupQueries);
 
-    // Conditional warmup
-    if (this.config.warmupEnabled && uniqueWords.length <= 10000) {
-      await this.warmupCache(this.generateWarmupQueries(uniqueWords));
-      this.isWarmedUp = true;
-    } else if (uniqueWords.length > 50_000) {
-      this.logger.log('Skipping warmup for large dataset (>50k words)');
+        const warmupTimeboxMs = this.config.warmupTimeboxMs ?? 3000;
+
+        const warmupFinished = await Promise.race([
+          warmupPromise
+            .then(() => true)
+            .catch((err) => {
+              this.logger.error('Warmup failed:', err);
+              return true;
+            }),
+          new Promise<boolean>((resolve) =>
+            setTimeout(() => resolve(false), warmupTimeboxMs),
+          ),
+        ]);
+
+        if (!warmupFinished) {
+          this.logger.warn(
+            `Warmup did not finish within ${warmupTimeboxMs}ms — continuing bootstrap; warmup continues in background.`,
+          );
+          warmupPromise.catch((err) =>
+            this.logger.error('Background warmup failed:', err),
+          );
+        } else {
+          this.isWarmedUp = true;
+        }
+      } catch (err) {
+        this.logger.error('Warmup error (non-fatal):', err);
+      }
+    } else if (uniqueWords.length > (this.config.maxWarmupWords ?? 10000)) {
+      this.logger.log('Skipping warmup for large dataset (>maxWarmupWords)');
     }
   }
 
+  /**
+   * safeInitialize now returns a Promise so we can start builds and observe them.
+   */
   private async safeInitialize(
-    initFn: () => void,
+    initFn: () => Promise<void> | void,
     componentName: string,
   ): Promise<void> {
     try {
@@ -826,9 +1037,125 @@ export class SuggestionService implements OnModuleInit {
     }
   }
 
+  /**
+   * Warmup but yield control frequently and be resilient to long runs.
+   */
+  private async warmupCache(queries: string[]): Promise<void> {
+    this.logger.log(`Warming up cache with ${queries.length} queries...`);
+    const startMs = Date.now();
+    const batchSize = Math.max(1, this.config.batchProcessingSize || 100);
+
+    for (let i = 0; i < queries.length; i += batchSize) {
+      const batch = queries.slice(i, i + batchSize);
+
+      // Promise.all but errors should be logged and not crash warmup
+      await Promise.all(
+        // batch.map((q) =>
+        //   this.getSuggestions(q).catch((err) => {
+        //     this.logger.warn(
+        //       'Warmup query failed for',
+        //       q,
+        //       err && err.message ? err.message : err,
+        //     );
+        //     // swallow error
+        //   }),
+        // ),
+        batch.map((q) => {
+          try {
+            // getSuggestions is synchronous; call inside try/catch to handle errors
+            this.getSuggestions(q);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn('Warmup query failed for', q, msg);
+            // swallow error
+          }
+        }),
+      );
+
+      // yield back to event loop to avoid starving bootstrap
+      if ((i / batchSize) % 5 === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
+
+    const duration = Date.now() - startMs;
+    this.logger.log(
+      `Cache warmed up with ${queries.length} queries in ${duration}ms`,
+    );
+  }
+
+  // async initializeOld(words: string[]): Promise<void> {
+  //   const uniqueWords = [...new Set(words.filter((w) => w && w.trim()))];
+  //   this.logger.log(`Initializing with ${uniqueWords.length} unique words`);
+
+  //   // const start = performance.now();
+  //   const start = process.hrtime.bigint();
+
+  //   // // Parallel initialization
+  //   // await Promise.all([
+  //   //   Promise.resolve(this.bkTreeService.buildTree(uniqueWords)),
+  //   //   Promise.resolve(this.trigramIndexService.buildIndex(uniqueWords)),
+  //   //   Promise.resolve(this.trieService.buildTrie(uniqueWords)),
+  //   // ]);
+
+  //   // Parallel initialization with error handling
+  //   const initPromises = [
+  //     this.safeInitialize(
+  //       () => this.bkTreeService.buildTree(uniqueWords),
+  //       'BK-Tree',
+  //     ),
+  //     this.safeInitialize(
+  //       () => this.trigramIndexService.buildIndex(uniqueWords),
+  //       'Trigram Index',
+  //     ),
+  //     this.safeInitialize(
+  //       () => this.trieService.buildTrie(uniqueWords),
+  //       'Trie',
+  //     ),
+  //   ];
+
+  //   const results = await Promise.allSettled(initPromises);
+  //   const failures = results.filter((r) => r.status === 'rejected');
+
+  //   if (failures.length > 0) {
+  //     this.logger.error(
+  //       `Failed to initialize ${failures.length} components:`,
+  //       failures,
+  //     );
+  //     throw new Error(
+  //       `Initialization failed for ${failures.length} components`,
+  //     );
+  //   }
+
+  //   // const duration = performance.now() - start;
+  //   const duration = Number(process.hrtime.bigint() - start);
+  //   this.logger.log(`Indices built in ${duration.toFixed(2)}ns`);
+
+  //   // Conditional warmup
+  //   if (this.config.warmupEnabled && uniqueWords.length <= 10000) {
+  //     await this.warmupCache(this.generateWarmupQueries(uniqueWords));
+  //     this.isWarmedUp = true;
+  //   } else if (uniqueWords.length > 50_000) {
+  //     this.logger.log('Skipping warmup for large dataset (>50k words)');
+  //   }
+  // }
+
+  // private async safeInitialize(
+  //   initFn: () => void,
+  //   componentName: string,
+  // ): Promise<void> {
+  //   try {
+  //     await Promise.resolve(initFn());
+  //     this.logger.log(`${componentName} initialized successfully`);
+  //   } catch (error) {
+  //     this.logger.error(`Failed to initialize ${componentName}:`, error);
+  //     throw error;
+  //   }
+  // }
+
   private generateWarmupQueries(words: string[]): string[] {
     const queries = new Set<string>();
-    const sampleSize = Math.min(this.config.warmpUpSize, words.length);
+    const sampleSize = Math.min(this.config.warmUpSize, words.length);
 
     // Random sampling
     for (let i = 0; i < sampleSize; i++) {
@@ -846,26 +1173,26 @@ export class SuggestionService implements OnModuleInit {
     return Array.from(queries).slice(0, 1000);
   }
 
-  private async warmupCache(queries: string[]): Promise<void> {
-    this.logger.log(`Warming up cache with ${queries.length} queries...`);
-    const start = performance.now();
-    const batchSize = this.config.batchProcessingSize;
+  // private async warmupCache(queries: string[]): Promise<void> {
+  //   this.logger.log(`Warming up cache with ${queries.length} queries...`);
+  //   const start = performance.now();
+  //   const batchSize = this.config.batchProcessingSize;
 
-    for (let i = 0; i < queries.length; i += batchSize) {
-      const batch = queries.slice(i, i + batchSize);
-      await Promise.all(batch.map((query) => this.getSuggestions(query)));
+  //   for (let i = 0; i < queries.length; i += batchSize) {
+  //     const batch = queries.slice(i, i + batchSize);
+  //     await Promise.all(batch.map((query) => this.getSuggestions(query)));
 
-      // Yield control periodically
-      if (i % (batchSize * 5) === 0) {
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-    }
+  //     // Yield control periodically
+  //     if (i % (batchSize * 5) === 0) {
+  //       await new Promise((resolve) => setImmediate(resolve));
+  //     }
+  //   }
 
-    const duration = performance.now() - start;
-    this.logger.log(
-      `Cache warmed up with ${queries.length} queries in ${duration.toFixed(2)}ms`,
-    );
-  }
+  //   const duration = performance.now() - start;
+  //   this.logger.log(
+  //     `Cache warmed up with ${queries.length} queries in ${duration.toFixed(2)}ms`,
+  //   );
+  // }
 
   getSuggestions(
     query: string,

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MinHeap } from '../../helpers/min-heap.helper';
 import { Trigram, TrigramData } from '../../interfaces/suggestion.interface';
 
@@ -184,37 +184,81 @@ import { Trigram, TrigramData } from '../../interfaces/suggestion.interface';
 
 @Injectable()
 export class TrigramIndexService {
+  private readonly context = TrigramIndexService.name;
+  private readonly logger = new Logger(this.context);
   private index = new Map<string, Set<string>>();
   private wordTrigrams = new Map<string, Trigram>();
   private readonly trigramPool = new Map<string, Set<string>>(); // Reuse trigram sets
 
-  buildIndex(words: string[]): void {
+  constructor() {
+    console.log('[BOOT] TrigramIndexService constructor');
+  }
+
+  // buildIndex(words: string[]): void {
+  //   const start = performance.now();
+  //   this.logger.log(
+  //     `TrigramIndexService.buildIndex START (words=${words.length})`,
+  //   );
+  //   this.index.clear();
+  //   this.wordTrigrams.clear();
+  //   this.trigramPool.clear();
+
+  //   const uniqueWords = [...new Set(words.map((w) => w.toLowerCase()))];
+
+  //   for (const word of uniqueWords) {
+  //     const trigrams = this.buildTrigram(word);
+
+  //     this.wordTrigrams.set(word, trigrams);
+
+  //     // Build inverted index
+  //     for (const trigram of trigrams.trigrams) {
+  //       if (!this.index.has(trigram)) {
+  //         this.index.set(trigram, new Set());
+  //       }
+  //       this.index.get(trigram)!.add(word);
+  //     }
+  //   }
+
+  //   this.logger.log(
+  //     `TrigramIndexService.buildIndex END (indexSize=${this.index.size}) in ${performance.now() - start}ms`,
+  //   );
+  // }
+
+  // in TrigramIndexService
+  async buildIndex(words: string[]): Promise<void> {
+    const start = performance.now();
+    this.logger.log(
+      `TrigramIndexService.buildIndex START (words=${words.length})`,
+    );
     this.index.clear();
     this.wordTrigrams.clear();
     this.trigramPool.clear();
 
     const uniqueWords = [...new Set(words.map((w) => w.toLowerCase()))];
 
-    for (const word of uniqueWords) {
-      const trigrams = this.buildTrigram(word);
+    const BATCH = Math.max(500, Math.floor(uniqueWords.length / 200) || 500);
 
+    for (let i = 0; i < uniqueWords.length; i++) {
+      const word = uniqueWords[i];
+      const trigrams = this.buildTrigram(word);
       this.wordTrigrams.set(word, trigrams);
 
       // Build inverted index
       for (const trigram of trigrams.trigrams) {
-        if (!this.index.has(trigram)) {
-          this.index.set(trigram, new Set());
-        }
+        if (!this.index.has(trigram)) this.index.set(trigram, new Set());
         this.index.get(trigram)!.add(word);
       }
-    }
-  }
 
-  // private buildTrigram(word: string): Trigram {
-  //   const trigrams = this.getTrigrams(word);
-  //   const hash = this.hashTrigrams(trigrams);
-  //   return { trigrams, length: word.length, hash };
-  // }
+      if (i > 0 && i % BATCH === 0) {
+        // Yield so main thread is responsive and timers run
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    }
+
+    this.logger.log(
+      `TrigramIndexService.buildIndex END (indexSize=${this.index.size}) in ${performance.now() - start}ms`,
+    );
+  }
 
   private buildTrigram(word: string): Trigram {
     // 1. Get or build the raw set of padded trigrams
@@ -323,43 +367,6 @@ export class TrigramIndexService {
       .map((item) => item.word);
   }
 
-  // private calculateAdvancedScore(
-  //   input: string,
-  //   inputTrigrams: Set<string>,
-  //   // word: string,
-  //   wordData: { trigrams: Set<string>; length: number },
-  // ): number {
-  //   const { trigrams, length } = wordData;
-
-  //   // Jaccard similarity with position weighting
-  //   let matches = 0;
-  //   let positionBonus = 0;
-
-  //   const inputArray = Array.from(inputTrigrams);
-  //   const wordArray = Array.from(trigrams);
-
-  //   for (let i = 0; i < inputArray.length; i++) {
-  //     if (trigrams.has(inputArray[i])) {
-  //       matches++;
-  //       // Bonus for trigrams in similar positions
-  //       const wordPos = wordArray.indexOf(inputArray[i]);
-  //       if (wordPos !== -1) {
-  //         positionBonus +=
-  //           1 -
-  //           Math.abs(i - wordPos) /
-  //             Math.max(inputArray.length, wordArray.length);
-  //       }
-  //     }
-  //   }
-
-  //   const jaccard = matches / (inputTrigrams.size + trigrams.size - matches);
-  //   const lengthSimilarity =
-  //     1 - Math.abs(length - input.length) / Math.max(length, input.length);
-  //   const positionWeight = positionBonus / matches || 0;
-
-  //   return jaccard * 0.7 + lengthSimilarity * 0.2 + positionWeight * 0.1;
-  // }
-
   private calculateAdvancedScore(
     input: string,
     inputTrigrams: Set<string>,
@@ -412,6 +419,43 @@ export class TrigramIndexService {
     return this.calculateAdvancedScore(query, queryTrigrams, wordData);
   }
 }
+
+// private calculateAdvancedScore(
+//   input: string,
+//   inputTrigrams: Set<string>,
+//   // word: string,
+//   wordData: { trigrams: Set<string>; length: number },
+// ): number {
+//   const { trigrams, length } = wordData;
+
+//   // Jaccard similarity with position weighting
+//   let matches = 0;
+//   let positionBonus = 0;
+
+//   const inputArray = Array.from(inputTrigrams);
+//   const wordArray = Array.from(trigrams);
+
+//   for (let i = 0; i < inputArray.length; i++) {
+//     if (trigrams.has(inputArray[i])) {
+//       matches++;
+//       // Bonus for trigrams in similar positions
+//       const wordPos = wordArray.indexOf(inputArray[i]);
+//       if (wordPos !== -1) {
+//         positionBonus +=
+//           1 -
+//           Math.abs(i - wordPos) /
+//             Math.max(inputArray.length, wordArray.length);
+//       }
+//     }
+//   }
+
+//   const jaccard = matches / (inputTrigrams.size + trigrams.size - matches);
+//   const lengthSimilarity =
+//     1 - Math.abs(length - input.length) / Math.max(length, input.length);
+//   const positionWeight = positionBonus / matches || 0;
+
+//   return jaccard * 0.7 + lengthSimilarity * 0.2 + positionWeight * 0.1;
+// }
 
 // @Injectable()
 // export class TrigramIndexService {

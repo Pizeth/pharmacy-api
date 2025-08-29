@@ -136,7 +136,14 @@ export interface SuggestionConfig {
   earlyExitThreshold: number;
   batchProcessingSize: number;
   warmupEnabled: boolean;
-  warmpUpSize: number; // Size of the warm-up batch
+  warmUpSize: number; // Size of the warm-up batch
+
+  // how long (ms) to wait for index builds during bootstrap before continuing
+  initTimeboxMs: number;
+  // how long (ms) to wait for cache warmup before backgrounding it
+  warmupTimeboxMs: number;
+  // max number of words for which we will attempt an (explicit) warmup
+  maxWarmupWords: number;
 
   // Optional thresholds for diversity and length
   highDiversityThreshold: number; // Default: 0.75

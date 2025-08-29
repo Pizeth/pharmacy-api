@@ -1,41 +1,121 @@
 // src/utils/levenshtein/bk-tree.ts
 
-import { Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { BKNode } from '../../nodes/node.class';
 import { LevenshteinService } from '../levenshtein/levenshtein.service';
 import suggestionConfig from '../../configs/suggestion.config';
 import { ConfigType } from '@nestjs/config';
 import { ScoredWord } from '../../interfaces/suggestion.interface';
 
+console.log('[LOAD] BKTreeService file loaded');
 @Injectable()
 export class BKTreeService {
+  private readonly context = BKTreeService.name;
+  private readonly logger = new Logger(this.context);
   private root: BKNode | null = null;
   private nodeCount = 0;
 
   constructor(
+    @Inject(forwardRef(() => LevenshteinService))
     private readonly levenshteinService: LevenshteinService,
     @Inject(suggestionConfig.KEY)
     private readonly config: ConfigType<typeof suggestionConfig>, // Inject config
-  ) {}
+  ) {
+    console.log('[BOOT] BKTreeService constructor');
+  }
 
-  buildTree(words: string[]): void {
+  // buildTree(words: string[]): void {
+  //   const start = performance.now();
+  //   this.logger.log(`BKTreeService.buildTree START (words=${words.length})`);
+  //   this.root = null;
+  //   this.nodeCount = 0;
+
+  //   if (words.length === 0) return;
+
+  //   // Sort by length for better tree balance
+  //   const sortedWords = [...new Set(words.map((w) => w.toLowerCase()))].sort(
+  //     (a, b) => a.length - b.length,
+  //   );
+
+  //   this.root = new BKNode(sortedWords[0]);
+  //   this.nodeCount = 1;
+
+  //   for (let i = 1; i < sortedWords.length; i++) {
+  //     this.insert(sortedWords[i]);
+  //   }
+  //   this.logger.log(
+  //     `BKTreeService.buildTree END (nodes=${this.nodeCount}) in ${performance.now() - start}ms`,
+  //   );
+  // }
+
+  // in BKTreeService
+  async buildTree(words: string[]): Promise<void> {
+    const start = performance.now();
+    this.logger.log(`BKTreeService.buildTree START (words=${words.length})`);
     this.root = null;
     this.nodeCount = 0;
 
-    if (words.length === 0) return;
+    if (words.length === 0) {
+      this.logger.log(
+        `BKTreeService.buildTree END (empty) in ${Date.now() - start}ms`,
+      );
+      return;
+    }
+
+    // const unique = [...new Set(words.map((w) => w.toLowerCase()))];
+    // unique.sort((a, b) => a.length - b.length);
 
     // Sort by length for better tree balance
-    const sortedWords = [...new Set(words.map((w) => w.toLowerCase()))].sort(
+    const unique = [...new Set(words.map((w) => w.toLowerCase()))].sort(
       (a, b) => a.length - b.length,
     );
 
-    this.root = new BKNode(sortedWords[0]);
+    // Use a small batch size. Tune this (e.g., 200-2000) depending on dataset & CPU.
+    const BATCH = Math.max(200, Math.floor(unique.length / 200) || 200);
+    this.root = new BKNode(unique[0]);
     this.nodeCount = 1;
 
-    for (let i = 1; i < sortedWords.length; i++) {
-      this.insert(sortedWords[i]);
+    for (let i = 1; i < unique.length; i++) {
+      this.insert(unique[i]); // keep small synchronous insert
+      // yield periodically so timers can fire and timeboxes work
+      if (i % BATCH === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
     }
+
+    this.logger.log(
+      `BKTreeService.buildTree END (nodes=${this.nodeCount}) in ${performance.now() - start}ms`,
+    );
   }
+
+  // // Extracted small synchronous insertion helper (unchanged algorithm)
+  // private insertSync(word: string): void {
+  //   if (!this.root) {
+  //     this.root = new BKNode(word);
+  //     this.nodeCount = 1;
+  //     return;
+  //   }
+
+  //   let current: BKNode = this.root;
+
+  //   while (true) {
+  //     const distance = this.levenshteinService.calculateDistance(
+  //       word,
+  //       current.word,
+  //       this.config.maxLevenshteinDistance + 1,
+  //     );
+
+  //     if (distance === 0) return;
+
+  //     if (!current.getChild(distance)) {
+  //       current.addChild(distance, new BKNode(word));
+  //       this.nodeCount++;
+  //       return;
+  //     }
+
+  //     current = current.getChild(distance)!;
+  //   }
+  // }
 
   private insert(word: string): void {
     if (!this.root) {

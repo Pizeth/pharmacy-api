@@ -112,7 +112,9 @@ export class LevenshteinService {
     @Inject(suggestionConfig.KEY)
     private config: ConfigType<typeof suggestionConfig>,
     private readonly cacheService: CacheService,
-  ) {}
+  ) {
+    console.log('[BOOT] LevenshteinService constructor');
+  }
 
   /**
    * Compute Levenshtein distance with adaptive algorithm choice.

@@ -2,7 +2,7 @@
 // The Time Parser Module
 // Location: src/utils/time-parser.module.ts
 // -----------------------------------------------------------------
-import { Global, Module } from '@nestjs/common';
+import { forwardRef, Global, Module } from '@nestjs/common';
 import { TimeParserService } from './services/time-parser.service/time-parser.service';
 // import { SuggestionService } from './services/suggestion/suggestion.service';
 // import { LocalizationService } from './services/localization/localization.service';
@@ -13,7 +13,10 @@ import { ConfigModule } from '@nestjs/config';
 
 @Global() // Make this utility service available everywhere
 @Module({
-  imports: [SuggestionModule, ConfigModule.forFeature(timerParserConfig)], // Import any necessary modules, e.g., cache
+  imports: [
+    forwardRef(() => SuggestionModule), // allow circular importing
+    ConfigModule.forFeature(timerParserConfig),
+  ], // Import any necessary modules, e.g., cache
   providers: [
     TimeParserService,
     // LocalizationService,

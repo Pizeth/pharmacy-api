@@ -138,7 +138,7 @@
 //   }
 // }
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
@@ -148,7 +148,7 @@ import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { OidcSeeder } from './oidc.seeder';
 
 @Injectable()
-export class Seeder {
+export class Seeder implements OnModuleInit {
   private readonly logger = new Logger(Seeder.name);
 
   // With a clean DI graph, we can go back to simple constructor injection.
@@ -162,6 +162,13 @@ export class Seeder {
     this.logger.debug(`${this.constructor.name} initialized`);
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    this.logger.debug(`TokenService injected: ${!!this.tokenService}`);
+    this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+  }
+  onModuleInit() {
+    this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
+    this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    // throw new Error('Method not implemented.');
   }
 
   async run(command: 'seed' | 'clear') {

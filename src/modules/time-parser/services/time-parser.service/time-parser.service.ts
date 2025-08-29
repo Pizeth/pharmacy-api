@@ -91,7 +91,6 @@ export class TimeParserService implements OnModuleInit {
     private readonly suggestion: SuggestionService,
     private readonly cache: CacheService,
   ) {
-    this.logger.debug('TimeParserService constructed (DI completed soon)');
     /**
      * Lazily build a precompute sorted units once for efficient formatting [unit, multiplier] tuple list
      * from TIME_MULTIPLIERS. Sorted descending (largest unit first).
@@ -100,7 +99,9 @@ export class TimeParserService implements OnModuleInit {
       Object.entries(TIME_MULTIPLIERS) as [UnitTime, number][]
     ).sort(([, a], [, b]) => b - a);
 
-    this.localesPath = this.config.localesPath;
+    this.localesPath = this.config?.localesPath ?? '';
+    console.log('[BOOT] TimeParserService constructor');
+    this.logger.debug('TimeParserService constructed (DI completed soon)');
 
     // Preload default localization
     // this.cache.set(LOCALIZATION_CACHE, 'en', config.localizationConfig);
@@ -110,36 +111,114 @@ export class TimeParserService implements OnModuleInit {
     // }
   }
 
-  // called by Nest once all DI is wired up
-  async onModuleInit(): Promise<void> {
-    // defensive check to get clearer error if DI still failed
-    this.logger.error('TimeParserService: onModuleInit - cache:', this.cache);
+  // inside TimeParserService
+  private async _raceTimeout<T>(p: Promise<T>, ms = 30000): Promise<T> {
+    return Promise.race([
+      p,
+      new Promise<T>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Operation timed out after ${ms}ms`)),
+          ms,
+        ),
+      ),
+    ]) as Promise<T>;
+  }
+
+  async onModuleInit() {
+    this.logger.debug('SuggestionService injected', this.suggestion);
+    console.log('[DEBUG] TimeParserService.onModuleInit');
+    if (!this.suggestion) {
+      throw new Error('TimeParserService: SuggestionService was not injected');
+    }
     if (!this.cache) {
-      throw new Error(
-        'TimeParserService: CacheService was not injected (cache is undefined)',
-      );
+      throw new Error('TimeParserService: CacheService was not injected');
     }
     if (!this.config) {
-      throw new Error(
-        'TimeParserService: config (timeParserConfig) was not injected',
-      );
+      throw new Error('TimeParserService: timeParserConfig was not injected');
     }
 
-    this.logger.debug('TimeParserService onModuleInit - cache:', this.cache);
+    this.logger.debug('TimeParserService onModuleInit - initializing cache');
 
-    // safe to call runtime logic now
-    this.cache.set(LOCALIZATION_CACHE, 'en', this.config.localizationConfig);
-
-    if (this.config.preload) {
-      this.preloadLocalizations();
+    try {
+      // set default localization quickly
+      this.cache.set(LOCALIZATION_CACHE, 'en', this.config.localizationConfig);
+    } catch (err) {
+      this.logger.error('Failed to seed localization cache (non-fatal):', err);
     }
 
-    if (this.config.useLocale) await this.preloadLocalesAsync();
+    // if (this.config.preload) {
+    //   try {
+    //     // Give preloadLocalizations a bounded time to finish.
+    //     await this._raceTimeout(
+    //       Promise.resolve(this.preloadLocalizations()), // in case it's sync
+    //       10_000, // 10s timeout — tune as needed
+    //     );
+    //     this.logger.debug('preloadLocalizations finished successfully');
+    //   } catch (err) {
+    //     // Do not rethrow — log and continue. We don't want seeder bootstrap to block forever.
+    //     this.logger.error(
+    //       'preloadLocalizations failed or timed out (continuing):',
+    //       err instanceof Error ? err.message : err,
+    //     );
+    //   }
+    // }
+
+    // if (this.config.useLocale) await this.preloadLocalesAsync();
     const aliases = Object.keys(UNIT_ALIASES);
 
     // Initialize suggestion engine with all unit aliases
-    await this.suggestion.initialize(aliases);
+    // await this.suggestion.initialize(aliases);
+
+    // Defensive: initialize suggestion engine but don't block bootstrap forever.
+    try {
+      // Wait at most 5s for initialization — tune as needed.
+      await this._raceTimeout(
+        Promise.resolve(this.suggestion.initialize(aliases)),
+        5_000,
+      );
+      this.logger.debug('Suggestion.initialize completed within timeout');
+    } catch (err) {
+      this.logger.error(
+        'Suggestion.initialize failed or timed out — continuing bootstrap:',
+        err instanceof Error ? err.message : err,
+      );
+      // Optionally call asynchronously without awaiting to let it finish in background:
+      // this.suggestion.initialize(aliases).catch(e => this.logger.error('late suggestion init failed', e));
+    }
   }
+
+  // called by Nest once all DI is wired up
+  // async onModuleInit(): Promise<void> {
+  //   // defensive check to get clearer error if DI still failed
+  //   // this.logger.error(
+  //   //   'somerror TimeParserService: CacheService was not injected (cache is undefined)',
+  //   // );
+  //   // if (!this.cache) {
+  //   //   throw new Error(
+  //   //     'TimeParserService: CacheService was not injected (cache is undefined)',
+  //   //   );
+  //   // }
+  //   // if (!this.config) {
+  //   //   throw new Error(
+  //   //     'TimeParserService: config (timeParserConfig) was not injected',
+  //   //   );
+  //   // }
+
+  //   // this.logger.debug('TimeParserService onModuleInit - cache:', this.cache);
+
+  //   // safe to call runtime logic now
+  //   this.cache.set(LOCALIZATION_CACHE, 'en', this.config.localizationConfig);
+
+  //   // if (this.config.preload) {
+  //   //   this.preloadLocalizations();
+  //   // }
+
+  //   if (this.config.useLocale) await this.preloadLocalesAsync();
+  //   const aliases = Object.keys(UNIT_ALIASES);
+
+  //   // Initialize suggestion engine with all unit aliases
+  //   await this.suggestion.initialize(aliases);
+  // }
 
   // =============== MAIN API METHODS =============== //
 

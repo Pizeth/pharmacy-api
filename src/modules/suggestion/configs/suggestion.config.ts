@@ -54,7 +54,19 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     coldStartBenchmark: process.env.COLD_START_BENCHMARK === 'true',
     earlyExitThreshold: parseFloat(process.env.EARLY_EXIT_THRESHOLD ?? '0.95'),
     batchProcessingSize: parseInt(process.env.BATCH_PROCESSING_SIZE ?? '100'),
-    warmupEnabled: process.env.WARMUP_ENABLED !== 'false',
+    warmupEnabled: process.env.WARMUP_ENABLED === 'true' || false,
+    // --- NEW TIMEBOX / SAFETY KEYS (defaults chosen conservatively) ---
+    // how long (ms) to wait for index builds during bootstrap before continuing
+    initTimeboxMs: parseInt(process.env.SUGGESTION_INIT_TIMEBOX_MS ?? '5000'),
+    // how long (ms) to wait for cache warmup before backgrounding it
+    warmupTimeboxMs: parseInt(
+      process.env.SUGGESTION_WARMUP_TIMEBOX_MS ?? '3000',
+    ),
+    // max number of words for which we will attempt an (explicit) warmup
+    maxWarmupWords: parseInt(
+      process.env.SUGGESTION_MAX_WARMUP_WORDS ?? '10000',
+    ),
+    // -------------------------------------------------------------------
     lengthPenaltyWeight: parseFloat(
       process.env.LENGTH_PENALTY_WEIGHT ?? '0.05',
     ),
@@ -65,7 +77,7 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     ),
     defaultQueryTTLMs: parseInt(process.env.DEFAULT_QUERY_TTL_MS ?? '300_000'),
     minQueryLength: parseInt(process.env.MIN_QUERY_LENGTH ?? '3'),
-    warmpUpSize: parseInt(process.env.WAMP_UP_SIZE ?? '500'),
+    warmUpSize: parseInt(process.env.WAMP_UP_SIZE ?? '500'),
     maxWordsPerNode: parseInt(process.env.MAX_WORDS_PER_NODE ?? '50'),
     // Optional thresholds for diversity and length
     highDiversityThreshold: parseFloat(
@@ -115,9 +127,9 @@ export default registerAs('suggestion', (): SuggestionConfig => {
     cfg.levenshteinWeight *= scale;
     cfg.prefixWeight *= scale;
     cfg.lengthPenaltyWeight *= scale;
-    console.warn(
-      `[suggestion] Weights normalized to sum to 1: ${JSON.stringify(cfg)}`,
-    );
+    // console.warn(
+    //   `[suggestion] Weights normalized to sum to 1: ${JSON.stringify(cfg)}`,
+    // );
   }
 
   return cfg;

@@ -104,7 +104,7 @@ import { SeedHelpersModule } from './modules/seeder-helper.module';
 
 @Module({
   imports: [
-    // PrismaModule, // Ensure PrismaModule is also imported
+    PrismaModule, // Ensure PrismaModule is also imported
     ConfigModule.forRoot({
       isGlobal: true, // Recommended to avoid re-importing in sub-dependencies
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
@@ -139,35 +139,35 @@ import { SeedHelpersModule } from './modules/seeder-helper.module';
       },
     }),
     // Configure JwtModule here as well, since TokenService depends on it.
-    // JwtModule.registerAsync({
-    //   imports: [ConfigModule],
-    //   inject: [ConfigService],
-    //   useFactory: (config: ConfigService) => ({
-    //     secret: config.get('SECRET_KEY'), // Or a default for seeding
-    //     signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
-    //   }),
-    // }),
-    // Setup ClsModule globally.
-    ClsModule.forRoot({
-      global: true, // Make the ClsService available everywhere
-      middleware: {
-        // Mount the middleware automatically for all routes
-        mount: true,
-        // This function runs for every request
-        // Here, we can extract data from the request and store it in the context
-        // setup: (cls, req: { ip?: string; headers: Record<string, any> }) => {
-        setup: (cls, req: Request) => {
-          cls.set('ip', req.ip);
-          cls.set('userId', req.headers['x-user-id']);
-          cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
-          cls.set('userAgent', req.headers['user-agent']);
-          cls.set('url', req.url);
-          cls.set('method', req.method);
-          // If you use an auth guard that sets `req.user`, you can set it here too
-          // cls.set('user', req.user);
-        },
-      },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get('SECRET_KEY'), // Or a default for seeding
+        signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
+      }),
     }),
+    // Setup ClsModule globally.
+    // ClsModule.forRoot({
+    //   global: true, // Make the ClsService available everywhere
+    //   middleware: {
+    //     // Mount the middleware automatically for all routes
+    //     mount: true,
+    //     // This function runs for every request
+    //     // Here, we can extract data from the request and store it in the context
+    //     // setup: (cls, req: { ip?: string; headers: Record<string, any> }) => {
+    //     setup: (cls, req: Request) => {
+    //       cls.set('ip', req.ip);
+    //       cls.set('userId', req.headers['x-user-id']);
+    //       cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
+    //       cls.set('userAgent', req.headers['user-agent']);
+    //       cls.set('url', req.url);
+    //       cls.set('method', req.method);
+    //       // If you use an auth guard that sets `req.user`, you can set it here too
+    //       // cls.set('user', req.user);
+    //     },
+    //   },
+    // }),
     // UserModule,
     // TimeParserModule,
     SeedHelpersModule,
@@ -225,6 +225,6 @@ import { SeedHelpersModule } from './modules/seeder-helper.module';
     // },
     Seeder,
   ],
-  exports: [Seeder],
+  // exports: [Seeder],
 })
 export class SeederModule {}

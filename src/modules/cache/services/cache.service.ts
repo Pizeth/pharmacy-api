@@ -17,9 +17,14 @@ export class CacheService {
     @Inject(cacheConfig.KEY)
     private readonly config: ConfigType<typeof cacheConfig>,
   ) {
-    this.logger.debug('CacheService initialized with config:', this.config);
     this.cacheManager = CentralizedCacheManager.getInstance(this.config);
+    console.log('[BOOT] CacheService constructor');
+    // this.logger.debug('CacheService initialized with config:', this.config);
   }
+
+  // onModuleInit() {
+  //   this.cacheManager = CentralizedCacheManager.getInstance(this.config);
+  // }
 
   // Enhanced function caching with proper type inference
   public async cacheFunction<T extends {}>(
