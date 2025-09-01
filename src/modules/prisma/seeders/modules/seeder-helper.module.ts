@@ -8,9 +8,17 @@ import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { PrismaService } from '../../services/prisma.service';
 import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
+import { CacheModule } from 'src/modules/cache/cache.module';
 
 @Module({
-  imports: [PrismaModule, ConfigModule, JwtModule, TimeParserModule, ClsModule],
+  imports: [
+    // PrismaModule,
+    ConfigModule,
+    JwtModule,
+    CacheModule,
+    TimeParserModule,
+    ClsModule,
+  ],
   providers: [
     {
       provide: PasswordUtils,

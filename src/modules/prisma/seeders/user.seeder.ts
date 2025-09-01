@@ -120,7 +120,8 @@ export class UserSeeder {
           data: { createdBy: userId, lastUpdatedBy: userId },
         });
 
-        this.logger.debug(superAdmin);
+        this.logger.debug('Super Admin data', superAdmin);
+        this.logger.debug('current id', superAdmin.id);
 
         const updatedSuperAdmin = await tx.user.update({
           where: { id: userId },

@@ -19,11 +19,10 @@ import { TrigramIndexService } from './services/trigram/trigram-index.service';
   ],
   exports: [
     SuggestionService,
-    BKTreeService,
-    TrieService,
-    TrigramIndexService,
-    LevenshteinService,
-    CacheModule,
+    // BKTreeService,
+    // TrieService,
+    // TrigramIndexService,
+    // LevenshteinService,
   ],
 })
 export class SuggestionModule {}

@@ -125,14 +125,15 @@ export class TimeParserService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.logger.debug('SuggestionService injected', this.suggestion);
     console.log('[DEBUG] TimeParserService.onModuleInit');
-    if (!this.suggestion) {
-      throw new Error('TimeParserService: SuggestionService was not injected');
-    }
-    if (!this.cache) {
-      throw new Error('TimeParserService: CacheService was not injected');
-    }
+    this.logger.debug(`SuggestionService injected ${!!this.suggestion}`);
+    this.logger.debug(`CacheService injected ${!!this.cache}`);
+    // if (!this.suggestion) {
+    //   throw new Error('TimeParserService: SuggestionService was not injected');
+    // }
+    // if (!this.cache) {
+    //   throw new Error('TimeParserService: CacheService was not injected');
+    // }
     if (!this.config) {
       throw new Error('TimeParserService: timeParserConfig was not injected');
     }

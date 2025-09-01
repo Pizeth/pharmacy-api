@@ -1,4 +1,4 @@
-process.env.NEST_DEBUG = 'true';
+// process.env.NEST_DEBUG = 'true';
 
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
@@ -23,7 +23,8 @@ import { PrismaModule } from 'src/modules/prisma/prisma.module';
 import { CacheModule } from 'src/modules/cache/cache.module';
 import { SuggestionModule } from 'src/modules/suggestion/suggestion.module';
 import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
-import { SeedHelpersModule } from 'src/modules/prisma/seeders/modules/seeder-helper.module';
+import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { ConfigService } from '@nestjs/config';
 
 const logger = new Logger('PrismaSeeder');
 
@@ -113,7 +114,7 @@ async function tryBootstrapModuleSet(
   try {
     const ctx = await Promise.race([
       NestFactory.createApplicationContext(moduleFactory, {
-        logger: ['error', 'warn', 'debug', 'log'],
+        logger: ['error', 'warn', 'debug'],
       }),
       new Promise<INestApplicationContext>((_res, rej) =>
         setTimeout(() => rej(new Error('timeout')), ms),
@@ -132,15 +133,15 @@ async function findBlockingModule() {
   // Start with small sets and expand
   const moduleSets = [
     // Provide the module types/constructors directly (not functions that return them)
-    // { name: 'PrismaModule alone', factory: PrismaModule },
-    // {
-    //   name: 'CacheModule alone',
-    //   factory: (() => {
-    //     @Module({ imports: [CacheModule] })
-    //     class M {}
-    //     return M;
-    //   })(),
-    // },
+    { name: 'PrismaModule alone', factory: PrismaModule },
+    {
+      name: 'CacheModule alone',
+      factory: (() => {
+        @Module({ imports: [CacheModule] })
+        class M {}
+        return M;
+      })(),
+    },
     {
       name: 'SuggestionModule alone',
       factory: (() => {
@@ -157,7 +158,7 @@ async function findBlockingModule() {
         return M;
       })(),
     },
-    { name: 'SeedHelpersModule', factory: SeedHelpersModule },
+    // { name: 'SeedHelpersModule', factory: SeedHelpersModule },
     { name: 'SeederModule (full)', factory: SeederModule },
   ];
 
@@ -184,7 +185,7 @@ async function createContextWithTimeout(
 ): Promise<INestApplicationContext> {
   return Promise.race([
     NestFactory.createApplicationContext(module, {
-      logger: ['error', 'warn', 'debug', 'log'],
+      logger: ['error', 'warn', 'debug'],
     }),
     new Promise<INestApplicationContext>((_, reject) =>
       setTimeout(
@@ -209,13 +210,19 @@ async function bootstrap() {
 
   const appContext = await createContextWithTimeout(SeederModule, 5000);
 
-  const probes = [CacheService, SuggestionService, TimeParserService];
+  const probes = [
+    ConfigService,
+    PrismaService,
+    CacheService,
+    SuggestionService,
+    TimeParserService,
+  ];
 
   for (const p of probes) {
     try {
       const inst = appContext.get(p);
       logger.debug(`${p.name} resolved: ${!!inst}`);
-      logger.debug(`${p.name} instance:`, inst);
+      // logger.debug(`${p.name} instance:`, inst);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Unknown error';
       logger.error(`❌ Failed to resolve ${p.name}: ${errorMessage}`);

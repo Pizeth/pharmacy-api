@@ -18,15 +18,8 @@ export class CentralizedCacheManager {
   private static instance: CentralizedCacheManager;
 
   // The map now stores functions, not cache instances. It's safer.
-  // private providers = new Map<string, CacheProvider<any, any>>();
   private readonly caches = new Map<string, CacheEntry>();
   private readonly defaultConfig: DefaultCacheConfig;
-  // private caches = new Map<string, AdvancedCacheWrapper<any, any>>();
-  // private defaultConfig: CacheOptions<any, any>;
-
-  // private constructor(defaultConfig: CacheOptions<any, any> = { max: 100 }) {
-  //   this.defaultConfig = defaultConfig;
-  // }
 
   private constructor(
     defaultConfig: DefaultCacheConfig = {
@@ -180,13 +173,6 @@ export class CentralizedCacheManager {
     return cache.delete(key);
   }
 
-  // public clearCache(cacheName: string): void {
-  //   const cache = this.caches.get(cacheName);
-  //   if (cache) {
-  //     cache.clear();
-  //   }
-  // }
-
   public clearCache(cacheName: string): void {
     const cacheEntry = this.caches.get(cacheName);
     if (cacheEntry) {
@@ -194,36 +180,9 @@ export class CentralizedCacheManager {
     }
   }
 
-  // public clearAllCaches(): void {
-  //   this.caches.forEach((cache) => cache.clear());
-  // }
-
   public clearAllCaches(): void {
     this.caches.forEach((entry) => entry.cache.clear());
   }
-
-  // Enhanced cache statistics
-  // public getCacheStats<K>(
-  //   cacheName: string,
-  // ): (CacheStats<K> & { exists: boolean }) | null {
-  //   const cache = this.caches.get(cacheName);
-  //   if (!cache) {
-  //     return {
-  //       hits: 0,
-  //       misses: 0,
-  //       size: 0,
-  //       itemCount: 0,
-  //       keys: [].values(), // Provide an empty iterator for keys
-  //       hitRate: 0,
-  //       exists: false,
-  //     };
-  //   }
-
-  //   return {
-  //     ...cache.stats(),
-  //     exists: true,
-  //   };
-  // }
 
   // Enhanced cache statistics with proper typing
   public getCacheStats<K = unknown>(
@@ -346,34 +305,18 @@ export class CentralizedCacheManager {
     return results;
   }
 
-  // // Prune all caches
-  // public pruneAllCaches(): void {
-  //   this.caches.forEach((cache) => cache.purgeStale());
-  // }
-
   // Prune operations
   public pruneAllCaches(): void {
     this.caches.forEach((entry) => entry.cache.purgeStale());
   }
 
   // Prune specific cache
-  // public pruneCache(cacheName: string): void {
-  //   const cache = this.caches.get(cacheName);
-  //   if (cache) {
-  //     cache.purgeStale();
-  //   }
-  // }
-
   public pruneCache(cacheName: string): void {
     const entry = this.caches.get(cacheName);
     if (entry) {
       entry.cache.purgeStale();
     }
   }
-
-  // public getCacheNames(): string[] {
-  //   return Array.from(this.providers.keys());
-  // }
 
   // Get cache names
   public getCacheNames(): string[] {
@@ -477,15 +420,6 @@ export class CentralizedCacheManager {
   }
 
   // Clean up all caches (useful for graceful shutdown)
-  // public dispose(): void {
-  //   this.caches.forEach((cache) => {
-  //     cache.dispose();
-  //     cache.clear();
-  //   });
-  //   this.caches.clear();
-  // }
-
-  // Graceful shutdown with proper cleanup
   public dispose(): void {
     this.caches.forEach((entry) => {
       entry.cache.dispose();
