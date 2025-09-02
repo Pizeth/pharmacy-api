@@ -146,6 +146,7 @@ import { ConfigService } from '@nestjs/config';
 import { TokenService } from 'src/commons/services/token.service';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { OidcSeeder } from './oidc.seeder';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -193,7 +194,9 @@ export class Seeder implements OnModuleInit {
 
   private async seedAll() {
     // Access configuration safely with fallbacks
-    const nodeEnv = this.config.get<string>('NODE_ENV', 'DEVELOPMENT');
+    const nodeEnv = this.config
+      .get<string>('NODE_ENV', 'DEVELOPMENT')
+      .toLowerCase();
     this.logger.log(`nodeEnv is ${nodeEnv}`);
     const allowProdSeeding = this.config.get<string>(
       'ALLOW_PRODUCTION_SEEDING',
@@ -226,16 +229,23 @@ export class Seeder implements OnModuleInit {
     );
     const oidcSeeder = new OidcSeeder(this.prisma, this.config);
 
-    this.logger.log('🔧 Seeding roles...');
-    const roles = await roleSeeder.seed();
+    const result = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        this.logger.log('🔧 Seeding roles...');
+        const roles = await roleSeeder.seed(tx);
 
-    this.logger.log('👤 Seeding users...');
-    const user = await userSeeder.seed(roles);
+        this.logger.log('👤 Seeding users...');
+        const user = await userSeeder.seed(roles, tx);
 
-    this.logger.log('🔐 Seeding OIDC Providers...');
-    await oidcSeeder.seed(user);
+        this.logger.log('🔐 Seeding OIDC Providers...');
+        const providers = await oidcSeeder.seed(user, tx);
+
+        return { roles, user, providers };
+      },
+    );
 
     this.logger.log('📊 Database Seeding completed');
+    return result;
   }
 
   private async clearAll() {
@@ -243,11 +253,11 @@ export class Seeder implements OnModuleInit {
 
     await this.prisma.$transaction([
       // Clear in reverse order of dependencies
+      this.prisma.identityProvider.deleteMany(),
       this.prisma.refreshToken.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
       this.prisma.role.deleteMany(),
-      this.prisma.identityProvider.deleteMany(),
       // Add other cleanup as needed
     ]);
     this.logger.log('✅ Database cleared');

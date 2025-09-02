@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { IdentityProvider } from '@prisma/client';
+import { IdentityProvider, Prisma } from '@prisma/client';
 import { SanitizedUser } from 'src/types/dto';
 import * as crypto from 'crypto';
 import data from '../data/oidc.json';
@@ -21,28 +21,32 @@ export class OidcSeeder {
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
   }
 
-  async seed(user: SanitizedUser): Promise<IdentityProvider[]> {
+  async seed(
+    user: SanitizedUser,
+    tx?: Prisma.TransactionClient,
+  ): Promise<IdentityProvider[]> {
     this.logger.log('🌱 Seeding oidc provider from oidc.json...');
     this.logger.debug(`PrismaService resolved: ${!!this.prisma}`);
     this.logger.debug(`ConfigService resolved: ${!!this.config}`);
-
+    const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const providers = this.getProvidersFromData(user.id);
     try {
       for (const provider of providers) {
+        // this.logger.debug(`Processing provider: ${JSON.stringify(provider)}`);
         const name = provider.name.toUpperCase();
         const clientID = this.getDataFromEnv(`${name}_CLIENT_ID`, name);
         const clientSecret = this.encryptSecret(
           this.getDataFromEnv(`${name}_CLIENT_SECRET`, name),
         );
 
-        this.logger.debug(`clientID: ${clientID}`);
-        this.logger.debug(`clientSecret: ${clientSecret}`);
+        // this.logger.debug(`clientID: ${clientID}`);
+        // this.logger.debug(`clientSecret: ${clientSecret}`);
 
-        this.logger.debug(
-          `clientSecret Decrypted: ${this.decryptMaybeLegacy(clientSecret)}`,
-        );
+        // this.logger.debug(
+        //   `clientSecret Decrypted: ${this.decryptMaybeLegacy(clientSecret)}`,
+        // );
 
-        await this.prisma.identityProvider.upsert({
+        await prismaClient.identityProvider.upsert({
           where: { name: provider.name },
           update: {
             ...provider,
@@ -56,7 +60,7 @@ export class OidcSeeder {
           },
         });
       }
-      return await this.prisma.identityProvider.findMany();
+      return await prismaClient.identityProvider.findMany();
     } catch (error) {
       this.logger.error(
         `Failed to seed OIDC Providers for ${user.username} with ${user.role.name} roles`,
@@ -80,6 +84,7 @@ export class OidcSeeder {
       tokenURL: odic.tokenURL,
       callbackURL: odic.callbackURL,
       userInfoURL: odic.userInfoURL,
+      scope: odic.scope,
       createdBy: id,
       lastUpdatedBy: id,
     }));

@@ -7,14 +7,16 @@ import { TimeParserService } from './services/time-parser.service/time-parser.se
 import { SuggestionModule } from '../suggestion/suggestion.module';
 import timerParserConfig from './configs/time-parser.config';
 import { ConfigModule } from '@nestjs/config';
-import { CacheModule } from '../cache/cache.module';
+// import { CacheModule } from '../cache/cache.module';
+// import { CacheModule } from '../cache/cache.module';
 
 @Global() // Make this utility service available everywhere
 @Module({
   imports: [
-    CacheModule,
-    forwardRef(() => SuggestionModule), // safe if there's any circular
     ConfigModule.forFeature(timerParserConfig),
+    // CacheModule,
+    forwardRef(() => SuggestionModule), // safe if there's any circular
+    // SuggestionModule,
   ], // Import any necessary modules, e.g., cache
   providers: [TimeParserService],
   exports: [TimeParserService, SuggestionModule],

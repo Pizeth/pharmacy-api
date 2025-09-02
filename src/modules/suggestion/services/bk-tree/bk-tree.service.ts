@@ -7,7 +7,6 @@ import suggestionConfig from '../../configs/suggestion.config';
 import { ConfigType } from '@nestjs/config';
 import { ScoredWord } from '../../interfaces/suggestion.interface';
 
-console.log('[LOAD] BKTreeService file loaded');
 @Injectable()
 export class BKTreeService {
   private readonly context = BKTreeService.name;
@@ -21,7 +20,7 @@ export class BKTreeService {
     @Inject(suggestionConfig.KEY)
     private readonly config: ConfigType<typeof suggestionConfig>, // Inject config
   ) {
-    console.log('[BOOT] BKTreeService constructor');
+    this.logger.debug(`${this.context} initialized`);
   }
 
   // buildTree(words: string[]): void {

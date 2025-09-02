@@ -112,6 +112,7 @@ model MFABackupCode {
   code            String            @unique
   used            Boolean           @default(false)
   expiresAt       DateTime          @map("expires_at")
+  @@map("mfa_backup_codes")
 }
 
 model LoginAttempt {
@@ -125,6 +126,7 @@ model LoginAttempt {
   locale          String?           @map("locale")
   referer         String?           @map("referer")
   userAgent       Json?             @map("user_agent")
+  @@map("login_attempts")
 }
 
 // Refresh Token Model
@@ -137,6 +139,7 @@ model RefreshToken {
   createdAt       DateTime          @map("created_at") @default(now())
   
   @@index([userId])
+  @@map("refresh_tokens")
 }
 
 model Role {
@@ -559,6 +562,7 @@ model Cocktail {
 
   // Inverse relations
   CocktailDetail CocktailDetail[]
+  @@map("cocktails")
 }
 
 model CocktailDetail {
@@ -1007,6 +1011,7 @@ model Customer {
 
   // party            Party    @relation(fields: [partyId], references: [id])
   orders          Order[]
+  @@map("customers")
 }
 
 enum Sex {

@@ -32,11 +32,11 @@ export class TokenService {
     private readonly timeService: TimeParserService,
     private readonly cls: ClsService,
   ) {
-    console.log('[BOOT] TokenService constructor');
     this.logger.debug(`${this.context} initialized`);
-    this.logger.debug(`PrismaService injected: ${!!prisma}`);
     this.logger.debug(`ConfigService injected: ${!!config}`);
+    this.logger.debug(`PrismaService injected: ${!!prisma}`);
     this.logger.debug(`JwtService injected: ${!!jwtService}`);
+    this.logger.debug(`TimeParserService injected: ${!!timeService}`);
   }
 
   /**

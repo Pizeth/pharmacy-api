@@ -190,10 +190,6 @@ export class TrigramIndexService {
   private wordTrigrams = new Map<string, Trigram>();
   private readonly trigramPool = new Map<string, Set<string>>(); // Reuse trigram sets
 
-  constructor() {
-    console.log('[BOOT] TrigramIndexService constructor');
-  }
-
   // buildIndex(words: string[]): void {
   //   const start = performance.now();
   //   this.logger.log(

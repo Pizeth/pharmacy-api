@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplicationContext } from '@nestjs/common';
 import type { Type, DynamicModule } from '@nestjs/common';
-import { Logger } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { CacheService } from 'src/modules/cache/services/cache.service';
-import { SeedHelpersModule } from 'src/modules/prisma/seeders/modules/seeder-helper.module';
 import { SeederModule } from 'src/modules/prisma/seeders/seeder.module';
 import { BKTreeService } from 'src/modules/suggestion/services/bk-tree/bk-tree.service';
 import { LevenshteinService } from 'src/modules/suggestion/services/levenshtein/levenshtein.service';
@@ -13,6 +11,8 @@ import { SuggestionService } from 'src/modules/suggestion/services/suggestion.se
 import { SuggestionModule } from 'src/modules/suggestion/suggestion.module';
 import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
 import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
+import { CacheModule } from 'src/modules/cache/cache.module';
+import { LevenshteinModule } from 'src/modules/suggestion/services/levenshtein/levenshtein.module';
 
 const logger = new Logger('DiagBootstrap');
 
@@ -68,10 +68,11 @@ async function tryBootstrap(moduleEntry: ModuleEntry, timeoutMs = 10_000) {
   // If we got a context, try resolving known probe providers
   const probes = [
     CacheService,
+    LevenshteinService,
     SuggestionService,
     TimeParserService,
-    BKTreeService,
-    LevenshteinService,
+    // BKTreeService,
+    // LevenshteinService,
   ];
   for (const p of probes) {
     try {
@@ -89,27 +90,45 @@ async function tryBootstrap(moduleEntry: ModuleEntry, timeoutMs = 10_000) {
   // Also enumerate all providers registered in the context (best-effort)
   try {
     // Access Nest internals carefully for a helpful debug list (best-effort; may change with Nest versions)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const container = (ctx as any).container;
-    if (container) {
+    // avoid unsafe `any` by using `unknown` and narrow types before access
+    const container = (
+      ctx as unknown as {
+        container?: { getModules?: () => Map<unknown, unknown> };
+      }
+    ).container;
+    if (container && typeof container.getModules === 'function') {
       // for each module in the container, list provider tokens count
       // This prints simplified module -> provider keys mapping
       // WARNING: this uses internals; it's only for debugging
       const modulesMap = container.getModules();
       const moduleEntries = Array.from(modulesMap.entries()).map(
-        ([key, value]: any) => {
-          const modProviders = value.providers
-            ? Array.from(value.providers.keys())
-            : [];
+        ([key, value]) => {
+          const maybeProviders = value as
+            | { providers?: Map<unknown, unknown> }
+            | undefined;
+          const modProviders =
+            maybeProviders && maybeProviders.providers
+              ? Array.from(maybeProviders.providers.keys())
+              : [];
           return {
-            key: key.name || String(key),
+            key: (key && (key as { name?: string }).name) || String(key),
             providersCount: modProviders.length,
           };
         },
       );
       logger.log('Context modules snapshot (name : providersCount):');
       for (const me of moduleEntries) {
-        logger.log(` - ${me.key} : ${me.providersCount} providers`);
+        const keyStr =
+          typeof me.key === 'string'
+            ? me.key
+            : (() => {
+                try {
+                  return JSON.stringify(me.key);
+                } catch {
+                  return Object.prototype.toString.call(me.key);
+                }
+              })();
+        logger.log(` - ${keyStr} : ${me.providersCount} providers`);
       }
     }
   } catch (err) {
@@ -123,43 +142,45 @@ async function tryBootstrap(moduleEntry: ModuleEntry, timeoutMs = 10_000) {
     await ctx.close();
   } catch (_e) {
     /* ignore */
+    logger.debug('Failed to close context (non-fatal): ' + String(_e));
   }
   return true;
 }
 
 async function runAll() {
   const moduleSets: ModuleEntry[] = [
+    // {
+    //   name: 'CacheModule alone',
+    //   module: CacheModule,
+    // },
+    // {
+    //   name: 'LvenshteinModule alone',
+    //   module: LevenshteinModule,
+    // },
+    // { name: 'SuggestionModule alone', module: SuggestionModule },
+
     {
-      name: 'CacheModule alone',
+      name: 'Suggestion + Lvenshtein',
       module: (() => {
-        const M = require('src/modules/cache/cache.module').CacheModule;
-        return M;
-      })(),
-    },
-    { name: 'SuggestionModule alone', module: SuggestionModule },
-    {
-      name: 'TimeParserModule alone',
-      module: (() => {
-        // build a small dynamic wrapper that imports TimeParserModule only
-        @(require('@nestjs/common').Module({
-          imports: [TimeParserModule],
-        }))
+        @Module({ imports: [CacheModule, LevenshteinModule, SuggestionModule] })
         class M {}
         return M;
       })(),
     },
-    {
-      name: 'TimeParser + Suggestion',
-      module: (() => {
-        @(require('@nestjs/common').Module({
-          imports: [TimeParserModule, SuggestionModule],
-        }))
-        class M {}
-        return M;
-      })(),
-    },
-    { name: 'SeedHelpersModule', module: SeedHelpersModule },
-    { name: 'SeederModule (full)', module: SeederModule },
+    // {
+    //   name: 'TimeParserModule alone',
+    //   module: TimeParserModule,
+    // },
+    // {
+    //   name: 'TimeParser + Suggestion + Cache',
+    //   module: (() => {
+    //     @Module({ imports: [CacheModule, SuggestionModule, TimeParserModule] })
+    //     class M {}
+    //     return M;
+    //   })(),
+    // },
+    // { name: 'SeedHelpersModule', module: SeedHelpersModule },
+    // { name: 'SeederModule (full)', module: SeederModule },
   ];
 
   for (const mod of moduleSets) {

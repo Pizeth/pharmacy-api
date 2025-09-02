@@ -185,7 +185,7 @@ async function createContextWithTimeout(
 ): Promise<INestApplicationContext> {
   return Promise.race([
     NestFactory.createApplicationContext(module, {
-      logger: ['error', 'warn', 'debug'],
+      logger: ['error', 'warn', 'debug', 'log'],
     }),
     new Promise<INestApplicationContext>((_, reject) =>
       setTimeout(
@@ -198,9 +198,6 @@ async function createContextWithTimeout(
 }
 
 async function bootstrap() {
-  // Create a standalone application context using only the SeederModule
-  // const appContext = await NestFactory.createApplicationContext(SeederModule);
-
   // const appContext = await NestFactory.createApplicationContext(SeederModule, {
   //   // Disable logging from the NestJS core to make our own logs cleaner
   //   logger: ['error', 'warn', 'debug', 'log'],
@@ -210,24 +207,23 @@ async function bootstrap() {
 
   const appContext = await createContextWithTimeout(SeederModule, 5000);
 
-  const probes = [
-    ConfigService,
-    PrismaService,
-    CacheService,
-    SuggestionService,
-    TimeParserService,
-  ];
+  // const probes = [
+  //   ConfigService,
+  //   PrismaService,
+  //   CacheService,
+  //   SuggestionService,
+  //   TimeParserService,
+  // ];
 
-  for (const p of probes) {
-    try {
-      const inst = appContext.get(p);
-      logger.debug(`${p.name} resolved: ${!!inst}`);
-      // logger.debug(`${p.name} instance:`, inst);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      logger.error(`❌ Failed to resolve ${p.name}: ${errorMessage}`);
-    }
-  }
+  // for (const p of probes) {
+  //   try {
+  //     const inst = appContext.get(p);
+  //     logger.debug(`${p.name} resolved: ${!!inst}`);
+  //   } catch (e) {
+  //     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+  //     logger.error(`❌ Failed to resolve ${p.name}: ${errorMessage}`);
+  //   }
+  // }
 
   try {
     logger.log('Initializing the seeder...');
@@ -235,7 +231,7 @@ async function bootstrap() {
     // Get the SeederService from the application context
     const seeder = appContext.get(Seeder);
     logger.debug(`Seeder resolved from context: ${!!seeder}`);
-    logger.debug('Resolved Seeder instance:', seeder);
+    // logger.debug('Resolved Seeder instance:', seeder);
     logger.log('🌱 Starting database seeding...');
 
     // Handle command line arguments

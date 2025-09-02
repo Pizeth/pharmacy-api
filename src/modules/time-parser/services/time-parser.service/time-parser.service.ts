@@ -100,7 +100,6 @@ export class TimeParserService implements OnModuleInit {
     ).sort(([, a], [, b]) => b - a);
 
     this.localesPath = this.config?.localesPath ?? '';
-    console.log('[BOOT] TimeParserService constructor');
     this.logger.debug('TimeParserService constructed (DI completed soon)');
 
     // Preload default localization
@@ -125,9 +124,6 @@ export class TimeParserService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    console.log('[DEBUG] TimeParserService.onModuleInit');
-    this.logger.debug(`SuggestionService injected ${!!this.suggestion}`);
-    this.logger.debug(`CacheService injected ${!!this.cache}`);
     // if (!this.suggestion) {
     //   throw new Error('TimeParserService: SuggestionService was not injected');
     // }
@@ -164,7 +160,9 @@ export class TimeParserService implements OnModuleInit {
     //   }
     // }
 
-    // if (this.config.useLocale) await this.preloadLocalesAsync();
+    if (this.config.useLocale && this.config.preload)
+      await this.preloadLocalesAsync();
+
     const aliases = Object.keys(UNIT_ALIASES);
 
     // Initialize suggestion engine with all unit aliases
@@ -184,7 +182,9 @@ export class TimeParserService implements OnModuleInit {
         err instanceof Error ? err.message : err,
       );
       // Optionally call asynchronously without awaiting to let it finish in background:
-      // this.suggestion.initialize(aliases).catch(e => this.logger.error('late suggestion init failed', e));
+      // this.suggestion
+      //   .initialize(aliases)
+      //   .catch((e) => this.logger.error('late suggestion init failed', e));
     }
   }
 
@@ -289,7 +289,7 @@ export class TimeParserService implements OnModuleInit {
     //   });
     // }
 
-    console.log(components);
+    this.logger.log('components:', components);
 
     if (!components) {
       return this.parseSingleDuration(trimmed, opts);

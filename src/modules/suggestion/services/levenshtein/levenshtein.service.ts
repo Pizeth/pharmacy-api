@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { CacheService } from 'src/modules/cache/services/cache.service';
 import { LEVENSHTEIN_CACHE } from 'src/modules/cache/tokens/cache.tokens';
@@ -103,7 +103,9 @@ import suggestionConfig from '../../configs/suggestion.config';
 // return distance;
 
 @Injectable()
-export class LevenshteinService {
+export class LevenshteinService implements OnModuleInit {
+  private readonly context = LevenshteinService.name;
+  private readonly logger = new Logger(this.context);
   private localCache = new Map<string, number>();
   private cacheHits = 0;
   private cacheMisses = 0;
@@ -111,9 +113,15 @@ export class LevenshteinService {
   constructor(
     @Inject(suggestionConfig.KEY)
     private config: ConfigType<typeof suggestionConfig>,
+    @Inject(CacheService)
     private readonly cacheService: CacheService,
   ) {
-    console.log('[BOOT] LevenshteinService constructor');
+    this.logger.debug(`${this.context} initialized`);
+  }
+
+  onModuleInit() {
+    this.logger.debug(`CacheService injected: ${!!this.cacheService}`);
+    this.logger.debug(`ConfigService injected: ${!!this.config}`);
   }
 
   /**

@@ -439,7 +439,7 @@ export class SuggestionService1 implements OnModuleInit {
     let bestConfig = this.config;
     let bestScore = 0;
 
-    console.log(`Testing ${configs.length} configuration combinations...`);
+    this.logger.log(`Testing ${configs.length} configuration combinations...`);
 
     for (const config of configs) {
       // this.config = config;
@@ -478,7 +478,7 @@ export class SuggestionService1 implements OnModuleInit {
       }
     }
 
-    console.log(
+    this.logger.log(
       `Best configuration found with score ${bestScore.toFixed(3)}:`,
       bestConfig,
     );
@@ -704,7 +704,6 @@ export class SuggestionService1 implements OnModuleInit {
   }
 }
 
-console.log('[DEBUG] Loaded SuggestionService file');
 // =================== ENHANCED SUGGESTION SERVICE ===================
 @Injectable()
 export class SuggestionService implements OnModuleInit {
@@ -743,8 +742,7 @@ export class SuggestionService implements OnModuleInit {
     private readonly levenshteinService: LevenshteinService,
     private readonly cache: CacheService,
   ) {
-    console.log('[DEBUG] SuggestionService.constructor');
-    this.logger.log('SuggestionService constructed');
+    this.logger.debug(`${SuggestionService.name} initialized`);
   }
 
   /**
@@ -754,8 +752,18 @@ export class SuggestionService implements OnModuleInit {
    * - Cleans up old query statistics every hour.
    */
   onModuleInit() {
-    console.log('[DEBUG] SuggestionService.onModuleInit');
     this.logger.log('SuggestionService initialized');
+    this.logger.debug('Cache service initialized:', !!this.cache);
+    this.logger.debug('BKTree service initialized:', !!this.bkTreeService);
+    this.logger.debug(
+      'TrigramIndex service initialized:',
+      !!this.trigramIndexService,
+    );
+    this.logger.debug('Trie service initialized:', !!this.trieService);
+    this.logger.debug(
+      'Levenshtein service initialized:',
+      !!this.levenshteinService,
+    );
 
     // Update popular queries every 3 minutes
     setInterval(() => this.updatePopularQueries(), 3 * 60_000);

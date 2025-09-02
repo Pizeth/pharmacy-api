@@ -122,10 +122,6 @@ export class TrieService {
   private root = new TrieNode();
   private readonly maxCacheDepth = 3; // Cache only short prefixes
 
-  constructor() {
-    console.log('[BOOT] TrieService constructor');
-  }
-
   // buildTrie(words: string[]): void {
   //   const start = performance.now();
   //   this.logger.log(`TrieService.buildTrie START (words=${words.length})`);
