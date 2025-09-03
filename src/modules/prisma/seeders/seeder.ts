@@ -147,6 +147,7 @@ import { TokenService } from 'src/commons/services/token.service';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { OidcSeeder } from './oidc.seeder';
 import { Prisma } from '@prisma/client';
+import { CryptoService } from 'src/commons/services/crypto.service';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -158,6 +159,7 @@ export class Seeder implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly tokenService: TokenService,
     private readonly passwordUtils: PasswordUtils,
+    private readonly cryptoService: CryptoService,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
@@ -227,7 +229,11 @@ export class Seeder implements OnModuleInit {
       this.tokenService,
       this.passwordUtils,
     );
-    const oidcSeeder = new OidcSeeder(this.prisma, this.config);
+    const oidcSeeder = new OidcSeeder(
+      this.prisma,
+      this.config,
+      this.cryptoService,
+    );
 
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -241,6 +247,10 @@ export class Seeder implements OnModuleInit {
         const providers = await oidcSeeder.seed(user, tx);
 
         return { roles, user, providers };
+      },
+      {
+        maxWait: 5000, // default: 2000
+        timeout: 10000, // default: 5000
       },
     );
 

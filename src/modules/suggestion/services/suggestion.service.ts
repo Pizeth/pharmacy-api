@@ -358,6 +358,7 @@ export class SuggestionService1 implements OnModuleInit {
     const levDistance = this.levenshteinService.calculateDistance(
       query,
       candidate,
+      this.config.maxLevenshteinDistance,
     );
     const levSim = maxLen === 0 ? 1 : 1 - levDistance / maxLen;
 
@@ -3002,7 +3003,11 @@ export class SuggestionService implements OnModuleInit {
     // Use the pre-calculated distance if available
     const editDistance =
       candidate.levenshteinDistance ??
-      this.levenshteinService.calculateDistance(query, word);
+      this.levenshteinService.calculateDistance(
+        query,
+        word,
+        this.config.maxLocalCacheSize,
+      );
 
     const maxLen = Math.max(query.length, word.length);
     const levenshteinSimilarity =

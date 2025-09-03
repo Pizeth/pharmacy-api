@@ -76,7 +76,7 @@ async function tryBootstrap(moduleEntry: ModuleEntry, timeoutMs = 10_000) {
   ];
   for (const p of probes) {
     try {
-      const inst = ctx.get(p, { strict: false }); // attempt non-strict get first
+      const inst = ctx.get(p, { strict: true }); // attempt non-strict get first
       logger.debug(`${p.name} resolved: ${!!inst}`);
     } catch (err: unknown) {
       const e = err instanceof Error ? err : new Error(String(err));
@@ -153,20 +153,20 @@ async function runAll() {
     //   name: 'CacheModule alone',
     //   module: CacheModule,
     // },
-    // {
-    //   name: 'LvenshteinModule alone',
-    //   module: LevenshteinModule,
-    // },
+    {
+      name: 'LvenshteinModule alone',
+      module: LevenshteinModule,
+    },
     // { name: 'SuggestionModule alone', module: SuggestionModule },
 
-    {
-      name: 'Suggestion + Lvenshtein',
-      module: (() => {
-        @Module({ imports: [CacheModule, LevenshteinModule, SuggestionModule] })
-        class M {}
-        return M;
-      })(),
-    },
+    // {
+    //   name: 'Suggestion + Lvenshtein',
+    //   module: (() => {
+    //     @Module({ imports: [CacheModule, LevenshteinModule, SuggestionModule] })
+    //     class M {}
+    //     return M;
+    //   })(),
+    // },
     // {
     //   name: 'TimeParserModule alone',
     //   module: TimeParserModule,

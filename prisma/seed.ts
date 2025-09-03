@@ -229,7 +229,7 @@ async function bootstrap() {
     logger.log('Initializing the seeder...');
 
     // Get the SeederService from the application context
-    const seeder = appContext.get(Seeder);
+    const seeder = appContext.get(Seeder, { strict: false });
     logger.debug(`Seeder resolved from context: ${!!seeder}`);
     // logger.debug('Resolved Seeder instance:', seeder);
     logger.log('🌱 Starting database seeding...');

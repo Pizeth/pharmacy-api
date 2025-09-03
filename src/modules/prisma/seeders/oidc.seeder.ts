@@ -6,6 +6,7 @@ import { SanitizedUser } from 'src/types/dto';
 import * as crypto from 'crypto';
 import data from '../data/oidc.json';
 import { AppError } from 'src/exceptions/app.exception';
+import { CryptoService } from 'src/commons/services/crypto.service';
 
 @Injectable()
 export class OidcSeeder {
@@ -15,6 +16,7 @@ export class OidcSeeder {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly crypto: CryptoService,
   ) {
     this.logger.debug('OidcSeeder constructor called');
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
@@ -35,7 +37,7 @@ export class OidcSeeder {
         // this.logger.debug(`Processing provider: ${JSON.stringify(provider)}`);
         const name = provider.name.toUpperCase();
         const clientID = this.getDataFromEnv(`${name}_CLIENT_ID`, name);
-        const clientSecret = this.encryptSecret(
+        const clientSecret = this.crypto.encrypt(
           this.getDataFromEnv(`${name}_CLIENT_SECRET`, name),
         );
 

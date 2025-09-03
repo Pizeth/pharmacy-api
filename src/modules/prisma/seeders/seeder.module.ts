@@ -14,6 +14,7 @@ import { TimeParserService } from 'src/modules/time-parser/services/time-parser.
 import { ValidationError } from 'src/exceptions/zod-validatoin.exception';
 import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
 import { CacheModule } from 'src/modules/cache/cache.module';
+import { CryptoService } from 'src/commons/services/crypto.service';
 
 @Module({
   imports: [
@@ -156,12 +157,25 @@ import { CacheModule } from 'src/modules/cache/cache.module';
         config: ConfigService,
         tokenService: TokenService,
         passwordUtils: PasswordUtils,
+        cryptoService: CryptoService,
       ) => {
         // 1. Manually create the main Seeder instance, passing in the helper instances.
-        return new Seeder(prisma, config, tokenService, passwordUtils);
+        return new Seeder(
+          prisma,
+          config,
+          tokenService,
+          passwordUtils,
+          cryptoService,
+        );
       },
       // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
-      inject: [PrismaService, ConfigService, TokenService, PasswordUtils],
+      inject: [
+        PrismaService,
+        ConfigService,
+        TokenService,
+        PasswordUtils,
+        CryptoService,
+      ],
     },
     // Seeder,
   ],

@@ -1,8 +1,7 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigType } from '@nestjs/config';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CacheService } from 'src/modules/cache/services/cache.service';
 import { LEVENSHTEIN_CACHE } from 'src/modules/cache/tokens/cache.tokens';
-import suggestionConfig from '../../configs/suggestion.config';
 
 // @Injectable()
 // export class LevenshteinService {
@@ -111,9 +110,10 @@ export class LevenshteinService implements OnModuleInit {
   private cacheMisses = 0;
 
   constructor(
-    @Inject(suggestionConfig.KEY)
-    private config: ConfigType<typeof suggestionConfig>,
-    @Inject(CacheService)
+    // @Inject(suggestionConfig.KEY)
+    // private config: ConfigType<typeof suggestionConfig>,
+    // @Inject(CacheService)
+    private readonly config: ConfigService,
     private readonly cacheService: CacheService,
   ) {
     this.logger.debug(`${this.context} initialized`);
@@ -238,7 +238,7 @@ export class LevenshteinService implements OnModuleInit {
    * - Results are cached locally and in a distributed cache for performance.
    * - Local cache is periodically pruned to maintain a maximum size.
    */
-  calculateDistance(a: string, b: string, threshold?: number): number {
+  calculateDistance(a: string, b: string, threshold: number): number {
     // Quick equality check
     if (a === b) return 0;
 
@@ -252,7 +252,7 @@ export class LevenshteinService implements OnModuleInit {
     if (a.length > b.length) [a, b] = [b, a];
 
     const key = `${a}|${b}`; // Simpler key since a is always shorter
-    threshold ??= this.config.maxLevenshteinDistance;
+    // threshold ??= this.config.maxLevenshteinDistance;
 
     // Length difference optimization
     const lengthDiff = Math.abs(a.length - b.length);
@@ -417,7 +417,7 @@ export class LevenshteinService implements OnModuleInit {
     // }
 
     // LRU eviction for local cache
-    if (this.localCache.size >= this.config.maxLocalCacheSize) {
+    if (this.localCache.size >= this.config.get('MAX_LOCAL_CACHE_SIZE', 500)) {
       // Remove oldest entry (Map preserves insertion order)
       const oldestKey = this.localCache.keys().next().value;
       if (oldestKey !== undefined) {
@@ -427,7 +427,7 @@ export class LevenshteinService implements OnModuleInit {
 
     this.localCache.set(key, distance);
     this.cacheService.set(LEVENSHTEIN_CACHE, key, distance, {
-      config: { maxSize: this.config.cacheSize },
+      config: { maxSize: this.config.get('MAX_CACHE_SIZE', 2000) },
     });
   }
 
