@@ -224,54 +224,6 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     }
   }
 
-  // async validate(
-  //   issuer: string,
-  //   profile: any,
-  //   context: any, // Contains tokens
-  //   done: VerifyCallback,
-  // ): Promise<any> {
-  //   try {
-  //     const normalizedProfile = this.normalizeProfile(profile);
-  //     const tokens = {
-  //       accessToken: context.accessToken,
-  //       refreshToken: context.refreshToken,
-  //       expiresAt: context.expiresAt
-  //         ? new Date(context.expiresAt * 1000)
-  //         : undefined,
-  //     };
-
-  //     const user = await this.authService.findOrCreateOidcUser(
-  //       this.name,
-  //       normalizedProfile,
-  //       tokens,
-  //     );
-
-  //     if (!user) {
-  //       return done(new Error('User not found or created'), false);
-  //     }
-
-  //     return done(null, user);
-  //   } catch (error) {
-  //     return done(error, false);
-  //   }
-  // }
-
-  // Normalize the profile from the OIDC provider
-  // private normalizeProfile(profile: Profile): NormalizedProfile {
-  //   // The profile object from passport-openidconnect is already quite normalized.
-  //   // It uses the standard OIDC claims.
-  //   return {
-  //     provider: this.provider.name,
-  //     providerId: profile.id, // 'sub' claim is mapped to 'id'
-  //     email: profile.emails?.[0]?.value,
-  //     // emailVerified: true, // Assuming OIDC provider verifies email
-  //     emailVerified: profile.emails?.[0]?.verified || false,
-  //     name: profile.displayName,
-  //     picture: profile.photos?.[0]?.value,
-  //     raw: profile._raw, // Keep the original profile for debugging or other uses
-  //   };
-  // }
-
   private async normalizeProfile(
     profile: Profile,
     issuer: string,
@@ -311,20 +263,6 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     issuer: string,
   ): Promise<string | undefined> {
     const providers = await this.providerService.getAllEnabledProviders();
-    // Map common OIDC issuers to provider names
-    // const providerMap: Record<string, string> = {
-    //   'https://accounts.google.com': 'google',
-    //   'https://login.microsoftonline.com': 'microsoft',
-    //   'https://auth0.com': 'auth0',
-    //   'https://login.salesforce.com': 'salesforce',
-    //   'https://appleid.apple.com': 'apple',
-    // };
-
-    // for (const [issuerPattern, provider] of Object.entries(providerMap)) {
-    //   if (issuer.includes(issuerPattern)) {
-    //     return provider;
-    //   }
-    // }
 
     for (const provider of providers) {
       if (issuer.includes(provider.issuer)) {
@@ -341,3 +279,66 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     }
   }
 }
+
+// async validate(
+//   issuer: string,
+//   profile: any,
+//   context: any, // Contains tokens
+//   done: VerifyCallback,
+// ): Promise<any> {
+//   try {
+//     const normalizedProfile = this.normalizeProfile(profile);
+//     const tokens = {
+//       accessToken: context.accessToken,
+//       refreshToken: context.refreshToken,
+//       expiresAt: context.expiresAt
+//         ? new Date(context.expiresAt * 1000)
+//         : undefined,
+//     };
+
+//     const user = await this.authService.findOrCreateOidcUser(
+//       this.name,
+//       normalizedProfile,
+//       tokens,
+//     );
+
+//     if (!user) {
+//       return done(new Error('User not found or created'), false);
+//     }
+
+//     return done(null, user);
+//   } catch (error) {
+//     return done(error, false);
+//   }
+// }
+
+// Normalize the profile from the OIDC provider
+// private normalizeProfile(profile: Profile): NormalizedProfile {
+//   // The profile object from passport-openidconnect is already quite normalized.
+//   // It uses the standard OIDC claims.
+//   return {
+//     provider: this.provider.name,
+//     providerId: profile.id, // 'sub' claim is mapped to 'id'
+//     email: profile.emails?.[0]?.value,
+//     // emailVerified: true, // Assuming OIDC provider verifies email
+//     emailVerified: profile.emails?.[0]?.verified || false,
+//     name: profile.displayName,
+//     picture: profile.photos?.[0]?.value,
+//     raw: profile._raw, // Keep the original profile for debugging or other uses
+//   };
+// }
+
+// Map common OIDC issuers to provider names
+// const providerMap: Record<string, string> = {
+//   'https://accounts.google.com': 'google',
+//   'https://login.microsoftonline.com': 'microsoft',
+//   'https://auth0.com': 'auth0',
+//   'https://login.salesforce.com': 'salesforce',
+//   'https://appleid.apple.com': 'apple',
+// };
+
+// for (const [issuerPattern, provider] of Object.entries(providerMap)) {
+//   if (issuer.includes(issuerPattern)) {
+//     return provider;
+//   }
+// }

@@ -29,19 +29,6 @@ export class OidcProviderDbService {
         where: where,
       });
 
-      // if (!provider)
-      //   throw new AppError(
-      //     'Invalid provider!',
-      //     HttpStatus.NOT_FOUND,
-      //     this.context,
-      //     {
-      //       cause: `Provider with ${JSON.stringify(where)} does not exist!`,
-      //       // validProviderId: (await this.getAll()).data.filter(
-      //       //   (p) => p.id !== id,
-      //       // ),
-      //     },
-      //   );
-
       return provider;
     } catch (error) {
       this.logger.error(
@@ -52,35 +39,34 @@ export class OidcProviderDbService {
         `Error finding provider that match with ${JSON.stringify(where)}`,
         HttpStatus.NOT_FOUND,
         this.context,
-        { error, validProvider: this.getAll() },
+        {
+          error,
+          validProvider: (await this.getAll()).data.filter((p) => p.isEnabled),
+        },
       );
     }
   }
 
-  // async getProviderByName(name: string): Promise<IdentityProvider> {
-  //   try {
-  //     const provider = await this.prisma.identityProvider.findUnique({
-  //       where: { name },
-  //     });
+  async getProvider(name: string): Promise<IdentityProvider | null> {
+    try {
+      const provider = await this.prisma.identityProvider.findUnique({
+        where: { name },
+      });
 
-  //     if (!provider)
-  //       throw new AppError(
-  //         'Invalid provider!',
-  //         HttpStatus.NOT_FOUND,
-  //         this.context,
-  //         {
-  //           cause: `Provider with name ${name} does not exist!`,
-  //           // validProvider: this.getAllEnabledProviders(),
-  //           validProvider: this.getAll(),
-  //         },
-  //       );
-
-  //     return provider;
-  //   } catch (error) {
-  //     this.logger.error(error);
-  //     throw error;
-  //   }
-  // }
+      return provider;
+    } catch (error) {
+      this.logger.error(`Provider with name ${name} does not exist!:`, error);
+      throw new AppError(
+        `Error finding provider that match with ${name}`,
+        HttpStatus.NOT_FOUND,
+        this.context,
+        {
+          error,
+          validProvider: (await this.getAll()).data.filter((p) => p.isEnabled),
+        },
+      );
+    }
+  }
 
   async getAll(
     page: number = 1,
@@ -101,12 +87,6 @@ export class OidcProviderDbService {
       select,
     });
   }
-
-  // async getAllEnabledProviders() {
-  //   return this.prisma.identityProvider.findMany({
-  //     where: { enabled: true },
-  //   });
-  // }
 
   async createProvider(data: CreateProviderDto) {
     return this.prisma.identityProvider.create({ data });

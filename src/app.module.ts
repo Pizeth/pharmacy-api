@@ -22,14 +22,14 @@ import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidationError } from './exceptions/zod-validatoin.exception';
 import { ProfileModule } from './modules/profiles/profile.module';
-import oidcProviderConfig from './modules/ocid/configs/oidc.config';
+// import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [oidcProviderConfig], // Load custom config factory
+      // load: [oidcProviderConfig], // Load custom config factory
       validate: (config: Record<string, any>) => {
         // l.log(config);
         try {
@@ -114,22 +114,10 @@ import oidcProviderConfig from './modules/ocid/configs/oidc.config';
         GrpcMetadataResolver,
       ],
     }),
-
-    // JwtModule.registerAsync({
-    //   inject: [ConfigService],
-    //   useFactory: (config: ConfigService) => ({
-    //     secret: config.get('SECRET_KEY'),
-    //     signOptions: { expiresIn: config.get('EXPIRES_IN') },
-    //   }),
-    // }),
-    // PrismaModule,
-    // HttpModule,
     AuthModule,
     FileModule,
     TimeParserModule,
     ProfileModule,
-    // CacheModule,
-    // SuggestionModule,
   ],
   providers: [
     // Logger,

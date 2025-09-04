@@ -45,7 +45,7 @@ export class OidcSeeder {
         // this.logger.debug(`clientSecret: ${clientSecret}`);
 
         // this.logger.debug(
-        //   `clientSecret Decrypted: ${this.decryptMaybeLegacy(clientSecret)}`,
+        //   `clientSecret Decrypted: ${this.crypto.decrypt(clientSecret)}`,
         // );
 
         await prismaClient.identityProvider.upsert({

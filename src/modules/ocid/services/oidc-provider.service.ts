@@ -6,9 +6,8 @@ import { IdentityProvider } from '@prisma/client';
 import { OidcProviderDbService } from './oidc-provider-db.service';
 import { CreateProviderDto } from '../dto/create-provider.dto';
 import { UpdateProviderDto } from '../dto/update-provider.dto';
-import * as crypto from 'crypto';
-import { ConfigService } from '@nestjs/config';
 import { AppError } from 'src/exceptions/app.exception';
+import { CryptoService } from 'src/commons/services/crypto.service';
 
 @Injectable()
 export class OidcProviderService implements OnModuleInit {
@@ -20,7 +19,7 @@ export class OidcProviderService implements OnModuleInit {
     private readonly dbService: OidcProviderDbService,
     private readonly strategyFactory: OidcStrategyFactory,
     private readonly passport: PassportStatic,
-    private readonly config: ConfigService,
+    private readonly crypto: CryptoService,
   ) {}
 
   async onModuleInit() {
@@ -28,10 +27,6 @@ export class OidcProviderService implements OnModuleInit {
   }
 
   async registerAllProviders() {
-    // const providers = await this.prisma.identityProvider.findMany({
-    //   where: { enabled: true },
-    // });
-    // const providers = await this.dbService.getAllEnabledProviders();
     const providers = await this.getAllEnabledProviders();
 
     for (const provider of providers) {
@@ -61,14 +56,14 @@ export class OidcProviderService implements OnModuleInit {
   }
 
   async getAllEnabledProviders(): Promise<IdentityProvider[]> {
-    // const providers = await this.dbService.getAllEnabledProviders();
     const providers = await this.dbService.getAll();
     return providers.data.filter((p) => p.isEnabled);
   }
 
   async createAndRegisterProvider(data: CreateProviderDto) {
     // 1. Encrypt secret
-    const encryptedSecret = this.encryptSecret(data.clientSecret);
+    // const encryptedSecret = this.encryptSecret(data.clientSecret);
+    const encryptedSecret = this.crypto.encrypt(data.clientSecret);
     data.clientSecret = encryptedSecret;
 
     // 2. Save to database
@@ -85,7 +80,7 @@ export class OidcProviderService implements OnModuleInit {
   async updateAndReregisterProvider(id: number, data: UpdateProviderDto) {
     // 1. Encrypt secret
     const encryptedSecret = data.clientSecret
-      ? this.encryptSecret(data.clientSecret)
+      ? this.crypto.encrypt(data.clientSecret)
       : undefined;
 
     data.clientSecret = encryptedSecret;
@@ -152,7 +147,8 @@ export class OidcProviderService implements OnModuleInit {
     // });
 
     // 1. Decrypt secret
-    const decryptedSecret = this.decryptSecret(provider.clientSecret);
+    // const decryptedSecret = this.decryptSecret(provider.clientSecret);
+    const decryptedSecret = this.crypto.decrypt(provider.clientSecret);
     provider.clientSecret = decryptedSecret;
 
     // 2. Create strategy
@@ -160,7 +156,8 @@ export class OidcProviderService implements OnModuleInit {
 
     // 3. Register & use strategy
     this.strategies.set(provider.name, strategy);
-    this.passport.use(strategy);
+    // this.passport.use(strategy);
+    this.passport.use(provider.name, strategy);
   }
 
   private unregisterProvider(providerName: string) {
@@ -171,41 +168,41 @@ export class OidcProviderService implements OnModuleInit {
     }
   }
 
-  private encryptSecret(secret: string): string {
-    const iv = crypto.randomBytes(16);
-    const encryptionKey = this.config.get<string>('ENCRYPTION_KEY', '');
-    const cipher = crypto.createCipheriv(
-      'aes-256-cbc',
-      Buffer.from(encryptionKey),
-      iv,
-    );
-
-    let encrypted = cipher.update(secret, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
-  }
-
-  private decryptSecret(encrypted: string): string {
-    const [ivHex, secret] = encrypted.split(':');
-    const encryptionKey = this.config.get<string>('ENCRYPTION_KEY', '');
-    // const encryptionKey = process.env.ENCRYPTION_KEY;
-    // if (!encryptionKey) {
-    //   throw new Error('ENCRYPTION_KEY environment variable is not set.');
-    // }
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv(
-      'aes-256-cbc',
-      Buffer.from(encryptionKey),
-      iv,
-    );
-
-    let decrypted = decipher.update(secret, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  }
-
   async refreshProviders() {
     this.strategies.clear();
     await this.registerAllProviders();
   }
 }
+
+// private encryptSecret(secret: string): string {
+//   const iv = crypto.randomBytes(16);
+//   const encryptionKey = this.config.get<string>('ENCRYPTION_KEY', '');
+//   const cipher = crypto.createCipheriv(
+//     'aes-256-cbc',
+//     Buffer.from(encryptionKey),
+//     iv,
+//   );
+
+//   let encrypted = cipher.update(secret, 'utf8', 'hex');
+//   encrypted += cipher.final('hex');
+//   return `${iv.toString('hex')}:${encrypted}`;
+// }
+
+// private decryptSecret(encrypted: string): string {
+//   const [ivHex, secret] = encrypted.split(':');
+//   const encryptionKey = this.config.get<string>('ENCRYPTION_KEY', '');
+//   // const encryptionKey = process.env.ENCRYPTION_KEY;
+//   // if (!encryptionKey) {
+//   //   throw new Error('ENCRYPTION_KEY environment variable is not set.');
+//   // }
+//   const iv = Buffer.from(ivHex, 'hex');
+//   const decipher = crypto.createDecipheriv(
+//     'aes-256-cbc',
+//     Buffer.from(encryptionKey),
+//     iv,
+//   );
+
+//   let decrypted = decipher.update(secret, 'hex', 'utf8');
+//   decrypted += decipher.final('utf8');
+//   return decrypted;
+// }

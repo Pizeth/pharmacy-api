@@ -312,7 +312,7 @@ export class AuthService {
       // 2. Find existing identity
       const identity = await this.oidcIdentityServie.getOidcIdentity(
         // provider.id,
-        { id: Number(profile.id) },
+        { providerUserId: profile.id },
       );
 
       if (identity && identity.isEnabled) {

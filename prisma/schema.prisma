@@ -219,6 +219,7 @@ model UserIdentity {
   
   @@unique([providerId, providerUserId])
   @@unique([providerId, userId])
+  @@unique([providerId, providerUserId, userId])
   @@map("user_identities")
 }
 

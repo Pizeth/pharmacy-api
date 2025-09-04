@@ -2,6 +2,8 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { AppError } from 'src/exceptions/app.exception';
+import { CryptoAlgorithm } from 'src/types/commons.enum';
+import { CipherGCMTypes, ExtractBySuffix } from 'src/types/crypto-algorithm';
 
 @Injectable()
 export class CryptoService {
@@ -29,12 +31,17 @@ export class CryptoService {
    * [ iv (12 bytes) | authTag (16 bytes) | ciphertext (...) ]
    *
    * This is compact and easy to store in DB as a single string.
+   * Format: "<version>:<algorithm>:<base64(iv|tag|ciphertext)>"
    */
   // Encrypt -> returns "v1:<base64(payload)>", payload = iv(12) || authTag(16) || ciphertext
-  encrypt(plaintext: string): string {
+  encrypt(
+    plaintext: string,
+    version: string = 'v1',
+    algorithm: CipherGCMTypes = CryptoAlgorithm.AES_256_GCM,
+  ): string {
     if (!this.key) this.key = this.deriveKey();
     const iv = crypto.randomBytes(12); // recommended for GCM
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.key, iv);
+    const cipher = crypto.createCipheriv(algorithm, this.key, iv);
 
     // Optional: supply associated authenticated data (AAD)
     // const aad = Buffer.from('optional-aad');
@@ -47,13 +54,117 @@ export class CryptoService {
 
     // Combine and return base64
     const out = Buffer.concat([iv, tag, ciphertext]);
-    return `v1:${out.toString('base64')}`;
+    return `${version}:${algorithm}:${out.toString('base64')}`;
   }
 
   /* If you previously had a decryptSecret or need to decrypt when reading,
    use decryptMaybeLegacy() so DB migration is easier. Example: */
-  decrypt(payload: string): string {
-    return this.decryptMaybeLegacy(payload);
+  // decrypt(payload: string): string {
+  //   return this.decryptMaybeLegacy(payload);
+  // }
+
+  /**
+   * Decrypt payload supporting both:
+   * - new format: "v1:aes-256-gcm:<base64(iv|tag|ciphertext)>"
+   * - legacy format: "v1:<base64(iv|tag|ciphertext)>" (treated as aes-256-gcm)
+   */
+  decrypt(
+    payload: string,
+    versionPrefix: string = 'v',
+    algorithm: CipherGCMTypes = CryptoAlgorithm.AES_256_GCM,
+  ): string {
+    if (!this.key) this.key = this.deriveKey();
+
+    // const parts = payload.split(':');
+    const [version, algo, b64] = payload.split(':');
+
+    try {
+      if (!version.startsWith(versionPrefix)) {
+        throw new AppError(
+          `Unsupported version format: ${version}`,
+          HttpStatus.BAD_REQUEST,
+          this.context,
+          {
+            provided: `${version}`,
+            expected: `${versionPrefix}...`,
+            payloadSample: `${versionPrefix}:${algorithm}:${b64}`,
+          },
+        );
+      }
+
+      if (!this.isGCM(algo)) {
+        throw new AppError(
+          `Unsupported algorithm: ${algo}`,
+          HttpStatus.BAD_REQUEST,
+          this.context,
+          {
+            provided: `${algo}`,
+            expected: algorithm,
+            payloadSample: `${versionPrefix}:${algorithm}:${b64}`,
+          },
+        );
+      }
+
+      const data = Buffer.from(b64, 'base64');
+      if (data.length < 12 + 16) {
+        throw new AppError(
+          'Invalid encrypted payload (too short)',
+          HttpStatus.BAD_REQUEST,
+          this.context,
+          {
+            provided: `${b64}`,
+            expected: 'length >= 12 + 16 bytes',
+            payloadSample: `${versionPrefix}:${algorithm}:${b64}`,
+          },
+        );
+      }
+
+      const iv = data.subarray(0, 12);
+      const tag = data.subarray(12, 28); // 12..27 inclusive
+      const ciphertext = data.subarray(28);
+
+      const decipher = crypto.createDecipheriv(algorithm, this.key, iv);
+      decipher.setAuthTag(tag);
+      // If you set AAD during encryption, set the same AAD here:
+      // decipher.setAAD(aad);
+
+      const plainBuf = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]);
+      return plainBuf.toString('utf8');
+    } catch (error) {
+      throw new AppError(
+        'Invalid encrypted payload format - failed to decrypt secret (GCM). Possible wrong key or tampered ciphertext.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        this.context,
+        { cause: error instanceof Error ? error.message : error },
+      );
+    }
+  }
+
+  /**
+   * Re-encrypt helper:
+   * - If payload already in the new format `v1:aes-256-gcm:<...>` and algorithm is aes-256-gcm,
+   *   returns payload unchanged (unless `force` is true).
+   * - Else decrypts (supports legacy v1:...) and re-encrypts using `encrypt()` returning new-format string.
+   *
+   * Use this to migrate persisted values to the new format.
+   */
+  reEncrypt(payload: string, version = 'v1', force = false): string {
+    // Quick sanity: valid-looking new format?
+    const parts = payload.split(':');
+
+    const isAlreadyNewFormat = parts.length === 3 && this.isGCM(parts[1]);
+
+    if (isAlreadyNewFormat && !force) {
+      // Already in desired format — nothing to do
+      return payload;
+    }
+
+    // Decrypt (handles legacy or other) and re-encrypt using current method
+    const plain = this.decrypt(payload);
+    return this.encrypt(plain, version);
   }
 
   /**
@@ -196,5 +307,38 @@ export class CryptoService {
       'ENCRYPTION_SALT missing — falling back to sha256(ENCRYPTION_KEY). Consider storing a random salt or a base64 32-byte key.',
     );
     return crypto.createHash('sha256').update(raw, 'utf8').digest();
+  }
+
+  private isGCM(algorithm: string): algorithm is CipherGCMTypes {
+    // Derive all GCM algorithms from the enum
+    // const GCM_ALGOS = Object.values(CryptoAlgorithm).filter(
+    //   (algo): algo is CipherGCMTypes => algo.endsWith('-gcm'),
+    // );
+
+    // 2️⃣ Runtime: precompute allowed values ONCE
+    // const GCM_ALGOS_SET: ReadonlySet<CipherGCMTypes> = new Set(
+    //   Object.values(CryptoAlgorithm).filter((algo): algo is CipherGCMTypes =>
+    //     algo.endsWith('-gcm'),
+    //   ),
+    // );
+    // return (GCM_ALGOS as readonly string[]).includes(algorithm);
+    // return GCM_ALGOS_SET.has(algorithm as CipherGCMTypes);
+
+    return this.isCipherAlgorithm('-gcm')(algorithm);
+  }
+
+  private isCipherAlgorithm<Suffix extends string>(suffix: Suffix) {
+    // 1️⃣ Compile-time: derive subset type from enum
+    type AlgoType = ExtractBySuffix<CryptoAlgorithm, Suffix>;
+
+    // 2️⃣ Runtime: precompute allowed values ONCE
+    const set: ReadonlySet<AlgoType> = new Set(
+      Object.values(CryptoAlgorithm).filter((algo): algo is AlgoType =>
+        algo.endsWith(suffix),
+      ),
+    );
+
+    // 3️⃣ Type guard using O(1) lookup
+    return (value: string): value is AlgoType => set.has(value as AlgoType);
   }
 }

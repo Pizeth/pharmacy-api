@@ -11,6 +11,7 @@ import { ImagesModule } from 'src/modules/images/image.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ValidationExceptionFilter } from 'src/filters/validation-exception.filter';
+import { CryptoService } from './services/crypto.service';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ValidationExceptionFilter } from 'src/filters/validation-exception.filt
     ExceptionService,
     LoggerService,
     QrCodeServicce,
+    CryptoService,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
@@ -51,6 +53,7 @@ import { ValidationExceptionFilter } from 'src/filters/validation-exception.filt
     ExceptionService,
     LoggerService,
     QrCodeServicce,
+    CryptoService,
     FileModule,
     ImagesModule,
     JwtModule,

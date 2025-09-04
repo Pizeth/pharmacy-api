@@ -17,76 +17,27 @@ export class OidcIdentityDbService {
     private readonly dbHelper: DBHelper,
   ) {}
 
-  // async getOidcIdentity(providerId: number, identityId: string) {
-  //   try {
-  //     const identity = await this.prisma.userIdentity.findFirst({
-  //       where: {
-  //         providerId,
-  //         providerUserId: identityId,
-  //       },
-  //       include: {
-  //         user: {
-  //           include: {
-  //             role: true,
-  //             profile: true,
-  //             identities: {
-  //               include: {
-  //                 provider: true,
-  //               },
-  //             },
-  //             refreshTokens: true,
-  //             auditTrail: true,
-  //           },
-  //         },
-  //         provider: true,
-  //       },
-  //     });
-
-  //     if (!identity)
-  //       throw new AppError(
-  //         'Invalid provider!',
-  //         HttpStatus.NOT_FOUND,
-  //         this.context,
-  //         {
-  //           cause: `Identity id: ${identityId} associated with providerId ${providerId} does not exist!`,
-  //           // validProviderId: (await this.getAllProviders()).data.filter(
-  //           //   (p) => p.id !== id,
-  //           // ),
-  //         },
-  //       );
-
-  //     return identity;
-  //   } catch (error) {
-  //     this.logger.error(error);
-  //     return null;
-  //   }
-  // }
-
-  async getOidcIdentity(where: Prisma.UserIdentityWhereUniqueInput) {
+  async getOidcIdentity(
+    where: Prisma.UserIdentityWhereInput,
+  ): Promise<UserIdentityDetail | null> {
     try {
-      const model = 'userIdentity';
-      const result = await this.dbHelper.findOne<
-        typeof model,
-        UserIdentityDetail
-      >({
-        model,
+      const result = await this.prisma.userIdentity.findFirst({
         where,
         include: {
-          // user: {
-          //   include: {
-          //     role: true,
-          //     profile: true,
-          //     identities: {
-          //       include: {
-          //         provider: true,
-          //       },
-          //     },
-          //     refreshTokens: true,
-          //     auditTrail: true,
-          //   },
-          // },
+          user: {
+            include: {
+              role: true,
+              profile: true,
+              identities: {
+                include: {
+                  provider: true,
+                },
+              },
+              refreshTokens: true,
+              auditTrail: true,
+            },
+          },
           provider: true,
-          user: true,
         },
       });
 
@@ -97,7 +48,7 @@ export class OidcIdentityDbService {
         error,
       );
       throw new AppError(
-        'Failed to retrieve OCID Identity that match with ${JSON.stringify(where)}!',
+        `Failed to retrieve OCID Identity that match with ${JSON.stringify(where)}!`,
         HttpStatus.NOT_FOUND,
         this.context,
         error,
@@ -105,7 +56,51 @@ export class OidcIdentityDbService {
     }
   }
 
-  async getAllRegisteredIdentities(
+  async getOne(
+    where: Prisma.UserIdentityWhereUniqueInput,
+  ): Promise<UserIdentityDetail | null> {
+    try {
+      const model = 'userIdentity';
+      const result = await this.dbHelper.findOne<
+        typeof model,
+        UserIdentityDetail
+      >({
+        model,
+        where,
+        include: {
+          user: {
+            include: {
+              role: true,
+              profile: true,
+              identities: {
+                include: {
+                  provider: true,
+                },
+              },
+              refreshTokens: true,
+              auditTrail: true,
+            },
+          },
+          provider: true,
+        },
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Error finding identity with  ${JSON.stringify(where)}:`,
+        error,
+      );
+      throw new AppError(
+        `Failed to retrieve OCID Identity that match with ${JSON.stringify(where)}!`,
+        HttpStatus.NOT_FOUND,
+        this.context,
+        error,
+      );
+    }
+  }
+
+  async getAll(
     page: number = 1,
     pageSize: number = 10,
     cursor?: Prisma.UserWhereUniqueInput,
@@ -177,3 +172,48 @@ export class OidcIdentityDbService {
     });
   }
 }
+
+// async getOidcIdentity(providerId: number, identityId: string) {
+//   try {
+//     const identity = await this.prisma.userIdentity.findFirst({
+//       where: {
+//         providerId,
+//         providerUserId: identityId,
+//       },
+//       include: {
+//         user: {
+//           include: {
+//             role: true,
+//             profile: true,
+//             identities: {
+//               include: {
+//                 provider: true,
+//               },
+//             },
+//             refreshTokens: true,
+//             auditTrail: true,
+//           },
+//         },
+//         provider: true,
+//       },
+//     });
+
+//     if (!identity)
+//       throw new AppError(
+//         'Invalid provider!',
+//         HttpStatus.NOT_FOUND,
+//         this.context,
+//         {
+//           cause: `Identity id: ${identityId} associated with providerId ${providerId} does not exist!`,
+//           // validProviderId: (await this.getAllProviders()).data.filter(
+//           //   (p) => p.id !== id,
+//           // ),
+//         },
+//       );
+
+//     return identity;
+//   } catch (error) {
+//     this.logger.error(error);
+//     return null;
+//   }
+// }

@@ -30,21 +30,21 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
         },
       );
     }
-
-    // if (!user) {
-    //   this.logger.warn(
-    //     `Invalid credentials for user: ${credential}`,
-    //     this.context,
-    //   );
-    //   throw new AppError(
-    //     'Invalid credentials',
-    //     HttpStatus.UNAUTHORIZED,
-    //     this.context,
-    //     {
-    //       cause: new UnauthorizedException(),
-    //     },
-    //   );
-    // }
-    // return user;
   }
 }
+
+// if (!user) {
+//   this.logger.warn(
+//     `Invalid credentials for user: ${credential}`,
+//     this.context,
+//   );
+//   throw new AppError(
+//     'Invalid credentials',
+//     HttpStatus.UNAUTHORIZED,
+//     this.context,
+//     {
+//       cause: new UnauthorizedException(),
+//     },
+//   );
+// }
+// return user;

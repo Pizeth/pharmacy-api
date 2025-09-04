@@ -83,7 +83,7 @@ export class AuthController {
     const user = req.user;
     const token = await this.authService.login(user);
 
-    res.cookie('access_token', token, {
+    res.cookie('access_token', token.accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
@@ -92,9 +92,9 @@ export class AuthController {
       path: '/',
     });
 
-    res.redirect(
-      `${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`,
-    );
+    // res.redirect(
+    //   `${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`,
+    // );
     // Option B: redirect back to your frontend with tokens as fragments or set cookies.
     const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(token.accessToken)}&refresh=${encodeURIComponent(token.refreshToken)}&provider=${provider}`;
     return res.redirect(redirectUrl);

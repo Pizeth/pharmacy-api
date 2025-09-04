@@ -15,6 +15,7 @@ declare global {
     export interface Request {
       user?: TokenPayload;
       correlationId?: string;
+      oidcProvider?: string;
     }
   }
 }

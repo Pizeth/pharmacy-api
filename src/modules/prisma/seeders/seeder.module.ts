@@ -89,6 +89,14 @@ import { CryptoService } from 'src/commons/services/crypto.service';
     TimeParserModule,
   ],
   providers: [
+    {
+      provide: CryptoService,
+      useFactory: (config: ConfigService) => {
+        return new CryptoService(config);
+      },
+      inject: [ConfigService],
+    },
+    // CryptoService,
     // // We define a custom factory for our main Seeder class.
     {
       provide: TokenService,
