@@ -43,18 +43,24 @@
 //   }
 // }
 
-import { DynamicModule, Module, Provider } from '@nestjs/common';
+import { DynamicModule, Module, Provider, Scope } from '@nestjs/common';
 import { AuthService } from '../auth/services/auth.service';
 import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
 import { OidcProviderService } from './services/oidc-provider.service';
-import { PassportStatic } from 'passport';
-import { DBHelper } from '../helpers/services/db-helper';
+import passport, { PassportStatic } from 'passport';
 import { PrismaModule } from '../prisma/prisma.module';
 import { OidcProviderDbService } from './services/oidc-provider-db.service';
 import { OidcIdentityDbService } from './services/oidc-identity-db.service';
+import { DynamicOidcStrategy } from '../auth/strategies/dynamic-oidc.strategy';
+import { DynamicOidcGuard } from '../auth/guards/oidc.guard';
+import { APP_GUARD } from '@nestjs/core';
+import { DBHelperModule } from '../helpers/helper.module';
+import { PassportModule } from '@nestjs/passport';
+import { ProviderController } from './controllers/provider.controller';
+import { CommonModule } from 'src/commons/common.module';
 
-@Module({ imports: [DBHelper, PrismaModule] })
-export class OidcModule {
+@Module({ imports: [DBHelperModule, PrismaModule] })
+export class OidcModuleOld {
   static registerAsync(): DynamicModule {
     const providers: Provider[] = [
       OidcProviderService,
@@ -96,6 +102,88 @@ export class OidcModule {
   }
 }
 
+@Module({ imports: [DBHelperModule, PrismaModule] })
+export class OidcModule {
+  static registerAsync(): DynamicModule {
+    const providers: Provider[] = [
+      OidcProviderService,
+      OidcStrategyFactory,
+      OidcProviderDbService,
+      OidcIdentityDbService,
+      {
+        provide: 'DYNAMIC_OIDC_STRATEGY',
+        useClass: DynamicOidcStrategy,
+      },
+      {
+        provide: APP_GUARD,
+        useClass: DynamicOidcGuard,
+      },
+    ];
+
+    return {
+      module: OidcModule,
+      providers: [
+        ...providers,
+        {
+          provide: 'OIDC_INITIALIZATION',
+          useFactory: (providerService: OidcProviderService) => {
+            // This ensures providers are registered during app initialization
+            return () => providerService.registerAllProviders();
+          },
+          inject: [OidcProviderService],
+          scope: Scope.REQUEST,
+        },
+      ],
+      exports: ['DYNAMIC_OIDC_STRATEGY', OidcProviderService],
+    };
+  }
+}
+
+// FIX: Making the module Global can simplify dependency injection elsewhere,
+// especially for the OidcProviderService.
+// @Global()
+@Module({
+  // REVISED: We need to import PassportModule to make the passport instance available for injection.
+  imports: [CommonModule, DBHelperModule, PassportModule],
+  // REVISED: Simplified providers list. We no longer need complex factories here.
+  providers: [
+    OidcProviderService,
+    OidcStrategyFactory,
+    OidcProviderDbService,
+    OidcIdentityDbService,
+    DynamicOidcGuard,
+  ],
+  controllers: [ProviderController],
+  // REVISED: Export the service and the new guard so other modules (like AuthModule) can use them.
+  exports: [OidcProviderService, DynamicOidcGuard],
+})
+export class OidcModuleNew {}
+
+const passportProvider: Provider = {
+  provide: 'PASSPORT',
+  useValue: passport,
+};
+
+@Module({
+  imports: [
+    PrismaModule, // must export PrismaService
+    DBHelperModule, // must export DBHelper
+  ],
+  providers: [
+    passportProvider,
+    OidcProviderService,
+    OidcStrategyFactory,
+    OidcProviderDbService,
+    OidcIdentityDbService,
+  ],
+  exports: [
+    OidcProviderService,
+    OidcStrategyFactory,
+    OidcProviderDbService,
+    OidcIdentityDbService,
+  ],
+})
+export class OidcModule2 {}
 // Define a constant for the injection token
 // export const OIDC_CONFIG = 'OIDC_CONFIG';
 

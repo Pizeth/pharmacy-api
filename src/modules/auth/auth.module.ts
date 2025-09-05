@@ -11,20 +11,25 @@ import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
-  imports: [UserModule, PassportModule, OidcModule.registerAsync()],
+  imports: [
+    UserModule,
+    PassportModule.register({ session: false }),
+    OidcModule.registerAsync(),
+  ],
   providers: [
     AuthService,
+    LocalStrategy,
+    JwtStrategy,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
-
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
     },
   ],
-  exports: [AuthService, UserModule, LocalStrategy, JwtStrategy],
+  exports: [AuthService, UserModule, LocalStrategy, JwtStrategy, OidcModule],
   controllers: [AuthController],
 })
 export class AuthModule {}

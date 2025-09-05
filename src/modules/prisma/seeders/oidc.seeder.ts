@@ -78,19 +78,22 @@ export class OidcSeeder {
   }
 
   private getProvidersFromData(id: number) {
-    return data.oidc.map((odic) => ({
-      name: odic.name,
-      displayName: odic.displayName,
-      issuer: odic.issuer,
-      authorizationURL: odic.authorizationURL,
-      tokenURL: odic.tokenURL,
-      callbackURL: odic.callbackURL,
-      userInfoURL: odic.userInfoURL,
-      scope: odic.scope,
+    return data.oidc.map((oidc) => ({
+      name: oidc.name,
+      displayName: oidc.displayName,
+      issuer: oidc.issuer,
+      authorizationURL: oidc.authorizationURL,
+      tokenURL: oidc.tokenURL,
+      // callbackURL: odic.callbackURL,
+      callbackURL: `${process.env.APP_URL}/auth/${oidc.name}/callback`,
+      userInfoURL: oidc.userInfoURL,
+      scope: oidc.scope,
       createdBy: id,
       lastUpdatedBy: id,
     }));
   }
+
+  // "callbackURL": "http://localhost:3000/api/v1/auth/google/callback",
 
   private getDataFromEnv(key: string, provider: string): string {
     const value = this.config.get<string>(key);

@@ -29,10 +29,10 @@ export const createUserSchema = z.object({
     description: 'The token URL for the identity provider.',
     example: 'https://oauth2.googleapis.com/token',
   }),
-  callbackURL: z.string().trim().meta({
-    description: 'The callback URL for the identity provider.',
-    example: 'http://localhost:3000/auth/google/callback',
-  }),
+  // callbackURL: z.string().trim().meta({
+  //   description: 'The callback URL for the identity provider.',
+  //   example: 'http://localhost:3000/auth/google/callback',
+  // }),
   userInfoURL: z.string().trim().meta({
     description: 'The user info URL for the identity provider.',
     example: 'https://openidconnect.googleapis.com/v1/userinfo',

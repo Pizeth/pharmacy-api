@@ -234,8 +234,6 @@ export class AuthService {
     );
 
     await this.usersService.update(user.id, { lastLogin: new Date() });
-
-    await this.usersService.update(user.id, { lastLogin: new Date() });
     return {
       user,
       accessToken: token,
@@ -297,25 +295,29 @@ export class AuthService {
           },
         );
       }
-      if (!provider) {
-        throw new AppError(
-          'Provider not found',
-          HttpStatus.NOT_FOUND,
-          this.context,
-          {
-            cause: `Provider with name ${providerName} does not exist!`,
-            validProvider: this.oidcProviderServie.getAllEnabledProviders(),
-          },
-        );
-      }
 
       // 2. Find existing identity
-      const identity = await this.oidcIdentityServie.getOidcIdentity(
-        // provider.id,
-        { providerUserId: profile.id },
-      );
+      const identity = await this.oidcIdentityServie.getOidcIdentity({
+        // AND: [{ providerUserId: profile.id }, { providerId: provider.id }],
+        providerId_providerUserId: {
+          providerId: provider.id,
+          providerUserId: profile.id,
+        },
+      });
 
       if (identity && identity.isEnabled) {
+        return identity.user;
+      }
+
+      if (identity && identity.user) {
+        // Additional check to ensure the associated user is active
+        if (!identity.user.isEnabled || identity.user.isBan) {
+          throw new AppError(
+            'User account is disabled or banned',
+            HttpStatus.FORBIDDEN,
+            this.context,
+          );
+        }
         return identity.user;
       }
 
@@ -324,16 +326,20 @@ export class AuthService {
         const user = await this.usersService.getUser(profile.email);
         if (user) {
           // Link identity to existing user
-          await this.linkOIDCAccount(user.id, profile);
+          await this.linkOIDCAccount(user.id, provider.id, profile);
           return this.sanitizeUser(user);
         }
       }
 
-      // 4. Create new user
+      // 4. Create new user if no identity or email match is found
       const user = await this.createUserWithIdentity(provider.id, profile);
       return user;
     } catch (error) {
       this.logger.error('Error occured during findOrCreateOidcUser:', error);
+      if (error instanceof AppError) {
+        throw error; // Re-throw custom errors
+      }
+
       throw new AppError(
         'Error occured during findOrCreateOidcUser',
         HttpStatus.UNAUTHORIZED,
@@ -369,11 +375,20 @@ export class AuthService {
     }
   }
 
-  async linkOIDCAccount(userId: number, profile: NormalizedProfile) {
+  async linkOIDCAccount(
+    userId: number,
+    providerId: number,
+    profile: NormalizedProfile,
+  ) {
     try {
       // 1. Find OIDC identity
       const existingOIDCUser = await this.oidcIdentityServie.getOidcIdentity({
-        id: Number(profile.id),
+        // id: Number(profile.id),
+        // AND: [{ providerUserId: profile.id }, { providerId }],
+        providerId_providerUserId: {
+          providerId,
+          providerUserId: profile.id,
+        },
       });
 
       // 2. Check if OIDC ID is already linked to another account
@@ -394,14 +409,15 @@ export class AuthService {
 
       // 3. Prepare data and link OIDC account
       const data = {
-        providerId: profile.providerId,
+        providerId,
         userId,
         providerUserId: profile.id,
+        isEnabled: true,
       };
 
-      const ocidUser = await this.oidcIdentityServie.create({
-        ...data,
-      });
+      const ocidUser = !existingOIDCUser
+        ? await this.oidcIdentityServie.create(data)
+        : await this.oidcIdentityServie.update(existingOIDCUser.id, data);
 
       // 4. Update avatar if not set
       if (profile.photo && !ocidUser.user.avatar) {
@@ -413,9 +429,9 @@ export class AuthService {
       // 5. Return OIDC user
       return ocidUser;
     } catch (error) {
-      this.logger.error('Error occured during linkOIDCAccount:', error);
+      this.logger.error('Error occured during lOIDC account linking:', error);
       throw new AppError(
-        'Error occured during linkOIDCAccount',
+        'Error occured during lOIDC account linking',
         HttpStatus.UNAUTHORIZED,
         this.context,
         error,

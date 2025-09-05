@@ -18,30 +18,36 @@ export class OidcIdentityDbService {
   ) {}
 
   async getOidcIdentity(
-    where: Prisma.UserIdentityWhereInput,
+    where: Prisma.UserIdentityWhereUniqueInput,
   ): Promise<UserIdentityDetail | null> {
     try {
-      const result = await this.prisma.userIdentity.findFirst({
-        where,
-        include: {
-          user: {
-            include: {
-              role: true,
-              profile: true,
-              identities: {
-                include: {
-                  provider: true,
-                },
-              },
-              refreshTokens: true,
-              auditTrail: true,
-            },
+      // Handle composite key lookups
+      if (where.providerId_providerUserId) {
+        return await this.prisma.userIdentity.findUnique({
+          where: {
+            providerId_providerUserId: where.providerId_providerUserId,
           },
-          provider: true,
-        },
-      });
+          include: {
+            user: {
+              include: {
+                role: true,
+                profile: true,
+                identities: {
+                  include: {
+                    provider: true,
+                  },
+                },
+                refreshTokens: true,
+                auditTrail: true,
+              },
+            },
+            provider: true,
+          },
+        });
+      }
 
-      return result;
+      // Handle regular ID lookups
+      return this.getOne(where);
     } catch (error) {
       this.logger.error(
         `Error finding identity with  ${JSON.stringify(where)}:`,
@@ -55,6 +61,45 @@ export class OidcIdentityDbService {
       );
     }
   }
+
+  // async getOidcIdentity1(
+  //   where: Prisma.UserIdentityWhereInput,
+  // ): Promise<UserIdentityDetail | null> {
+  //   try {
+  //     const result = await this.prisma.userIdentity.findFirst({
+  //       where,
+  //       include: {
+  //         user: {
+  //           include: {
+  //             role: true,
+  //             profile: true,
+  //             identities: {
+  //               include: {
+  //                 provider: true,
+  //               },
+  //             },
+  //             refreshTokens: true,
+  //             auditTrail: true,
+  //           },
+  //         },
+  //         provider: true,
+  //       },
+  //     });
+
+  //     return result;
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `Error finding identity with  ${JSON.stringify(where)}:`,
+  //       error,
+  //     );
+  //     throw new AppError(
+  //       `Failed to retrieve OCID Identity that match with ${JSON.stringify(where)}!`,
+  //       HttpStatus.NOT_FOUND,
+  //       this.context,
+  //       error,
+  //     );
+  //   }
+  // }
 
   async getOne(
     where: Prisma.UserIdentityWhereUniqueInput,

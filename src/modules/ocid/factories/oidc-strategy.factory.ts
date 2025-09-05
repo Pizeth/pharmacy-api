@@ -15,3 +15,11 @@ export class OidcStrategyFactory {
     return new OidcStrategy(this.authService, this.providerService, provider);
   }
 }
+
+@Injectable()
+export class OidcStrategyFactoryGPT {
+  createStrategy(provider: IdentityProvider): OidcStrategy {
+    // create OidcStrategy instance with provider runtime values
+    return new OidcStrategy(provider);
+  }
+}

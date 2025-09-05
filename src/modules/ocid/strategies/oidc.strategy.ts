@@ -50,12 +50,13 @@
 
 import { Profile, Strategy, VerifyCallback } from 'passport-openidconnect';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
 import { NormalizedProfile } from '../interfaces/oidc.interface';
 import { IdentityProvider } from '@prisma/client';
 import { OidcProviderService } from '../services/oidc-provider.service';
+import { Request } from 'express';
 
 // @Injectable()
 // export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
@@ -158,6 +159,8 @@ import { OidcProviderService } from '../services/oidc-provider.service';
 // We are not using the default @Injectable() decorator.
 @Injectable()
 export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
+  private readonly context = OidcStrategy.name;
+  private readonly logger = new Logger(this.context);
   constructor(
     private readonly authService: AuthService,
     private readonly providerService: OidcProviderService,
@@ -170,30 +173,62 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
       userInfoURL: provider.userInfoURL,
       clientID: provider.clientID,
       clientSecret: provider.clientSecret,
-      callbackURL: provider.callbackURL,
-      scope: provider.scope?.split(',').map((s) => s.trim()),
-      passReqToCallback: false, // Set to false, we don't need the req object in validate
+      callbackURL: `${process.env.APP_URL}/auth/${provider.name}/callback`,
+      scope: provider.scope?.split(',').map((s) => s.trim()) || [
+        'openid',
+        'profile',
+        'email',
+      ],
+      // passReqToCallback: false, // Set to false, we don't need the req object in validate
+      passReqToCallback: true, // We need req to access provider
     });
 
     // Dynamically set the strategy name
     this.name = provider.name;
   }
 
+  // constructor(
+  //   private readonly authService: AuthService,
+  //   private readonly provider: IdentityProvider,
+  // ) {
+  //   super(
+  //     {
+  //       issuer: provider.issuer,
+  //       authorizationURL: provider.authorizationURL,
+  //       tokenURL: provider.tokenURL,
+  //       userInfoURL: provider.userInfoURL,
+  //       clientID: provider.clientID,
+  //       clientSecret: provider.clientSecret,
+  //       callbackURL: provider.callbackURL,
+  //       scope: provider.scope?.split(',').map((s) => s.trim()),
+  //       passReqToCallback: false,
+  //     },
+  //     provider.name,
+  //   ); // Pass provider name as strategy name
+
+  //   // Set the name property directly on the strategy instance
+  //   Object.defineProperty(this, 'name', {
+  //     value: provider.name,
+  //     writable: false,
+  //     enumerable: true,
+  //     configurable: false,
+  //   });
+  // }
+
   // The validate function that passport-openidconnect will call
   async validate(
+    req: Request,
     issuer: string,
     profile: Profile,
-    // idToken: string | object,
-    // accessToken: string,
-    // refreshToken: string,
-    // expiresAt: Date,
-    // idToken: string | object,
-    // accessToken: string,
-    // refreshToken: string,
+    idToken: string | object,
+    accessToken: string,
+    refreshToken: string,
+    params: unknown,
     // expiresAt: Date,
     done: VerifyCallback,
   ): Promise<any> {
     try {
+      this.logger.log(`Validating user from ${this.provider.name} provider`);
       const normalizedProfile = await this.normalizeProfile(profile, issuer);
       // const tokens = {
       //   accessToken,
@@ -210,10 +245,11 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
       );
 
       if (!user) {
-        return done(null, false); // Or handle error appropriately
+        return done(null, false, { message: 'User not found' }); // Or handle error appropriately
       }
       return done(null, user);
     } catch (error) {
+      this.logger.error('Validation error:', error);
       // Check if the caught object is an instance of Error
       if (error instanceof Error) {
         return done(error, false);
@@ -240,7 +276,7 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     return {
       id: profile.id,
       providerId: this.provider.id,
-      provider,
+      provider: this.provider.name,
       displayName: profile.displayName,
       username: profile.username,
       // Use the more robust full name we constructed
@@ -277,6 +313,233 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     } catch {
       return undefined;
     }
+  }
+}
+
+@Injectable()
+export class OidcStrategyDeepSeek extends PassportStrategy(Strategy, 'oidc') {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly providerService: OidcProviderService,
+    private readonly provider: IdentityProvider,
+  ) {
+    super({
+      issuer: provider.issuer,
+      authorizationURL: provider.authorizationURL,
+      tokenURL: provider.tokenURL,
+      userInfoURL: provider.userInfoURL,
+      clientID: provider.clientID,
+      clientSecret: provider.clientSecret,
+      callbackURL: `${process.env.APP_URL}/auth/${provider.name}/callback`,
+      scope: provider.scope?.split(',').map((s) => s.trim()),
+      passReqToCallback: false,
+    });
+
+    this.name = provider.name;
+  }
+
+  async validate(
+    issuer: string,
+    profile: Profile,
+    context: any,
+    done: VerifyCallback,
+  ): Promise<any> {
+    try {
+      const normalizedProfile = this.normalizeProfile(profile);
+      const tokens = {
+        accessToken: context.accessToken,
+        refreshToken: context.refreshToken,
+        idToken: context.idToken,
+        expiresAt: context.expiresAt,
+      };
+
+      const user = await this.authService.oidcLogin(
+        this.provider.name,
+        normalizedProfile,
+        tokens,
+      );
+
+      return done(null, user);
+    } catch (error) {
+      if (error instanceof Error) {
+        return done(error, false);
+      }
+      const errorMessage = `An unknown error occurred during authentication: ${String(error)}`;
+      return done(new Error(errorMessage), false);
+    }
+  }
+
+  private normalizeProfile(profile: Profile): NormalizedProfile {
+    const fullName = profile.name
+      ? `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim()
+      : profile.displayName;
+
+    return {
+      id: profile.id,
+      provider: this.provider.name,
+      displayName: profile.displayName,
+      username: profile.username,
+      name: fullName,
+      email: profile.emails?.[0]?.value || '',
+      emailVerified: true,
+      photo: profile.photos?.[0]?.value,
+      raw: profile._json,
+    };
+  }
+}
+
+// Notice: removed AuthService dependency — strategy only normalizes profile and returns it
+@Injectable()
+export class OidcStrategyGPT extends PassportStrategy(
+  Strategy,
+  // The second arg (name) will be set dynamically in the factory
+  // but PassportStrategy requires it here; we pass a placeholder and override in factory
+  'oidc',
+) {
+  private provider: IdentityProvider;
+
+  constructor(provider: IdentityProvider) {
+    // Build options from provider
+    super({
+      issuer: provider.issuer,
+      authorizationURL: provider.authorizationURL,
+      tokenURL: provider.tokenURL,
+      userInfoURL: provider.userInfoURL,
+      clientID: provider.clientID,
+      clientSecret: provider.clientSecret,
+      callbackURL: provider.callbackURL,
+      scope: provider.scope?.split(',').map((s) => s.trim()),
+      passReqToCallback: false,
+      // name: provider.name, // Set the strategy name in the options
+    });
+
+    this.provider = provider;
+    Object.defineProperty(this, 'name', {
+      value: provider.name,
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
+  }
+
+  // Verify callback signature depends on passport-openidconnect library.
+  // Passport will call this method with (issuer, profile, ... done) or similar.
+  // We normalize and return the normalized profile — actual login happens in controller.
+  async validate(
+    issuer: string,
+    profile: Profile,
+    done: Function,
+  ): Promise<any> {
+    try {
+      const normalized: NormalizedProfile = {
+        id: profile.id,
+        providerId: this.provider.id,
+        provider: this.provider.name,
+        displayName: profile.displayName,
+        username: profile.username,
+        name: profile.name
+          ? `${profile.name.givenName ?? ''} ${profile.name.familyName ?? ''}`.trim()
+          : profile.displayName,
+        email: profile.emails?.[0]?.value ?? '',
+        emailVerified:
+          (profile._json &&
+            (profile._json.email_verified ?? profile._json.emailVerified)) ??
+          false,
+        photo: profile.photos?.[0]?.value,
+        raw: profile as any,
+      };
+
+      // Return normalized profile as the "user" for passport -> will be available as req.user
+      return done(null, normalized);
+    } catch (err) {
+      return done(err);
+    }
+  }
+}
+
+@Injectable()
+export class OidcStrategyQwen extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(OidcStrategy.name);
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly providerService: OidcProviderService,
+    private readonly provider: IdentityProvider,
+  ) {
+    super({
+      issuer: provider.issuer,
+      authorizationURL: provider.authorizationURL,
+      tokenURL: provider.tokenURL,
+      userInfoURL: provider.userInfoURL,
+      clientID: provider.clientID,
+      clientSecret: provider.clientSecret,
+      callbackURL: `${process.env.APP_URL}/auth/${provider.name}/callback`,
+      scope: provider.scope?.split(',').map((s) => s.trim()) || [
+        'openid',
+        'profile',
+        'email',
+      ],
+      passReqToCallback: true, // We need req to access provider
+    });
+  }
+
+  async validate(
+    req: any,
+    issuer: string,
+    profile: Profile,
+    idToken: string | object,
+    accessToken: string,
+    refreshToken: string,
+    params: any,
+    done: (error: any, user?: any, info?: any) => void,
+  ): Promise<void> {
+    try {
+      this.logger.log(`Validating user from ${this.provider.name} provider`);
+
+      const normalizedProfile = this.normalizeProfile(profile, issuer);
+      const user = await this.authService.oidcLogin(
+        this.provider.name,
+        normalizedProfile,
+        {
+          accessToken,
+          refreshToken,
+          idToken:
+            typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
+          expiresIn: params.expires_in,
+        },
+      );
+
+      if (!user) {
+        return done(null, false, { message: 'User not found' });
+      }
+
+      return done(null, user);
+    } catch (error) {
+      this.logger.error('Validation error:', error);
+      return done(error, false);
+    }
+  }
+
+  private normalizeProfile(
+    profile: Profile,
+    issuer: string,
+  ): NormalizedProfile {
+    const fullName = profile.name
+      ? `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim()
+      : profile.displayName;
+
+    return {
+      id: profile.id,
+      providerId: this.provider.id,
+      provider: this.provider.name,
+      displayName: profile.displayName,
+      username: profile.username,
+      name: fullName,
+      email: profile.emails?.[0]?.value || '',
+      emailVerified: profile.emails?.[0]?.verified || false,
+      photo: profile.photos?.[0]?.value,
+      raw: profile,
+    };
   }
 }
 

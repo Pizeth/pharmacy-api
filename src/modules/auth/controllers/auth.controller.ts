@@ -17,12 +17,13 @@ import {
 import { AuthService } from '../services/auth.service';
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { Request as ExpressRequest, Response } from 'express';
-import { AuthGuard } from '@nestjs/passport';
+// import { AuthGuard } from '@nestjs/passport';
 import { AppError } from 'src/exceptions/app.exception';
 import { LocalAuthGuard } from '../guards/local.guard';
-import { SanitizedUser } from 'src/types/dto';
+import { SanitizedUser, SignedUser } from 'src/types/dto';
 import { JwtAuthGuard } from '../guards/jwt.guard';
 import { CurrentUser } from 'src/decorators/current-user.decorator';
+import { DynamicOidcGuard } from '../guards/oidc.guard';
 @Controller('auth')
 export class AuthController {
   private readonly context = AuthController.name;
@@ -48,9 +49,30 @@ export class AuthController {
     return { message: 'Logged out successfully' };
   }
 
+  // @Get(':provider')
+  // @UseGuards(AuthGuard('oidc'))
+  // oidcLogin(@Param('provider') provider: string) {
+  //   // Initiates OIDC flow
+  //   const strategy = this.providerService.getStrategy(provider);
+  //   if (!strategy) {
+  //     throw new AppError(
+  //       'Provider not found',
+  //       HttpStatus.NOT_FOUND,
+  //       this.context,
+  //       {
+  //         cause: `Provider ${provider} not found!`,
+  //         validProvider: this.providerService.getAllEnabledProviders(),
+  //       },
+  //     );
+  //   }
+  // }
+
   @Get(':provider')
-  @UseGuards(AuthGuard('oidc'))
+  @UseGuards(DynamicOidcGuard) // ✅ Use dynamic guard
   oidcLogin(@Param('provider') provider: string) {
+    // This guard will handle the strategy selection
+    // No additional logic needed here
+
     // Initiates OIDC flow
     const strategy = this.providerService.getStrategy(provider);
     if (!strategy) {
@@ -67,37 +89,55 @@ export class AuthController {
   }
 
   @Get(':provider/callback')
-  @UseGuards(AuthGuard('oidc'))
+  // @UseGuards(AuthGuard('oidc'))
+  @UseGuards(DynamicOidcGuard) // ✅ Use dynamic guard
   async oidcCallback(
     @Param('provider') provider: string,
     @Req() req: ExpressRequest & { user: SanitizedUser },
     @Res() res: Response,
   ) {
-    const strategy = this.providerService.getStrategy(provider);
-    if (!strategy) {
+    try {
+      const strategy = this.providerService.getStrategy(provider);
+      if (!strategy) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/login?error=provider_not_supported`,
+        );
+      }
+
+      // Check if authentication was successful
+      const user = req.user;
+      if (!user) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/login?error=authentication_failed`,
+        );
+      }
+
+      const signedUser = await this.authService.login(user);
+
+      // Option A: Set cookie (for traditional web apps)
+      res.cookie('access_token', signedUser.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3600000, // 1 hour
+        domain: process.env.COOKIE_DOMAIN || 'localhost',
+        path: '/',
+      });
+
+      // Option B: redirect back to your frontend with tokens as fragments or set cookies.
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access_token=${encodeURIComponent(
+        signedUser.accessToken,
+      )}&refresh_token=${encodeURIComponent(signedUser.refreshToken)}&provider=${provider}`;
+
+      return res.redirect(redirectUrl);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      this.logger.error('Error occurred during OIDC callback:', error);
       return res.redirect(
-        `${process.env.FRONTEND_URL}/login?error=provider_not_supported`,
+        `${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(errorMessage)}`,
       );
     }
-
-    const user = req.user;
-    const token = await this.authService.login(user);
-
-    res.cookie('access_token', token.accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 3600000,
-      domain: process.env.COOKIE_DOMAIN,
-      path: '/',
-    });
-
-    // res.redirect(
-    //   `${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`,
-    // );
-    // Option B: redirect back to your frontend with tokens as fragments or set cookies.
-    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(token.accessToken)}&refresh=${encodeURIComponent(token.refreshToken)}&provider=${provider}`;
-    return res.redirect(redirectUrl);
   }
 
   // Token refresh
@@ -139,6 +179,55 @@ export class AuthController {
     await this.authService.unlinkOIDCAccount(id, provider);
     return { message: `${provider} account unlinked successfully` };
   }
+}
+
+@Controller('auth')
+export class AuthControllerGemini {
+  constructor(
+    private readonly authService: AuthService,
+    // We still might need this for linking/unlinking logic
+    private readonly providerService: OidcProviderService,
+  ) {}
+
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(LocalAuthGuard)
+  @Post('login')
+  async login(
+    @Request() req: ExpressRequest & { user: SanitizedUser },
+  ): Promise<SignedUser> {
+    return this.authService.login(req.user);
+  }
+
+  // REVISED: Use the new DynamicOidcAuthGuard for both the initial redirect and the callback.
+  @Get(':provider')
+  @UseGuards(DynamicOidcGuard)
+  oidcLogin(@Param('provider') provider: string) {
+    // This function will now correctly initiate the OIDC flow
+    // because the guard will select the right strategy.
+    // The body of this function is intentionally left empty.
+  }
+
+  @Get(':provider/callback')
+  @UseGuards(DynamicOidcGuard)
+  async oidcCallback(
+    @Req() req: ExpressRequest & { user: SanitizedUser },
+    @Res() res: Response,
+  ) {
+    // The user object is now attached to the request by the Passport strategy.
+    const signedUser = await this.authService.login(req.user);
+
+    // FIX: Simplified and safer redirect. Avoid putting tokens directly in the URL if possible.
+    // Using a cookie is a good approach, or a short-lived state token.
+    // Here we redirect and let a frontend script pick up the token from a fragment.
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access_token=${encodeURIComponent(
+      signedUser.accessToken,
+    )}&refresh_token=${encodeURIComponent(signedUser.refreshToken)}`;
+
+    res.redirect(redirectUrl);
+  }
+
+  // ... other methods like logout, refresh, link, unlink ...
+  // The logic for these seems correct and doesn't need to change.
 }
 
 // @Get(':provider')
