@@ -34,6 +34,7 @@ import {
   USER_NOT_FOUND,
   VALID_CREDENTIALS,
 } from '../const/user-state.const';
+import { Token } from 'src/modules/ocid/types/token';
 
 @Injectable()
 export class AuthService {
@@ -42,8 +43,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-    private readonly oidcProviderServie: OidcProviderService,
-    private readonly oidcIdentityServie: OidcIdentityDbService,
+    private readonly oidcProviderService: OidcProviderService,
+    private readonly oidcIdentityService: OidcIdentityDbService,
     private readonly passwordUtil: PasswordUtils,
     private readonly tokenService: TokenService,
     private readonly prisma: PrismaService,
@@ -259,6 +260,29 @@ export class AuthService {
     }
   }
 
+  async oidcLoginDeepSeek(
+    providerName: string,
+    profile: NormalizedProfile,
+    tokens: Token,
+  ): Promise<SignedUser> {
+    try {
+      const user = await this.findOrCreateOidcUserDeepSeek(
+        providerName,
+        profile,
+        tokens,
+      );
+      return this.login(user);
+    } catch (error) {
+      this.logger.error('Error during OIDC login:', error);
+      throw new AppError(
+        'OIDC login failed',
+        HttpStatus.UNAUTHORIZED,
+        this.context,
+        error,
+      );
+    }
+  }
+
   async register(registerDto: CreateUserDto, file?: Express.Multer.File) {
     try {
       // Create user
@@ -282,7 +306,7 @@ export class AuthService {
     try {
       // 1. Find provider
       const provider =
-        await this.oidcProviderServie.getOidcIdentityProvider(providerName);
+        await this.oidcProviderService.getOidcIdentityProvider(providerName);
 
       if (!provider) {
         throw new AppError(
@@ -291,13 +315,13 @@ export class AuthService {
           this.context,
           {
             cause: `Provider with name ${providerName} does not exist!`,
-            validProvider: this.oidcProviderServie.getAllEnabledProviders(),
+            validProvider: this.oidcProviderService.getAllEnabledProviders(),
           },
         );
       }
 
       // 2. Find existing identity
-      const identity = await this.oidcIdentityServie.getOidcIdentity({
+      const identity = await this.oidcIdentityService.getOidcIdentity({
         // AND: [{ providerUserId: profile.id }, { providerId: provider.id }],
         providerId_providerUserId: {
           providerId: provider.id,
@@ -349,6 +373,47 @@ export class AuthService {
     }
   }
 
+  async findOrCreateOidcUserDeepSeek(
+    providerName: string,
+    profile: NormalizedProfile,
+    tokens: Token,
+  ): Promise<SanitizedUser> {
+    const provider =
+      await this.oidcProviderService.getOidcIdentityProvider(providerName);
+
+    if (!provider) {
+      throw new AppError('Provider not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Find existing identity
+    const identity = await this.oidcIdentityService.getOidcIdentity({
+      providerId: provider.id,
+      providerUserId: profile.id,
+    });
+
+    if (identity) {
+      // Update tokens
+      await this.oidcIdentityService.update(identity.id, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: tokens.expiresAt,
+      });
+      return identity.user;
+    }
+
+    // Find by email
+    if (profile.email) {
+      const user = await this.usersService.getUser(profile.email);
+      if (user) {
+        await this.linkOIDCAccount(user.id, provider.id, profile, tokens);
+        return this.sanitizeUser(user);
+      }
+    }
+
+    // Create new user
+    return this.createUserWithIdentity(provider.id, profile, tokens);
+  }
+
   async refresh(refreshToken: string): Promise<AccessToken> {
     try {
       const token = await this.tokenService.verifyTokenClaims(refreshToken);
@@ -382,7 +447,7 @@ export class AuthService {
   ) {
     try {
       // 1. Find OIDC identity
-      const existingOIDCUser = await this.oidcIdentityServie.getOidcIdentity({
+      const existingOIDCUser = await this.oidcIdentityService.getOidcIdentity({
         // id: Number(profile.id),
         // AND: [{ providerUserId: profile.id }, { providerId }],
         providerId_providerUserId: {
@@ -416,8 +481,8 @@ export class AuthService {
       };
 
       const ocidUser = !existingOIDCUser
-        ? await this.oidcIdentityServie.create(data)
-        : await this.oidcIdentityServie.update(existingOIDCUser.id, data);
+        ? await this.oidcIdentityService.create(data)
+        : await this.oidcIdentityService.update(existingOIDCUser.id, data);
 
       // 4. Update avatar if not set
       if (profile.photo && !ocidUser.user.avatar) {
@@ -478,7 +543,7 @@ export class AuthService {
       }
 
       // Unlink OIDC account
-      return await this.oidcIdentityServie.update(identity.id, {
+      return await this.oidcIdentityService.update(identity.id, {
         isEnabled: false,
       });
     } catch (error) {
@@ -549,7 +614,7 @@ export class AuthService {
             tx,
           );
 
-          await this.oidcIdentityServie.create(
+          await this.oidcIdentityService.create(
             {
               providerId,
               providerUserId: profile.id,

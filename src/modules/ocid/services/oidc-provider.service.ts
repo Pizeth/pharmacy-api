@@ -92,10 +92,10 @@ export class OidcProviderService implements OnModuleInit {
     // 1. Encrypt secret
     // const encryptedSecret = this.encryptSecret(data.clientSecret);
     const encryptedSecret = this.crypto.encrypt(data.clientSecret);
-    data.clientSecret = encryptedSecret;
+    const providerData = { ...data, clientSecret: encryptedSecret };
 
     // 2. Save to database
-    const provider = await this.dbService.createProvider(data);
+    const provider = await this.dbService.createProvider(providerData);
 
     // 3. Register strategy if enabled
     if (provider.isEnabled) {
@@ -196,7 +196,7 @@ export class OidcProviderService implements OnModuleInit {
     this.passport.use(provider.name, strategy);
 
     // Store strategy reference
-    this.strategies.set(provider.name, strategy);
+    this.strategies.set(strategy.name, strategy);
 
     this.logger.log(`Strategy registered for provider: ${provider.name}`);
   }
@@ -233,7 +233,7 @@ export class OidcProviderService implements OnModuleInit {
 }
 
 @Injectable()
-export class OidcProviderService implements OnModuleInit {
+export class OidcProviderServiceDeepSeek implements OnModuleInit {
   private readonly logger = new Logger(OidcProviderService.name);
   private strategies: Map<string, OidcStrategy> = new Map();
 

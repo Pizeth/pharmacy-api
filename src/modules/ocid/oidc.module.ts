@@ -139,6 +139,23 @@ export class OidcModule {
   }
 }
 
+@Module({})
+export class OidcModuleDeepSeek {
+  static forRoot(): DynamicModule {
+    return {
+      module: OidcModule,
+      imports: [PassportModule, PrismaModule],
+      providers: [
+        OidcProviderService,
+        OidcStrategyFactory,
+        OidcProviderDbService,
+        OidcIdentityDbService,
+      ],
+      exports: [OidcProviderService],
+    };
+  }
+}
+
 // FIX: Making the module Global can simplify dependency injection elsewhere,
 // especially for the OidcProviderService.
 // @Global()
