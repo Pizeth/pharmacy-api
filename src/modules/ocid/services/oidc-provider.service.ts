@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PassportStatic } from 'passport';
-import { OidcStrategy } from '../strategies/oidc.strategy';
+import { OidcStrategy } from '../../auth/strategies/oidc.strategy';
 import { OidcStrategyFactory } from '../factories/oidc-strategy.factory';
 import { IdentityProvider } from '@prisma/client';
 import { OidcProviderDbService } from './oidc-provider-db.service';

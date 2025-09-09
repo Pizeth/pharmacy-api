@@ -139,6 +139,18 @@ export class OidcModule {
   }
 }
 
+@Module({
+  imports: [PrismaModule, DBHelperModule], // DBHelper is a module? Assume it's imported
+  providers: [
+    OidcProviderService,
+    OidcStrategyFactory,
+    OidcProviderDbService,
+    OidcIdentityDbService,
+  ],
+  exports: [OidcProviderService, OidcIdentityDbService],
+})
+export class OidcModuleGrok {}
+
 @Module({})
 export class OidcModuleDeepSeek {
   static forRoot(): DynamicModule {

@@ -60,6 +60,7 @@
     "nestjs-cls": "^6.0.1",
     "nestjs-i18n": "^10.5.1",
     "nestjs-zod": "^5.0.1",
+    "openid-client": "^6.7.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-google-oidc": "^0.1.0",

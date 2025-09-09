@@ -53,9 +53,9 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, Logger } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
-import { NormalizedProfile } from '../interfaces/oidc.interface';
+import { NormalizedProfile } from '../../ocid/interfaces/oidc.interface';
 import { IdentityProvider } from '@prisma/client';
-import { OidcProviderService } from '../services/oidc-provider.service';
+import { OidcProviderService } from '../../ocid/services/oidc-provider.service';
 import { Request } from 'express';
 
 // @Injectable()
@@ -179,12 +179,18 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
         'profile',
         'email',
       ],
-      // passReqToCallback: false, // Set to false, we don't need the req object in validate
-      passReqToCallback: true, // We need req to access provider
+      passReqToCallback: false, // Set to false, we don't need the req object in validate
+      // passReqToCallback: true, // We need req to access provider
     });
 
     // Dynamically set the strategy name
     this.name = provider.name;
+    Object.defineProperty(this, 'name', {
+      value: provider.name,
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
   }
 
   // constructor(
@@ -216,27 +222,27 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
   // }
 
   // The validate function that passport-openidconnect will call
-  async validate(
-    req: Request,
+  async validateOld(
+    // req: Request,
     issuer: string,
     profile: Profile,
     idToken: string | object,
     accessToken: string,
     refreshToken: string,
+    expiresAt: Date,
     params: unknown,
-    // expiresAt: Date,
     done: VerifyCallback,
   ): Promise<any> {
     try {
       this.logger.log(`Validating user from ${this.provider.name} provider`);
       const normalizedProfile = await this.normalizeProfile(profile, issuer);
-      // const tokens = {
-      //   accessToken,
-      //   refreshToken,
-      //   // idToken:
-      //   //   typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
-      //   expiresAt,
-      // };
+      const tokens = {
+        accessToken,
+        refreshToken,
+        idToken:
+          typeof idToken === 'string' ? idToken : JSON.stringify(idToken),
+        expiresAt,
+      };
       const user = await this.authService.oidcLogin(
         this.provider.name,
         normalizedProfile,
@@ -260,6 +266,83 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     }
   }
 
+  /**
+   * Standard validate method signature for passport-openidconnect
+   * The exact signature depends on your configuration and what you need
+   */
+  async validate(
+    issuer: string,
+    profile: Profile,
+    done: VerifyCallback,
+  ): Promise<any>;
+
+  /**
+   * If you need access tokens, use this signature instead
+   */
+  async validate(
+    issuer: string,
+    profile: Profile,
+    accessToken: string,
+    refreshToken: string,
+    expiresAt: Date,
+    done: VerifyCallback,
+  ): Promise<any>;
+
+  /**
+   * Implementation - choose the signature you need above
+   */
+  async validate(
+    issuer: string,
+    profile: Profile,
+    accessTokenOrDone: string | VerifyCallback,
+    refreshTokenOrUndefined?: string,
+    expiresAtOrUndefined?: Date,
+    doneOrUndefined?: VerifyCallback,
+  ): Promise<any> {
+    try {
+      let accessToken: string | undefined;
+      let refreshToken: string | undefined;
+      let expiresAt: Date | undefined;
+      let done: VerifyCallback;
+
+      // Determine which signature was called
+      if (typeof accessTokenOrDone === 'function') {
+        // Basic signature: validate(issuer, profile, done)
+        done = accessTokenOrDone;
+      } else {
+        // Extended signature: validate(issuer, profile, accessToken, refreshToken, done)
+        accessToken = accessTokenOrDone;
+        refreshToken = refreshTokenOrUndefined;
+        done = doneOrUndefined!;
+      }
+
+      const normalizedProfile = await this.normalizeProfile(profile, issuer);
+
+      // Include tokens if available
+      const authData = {
+        profile: normalizedProfile,
+        tokens: accessToken ? { accessToken, refreshToken } : undefined,
+      };
+
+      const user = await this.authService.oidcLogin(
+        this.provider.name,
+        normalizedProfile,
+        authData.tokens,
+      );
+
+      if (!user) {
+        return done(null, false);
+      }
+
+      return done(null, user);
+    } catch (error) {
+      if (error instanceof Error) {
+        return done(error, false);
+      }
+      return done(new Error(`Authentication failed: ${String(error)}`), false);
+    }
+  }
+
   private async normalizeProfile(
     profile: Profile,
     issuer: string,
@@ -276,7 +359,8 @@ export class OidcStrategy extends PassportStrategy(Strategy, 'oidc') {
     return {
       id: profile.id,
       providerId: this.provider.id,
-      provider: this.provider.name,
+      // provider: this.provider.name,
+      provider: this.name,
       displayName: profile.displayName,
       username: profile.username,
       // Use the more robust full name we constructed

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthService } from 'src/modules/auth/services/auth.service';
-import { OidcStrategy } from '../strategies/oidc.strategy';
+import { OidcStrategy } from '../../auth/strategies/oidc.strategy';
 import { IdentityProvider } from '@prisma/client';
 import { OidcProviderService } from '../services/oidc-provider.service';
 

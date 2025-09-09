@@ -88,6 +88,29 @@ export class AuthController {
     }
   }
 
+  @Get(':provider')
+  oidcLoginGrok(
+    @Param('provider') provider: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const strategy = this.providerService.getStrategy(provider);
+    if (!strategy) {
+      throw new AppError(
+        'Provider not found',
+        HttpStatus.NOT_FOUND,
+        this.context,
+        {
+          cause: `Provider ${provider} not found!`,
+          validProvider: this.providerService.getAllEnabledProviders(),
+        },
+      );
+    }
+
+    // Manually authenticate (initiates redirect to provider)
+    passport.authenticate(provider)(req, res);
+  }
+
   @Get(':provider/callback')
   // @UseGuards(AuthGuard('oidc'))
   @UseGuards(DynamicOidcGuard) // ✅ Use dynamic guard
@@ -140,6 +163,100 @@ export class AuthController {
     }
   }
 
+  @Get(':provider/callback')
+  async oidcCallbackGPT(
+    @Param('provider') provider: string,
+    @Req() req: ExpressRequest & { user?: any },
+    @Res() res: Response,
+  ) {
+    const strategy = this.providerService.getStrategy(provider);
+    if (!strategy) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=provider_not_supported`,
+      );
+    }
+
+    return passport.authenticate(
+      provider,
+      { session: false },
+      async (err: any, userPayload: any, info: any) => {
+        if (err) {
+          this.logger.error('OIDC callback error', err);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/login?error=auth_error`,
+          );
+        }
+        if (!userPayload) {
+          this.logger.warn('OIDC callback: no user payload returned', info);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/login?error=no_user`,
+          );
+        }
+
+        try {
+          // userPayload = { profile: NormalizedProfile, tokens: { accessToken, refreshToken, idToken, params } }
+          const { profile, tokens } = userPayload;
+
+          // Pass both profile and tokens to AuthService
+          const signed = await this.authService.oidcLogin(
+            provider,
+            profile,
+            tokens,
+          );
+
+          // Set cookies, redirect, or return data as before
+          const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(
+            signed.accessToken,
+          )}&refresh=${encodeURIComponent(signed.refreshToken)}&provider=${provider}`;
+
+          return res.redirect(redirectUrl);
+        } catch (error) {
+          this.logger.error('Error during OIDC login processing', error);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/login?error=server_error`,
+          );
+        }
+      },
+    )(req, res);
+  }
+
+  @Get(':provider/callback')
+  async oidcCallbackGrok(
+    @Param('provider') provider: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const strategy = this.providerService.getStrategy(provider);
+    if (!strategy) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=provider_not_supported`,
+      );
+    }
+
+    // Manually authenticate callback
+    passport.authenticate(provider, {
+      failureRedirect: `${process.env.FRONTEND_URL}/login?error=auth_failed`,
+    })(req, res, async () => {
+      // On success
+      const user = req.user as SanitizedUser;
+      const signedUser = await this.authService.login(user);
+
+      // Set cookie (optional, e.g., for HTTP-only)
+      res.cookie('access_token', signedUser.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3600000,
+        domain: process.env.COOKIE_DOMAIN,
+        path: '/',
+      });
+
+      // Redirect to frontend with tokens (use # for fragments to avoid query logs)
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback#access=${encodeURIComponent(signedUser.accessToken)}&refresh=${encodeURIComponent(signedUser.refreshToken)}&provider=${provider}`;
+      res.redirect(redirectUrl);
+    });
+  }
+
   // Token refresh
   @Post('refresh')
   async refresh(@Body() refreshToken: string) {
@@ -149,7 +266,7 @@ export class AuthController {
   @Put('link/:provider')
   @UseGuards(JwtAuthGuard)
   async linkOIDCAccount(
-    @CurrentUser('id') id: string,
+    @CurrentUser('id') id: number,
     @Param('provider') provider: string,
   ) {
     const oidcProvider =
@@ -168,6 +285,33 @@ export class AuthController {
     }
     // This would typically redirect to OIDC provider with a state parameter
     return { message: `Redirect to ${provider} OIDC for linking` };
+  }
+
+  @Put('link/:provider')
+  @UseGuards(JwtAuthGuard)
+  async linkOIDCAccountGrok(
+    @CurrentUser('id') id: number, // Fixed to number
+    @Param('provider') provider: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const oidcProvider =
+      await this.providerService.getOidcIdentityProvider(provider);
+
+    if (!oidcProvider) {
+      throw new AppError(
+        'Provider not found',
+        HttpStatus.NOT_FOUND,
+        this.context,
+        {
+          cause: `Provider ${provider} not found!`,
+          validProvider: this.providerService.getAllEnabledProviders(),
+        },
+      );
+    }
+
+    // Initiate linking flow (similar to login, but could add state for 'link')
+    passport.authenticate(provider, { state: 'link' })(req, res); // Optional state
   }
 
   @Delete('unlink/:provider')

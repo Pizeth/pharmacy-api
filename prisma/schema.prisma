@@ -208,9 +208,12 @@ model UserIdentity {
   userId          Int               @map("user_id")
   user            User              @relation(fields: [userId], references: [id])
   providerUserId  String            @map("provider_user_id") // User ID from provider
-  // accessToken     String?           @map("access_token")
-  // refreshToken    String?           @map("refresh_token")
-  // expiresAt       DateTime?         @map("expires_at")
+  
+  // API Access Token
+  accessToken     String?           @map("access_token")
+  refreshToken    String?           @map("refresh_token")
+  expiresAt       DateTime?         @map("expires_at")
+  idToken         String?  // optional, can store raw id_token
 
     // Tracking")
   isEnabled       Boolean           @default(true) @map("is_enabled")
