@@ -15,6 +15,7 @@ import { UpdateProviderDto } from '../dto/update-provider.dto';
 import { AppError } from 'src/exceptions/app.exception';
 import { CryptoService } from 'src/commons/services/crypto.service';
 import { OidcIdentityDbService } from './oidc-identity-db.service';
+import * as oidc from 'openid-client';
 
 @Injectable()
 export class OidcProviderService implements OnModuleInit {
@@ -199,6 +200,93 @@ export class OidcProviderService implements OnModuleInit {
     this.strategies.set(strategy.name, strategy);
 
     this.logger.log(`Strategy registered for provider: ${provider.name}`);
+  }
+
+  async registerProvider(provider: IdentityProvider) {
+    try {
+      this.logger.log(
+        `Registering provider '${provider.name}' (issuer=${provider.issuer})`,
+      );
+
+      // Decrypt client secret (if stored encrypted)
+      const clientSecret = this.crypto.decrypt(provider.clientSecret);
+      const callbackURL = `${process.env.APP_URL}/auth/${provider.name}/callback`;
+      // 1) Discover issuer (support provider.issuer being issuer URL or metadata URL)
+      const config = await oidc.discovery(
+        new URL(provider.issuer),
+        provider.clientID,
+        clientSecret,
+      );
+      // 2) Build client
+      const client = new issuer.serverMetadata().Client({
+        client_id: provider.clientID,
+        client_secret: clientSecret,
+        redirect_uris: [provider.callbackURL],
+        response_types: ['code'],
+      });
+
+      // 3) Build strategy verify function
+      const verify = async (
+        tokenSet: TokenSet,
+        userinfo: any,
+        done: Function,
+      ) => {
+        try {
+          // tokenSet.claims() has the ID token claims
+          const idClaims = tokenSet.claims ? tokenSet.claims() : {};
+          // fallback to userinfo for profile
+          const profile = userinfo || idClaims;
+
+          // Normalize profile as you like (keep minimal here)
+          const normalized = {
+            id: String(
+              idClaims.sub ?? profile.sub ?? profile.sub ?? profile.id ?? '',
+            ),
+            provider: provider.name,
+            providerId: provider.id,
+            displayName:
+              profile.name ?? profile.preferred_username ?? profile.email,
+            email:
+              profile.email ??
+              (profile.emails && profile.emails[0] && profile.emails[0].value),
+            emailVerified: !!(
+              idClaims.email_verified ?? profile.email_verified
+            ),
+            raw: profile,
+          };
+
+          // Return the normalized profile + the tokenSet. Controller will handle linking/persisting tokens.
+          return done(null, { profile: normalized, tokenSet });
+        } catch (err) {
+          return done(err);
+        }
+      };
+
+      // 4) Create passport-openid-client Strategy instance
+      const params = {
+        scope: provider.scope ?? 'openid profile email',
+        // you can add prompt, access_type for google if you want offline
+      };
+
+      const strategy = new OpenIDStrategy(
+        { client, params, passReqToCallback: false },
+        verify,
+      );
+
+      // Register on passport under the provider.name
+      passport.use(provider.name, strategy);
+
+      // Save strategy
+      this.strategies.set(provider.name, strategy);
+
+      this.logger.log(`Registered strategy for provider '${provider.name}'`);
+    } catch (err) {
+      this.logger.error(
+        `Failed registering provider ${provider.name}: ${err?.message ?? err}`,
+        err,
+      );
+      // keep going — one bad provider shouldn't stop all
+    }
   }
 
   private unregisterProvider(providerName: string) {
