@@ -20,6 +20,28 @@ export interface NormalizedProfile {
   raw: Profile;
 }
 
+export interface OidcTokens {
+  accessToken?: string;
+  refreshToken?: string;
+  idToken?: string;
+  expiresAt?: number;
+}
+
+// export interface TokenEndpointResponse {
+//   readonly access_token: string;
+//   readonly expires_in?: number;
+//   readonly id_token?: string;
+//   readonly refresh_token?: string;
+//   readonly scope?: string;
+//   readonly authorization_details?: AuthorizationDetails[];
+//   /**
+//    * > [!NOTE]\
+//    * > Because the value is case insensitive it is always returned lowercased
+//    */
+//   readonly token_type: 'bearer' | 'dpop' | Lowercase<string>;
+//   readonly [parameter: string]: JsonValue | undefined;
+// }
+
 export interface OpenIDProfile {
   sub: string;
   name?: string;

@@ -1,9 +1,15 @@
 import { Strategy } from 'passport';
 import * as client from 'openid-client';
-import { Request, Response } from 'express';
+// import { Request, Response } from 'express';
 import { Logger } from '@nestjs/common';
 import { OpenIDStrategyOptions } from '../interfaces/oidc.interface';
 import { VerifyFunction } from '../types/token';
+import {
+  Strategy as CustomStrategy,
+  TokenSet,
+  UserinfoResponse,
+  Client,
+} from 'openid-client';
 
 export class OpenIDClientStrategy extends Strategy {
   name = 'openid-client';
@@ -385,7 +391,7 @@ export class OpenIDClientStrategy extends Strategy {
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-custom';
-import { Request } from 'express';
+// import { Request } from 'express';
 import { OidcProviderService } from './oidc-provider.service';
 import * as oauth from 'openid-client';
 
@@ -528,5 +534,132 @@ export class DynamicOidcStrategy extends PassportStrategy(
     const protocol = req.get('x-forwarded-proto') || req.protocol;
     const host = req.get('host');
     return `${protocol}://${host}/${provider}/callback`;
+  }
+}
+
+import { Strategy } from 'passport-strategy';
+import { Injectable, Logger } from '@nestjs/common';
+import { AuthService } from 'src/modules/auth/services/auth.service';
+import { NormalizedProfile } from '../interfaces/oidc.interface';
+import { OidcTokens } from '../interfaces/oidc.interface';
+import { Request } from 'express';
+import * as oidc from 'openid-client';
+import type { IdentityProvider } from '@prisma/client';
+// CORRECTED: These types are correctly re-exported from 'oauth4webapi' in v5.
+import type {
+  Configuration,
+  TokenEndpointResponse,
+  UserInfoResponse,
+} from 'openid-client';
+
+@Injectable()
+export class OidcStrategy extends Strategy {
+  private readonly logger = new Logger(OidcStrategy.name);
+  public name: string;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly provider: IdentityProvider,
+    // CORRECTED: The strategy now receives a `Configuration` object.
+    private readonly config: Configuration,
+  ) {
+    super();
+    this.name = provider.name;
+  }
+
+  async authenticate(req: Request): Promise<void> {
+    try {
+      if (req.query.code) {
+        // Phase 2: Handle the callback
+
+        // FIX: Construct a URL object from the Express request instead of passing the request object directly.
+        // This resolves the TypeScript type mismatch between express.Request and the standard Web API Request.
+        const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+        const callbackUrl = new URL(fullUrl);
+
+        // CORRECTED: Use the modern `oidc.authorizationCodeGrant` function with the constructed URL.
+        const tokens = await oidc.authorizationCodeGrant(
+          this.config,
+          callbackUrl,
+        );
+
+        // CORRECTED: Use the modern `oidc.fetchUserInfo` function.
+        // It requires the 'sub' claim from the ID token to validate the user info response.
+        const sub = tokens.claims()?.sub;
+        if (!sub) {
+          throw new Error('ID token "sub" claim is missing.');
+        }
+        const userinfo = await oidc.fetchUserInfo(
+          this.config,
+          tokens.access_token,
+          sub,
+        );
+
+        await this.verify(tokens, userinfo);
+      } else {
+        // Phase 1: Initiate login
+        // CORRECTED: Use the modern `oidc.buildAuthorizationUrl` function.
+        const authUrl = oidc.buildAuthorizationUrl(this.config, {
+          redirect_uri: this.provider.callbackURL,
+          scope:
+            this.provider.scope
+              ?.split(',')
+              .map((s) => s.trim())
+              .join(' ') || 'openid profile email',
+        });
+        this.redirect(authUrl.toString());
+      }
+    } catch (err) {
+      this.logger.error(`OIDC authentication error for ${this.name}`, err);
+      this.error(err);
+    }
+  }
+
+  async verify(
+    tokens: TokenEndpointResponse,
+    userinfo: UserInfoResponse,
+  ): Promise<void> {
+    try {
+      const normalizedProfile = this.normalizeProfile(userinfo);
+      // const oidcTokens: OidcTokens = {
+      //   accessToken: tokens.access_token,
+      //   refreshToken: tokens.refresh_token,
+      //   idToken: tokens.id_token,
+      //   expiresAt: tokens.expires_at,
+      // };
+
+      const signedUser = await this.authService.oidcLogin(
+        this.provider.name,
+        normalizedProfile,
+        tokens,
+      );
+
+      if (!signedUser || !signedUser.user) {
+        return this.fail('User could not be authenticated.', 401);
+      }
+      this.success(signedUser.user);
+    } catch (error) {
+      this.logger.error(
+        `Error during user verification for ${this.name}`,
+        error,
+      );
+      this.error(error);
+    }
+  }
+
+  private normalizeProfile(userinfo: UserInfoResponse): NormalizedProfile {
+    return {
+      id: userinfo.sub,
+      providerId: this.provider.id,
+      provider: this.provider.name,
+      displayName:
+        userinfo.name || userinfo.nickname || userinfo.preferred_username,
+      username: userinfo.preferred_username,
+      name: userinfo.name,
+      email: userinfo.email || '',
+      emailVerified: userinfo.email_verified || false,
+      photo: userinfo.picture,
+      raw: userinfo,
+    };
   }
 }
