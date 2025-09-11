@@ -1,6 +1,7 @@
 // import * as express from 'express';
 
 import { TokenPayload } from './token';
+import { OidcUser } from '../modules/ocid/interfaces/oidc.interface';
 
 // declare module 'express' {
 //   export interface Request {
@@ -13,7 +14,7 @@ import { TokenPayload } from './token';
 declare global {
   namespace Express {
     export interface Request {
-      user?: TokenPayload;
+      user?: OidcUser;
       correlationId?: string;
       oidcProvider?: string;
     }

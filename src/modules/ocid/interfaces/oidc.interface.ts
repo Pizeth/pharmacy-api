@@ -1,3 +1,4 @@
+import { UserInfoResponse } from 'openid-client';
 import { Profile, StrategyOptions } from 'passport-openidconnect';
 
 export interface OIDCProviderConfig extends StrategyOptions {
@@ -17,7 +18,7 @@ export interface NormalizedProfile {
   email: string;
   emailVerified: boolean;
   photo?: string;
-  raw: Profile;
+  raw: UserInfoResponse;
 }
 
 export interface OidcTokens {
@@ -25,6 +26,11 @@ export interface OidcTokens {
   refreshToken?: string;
   idToken?: string;
   expiresAt?: number;
+}
+
+export interface OidcUser {
+  profile: NormalizedProfile;
+  claim: OidcTokens;
 }
 
 // export interface TokenEndpointResponse {

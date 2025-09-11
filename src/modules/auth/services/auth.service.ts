@@ -34,7 +34,7 @@ import {
   USER_NOT_FOUND,
   VALID_CREDENTIALS,
 } from '../const/user-state.const';
-import { Token } from 'src/modules/ocid/types/token';
+import { Token } from 'src/modules/ocid/types/oidc';
 
 @Injectable()
 export class AuthService {
