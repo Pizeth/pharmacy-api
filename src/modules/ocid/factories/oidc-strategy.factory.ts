@@ -97,7 +97,12 @@ export class OidcStrategyFactory {
       // It's called by the strategy after it successfully completes the OIDC flow.
       const verify: VerifyFunction = async (
         tokens: TokenEndpointResponse & TokenEndpointResponseHelpers,
-        done: AuthenticateCallback,
+        done: (
+          err: Error | null,
+          user?: Express.User | false | null,
+          info?: object | string | Array<string | undefined>,
+          status?: number | Array<number | undefined>,
+        ) => void,
       ) => {
         try {
           const sub = tokens.claims()?.sub;
@@ -180,7 +185,7 @@ export class OidcStrategyFactory {
       // const verifyNew = this.createVerifyFunction(config, provider);
 
       // 4. Instantiate and return the official strategy with the verify function
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+
       return new OidcStrategy(options, verify);
     } catch (error) {
       this.logger.error(
@@ -286,7 +291,7 @@ export class OidcStrategyFactory {
     // Construct the full name if the name object exists, otherwise use displayName
     const displayName = userinfo.name
       ? `${userinfo.given_name || ''} ${userinfo.middle_name || ''} ${userinfo.family_name || ''}`.trim()
-      : userinfo.preferred_username || userinfo.nickname;
+      : userinfo.nickname || userinfo.preferred_username;
 
     return {
       id: userinfo.sub,
@@ -294,46 +299,13 @@ export class OidcStrategyFactory {
       provider: provider.name,
       username: userinfo.preferred_username,
       name: userinfo.name,
+      displayName,
       email: userinfo.email || '',
       emailVerified: userinfo.email_verified || false,
-      photo: userinfo.picture,
+      profile: userinfo.profile,
+      picture: userinfo.picture,
+      claim: userinfo.claims,
       raw: userinfo,
-    };
-  }
-
-  private async normalizeProfile(
-    profile: UserInfoResponse,
-    issuer: string,
-  ): Promise<NormalizedProfile> {
-    // Construct the full name if the name object exists, otherwise use displayName
-    const fullName = profile.name
-      ? `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim()
-      : profile.displayName;
-
-    // Attempt to determine the provider name from the issuer URL
-    const provider =
-      (await this.extractProviderName(issuer)) || profile.provider || this.name;
-
-    return {
-      id: profile.id,
-      providerId: this.provider.id,
-      // provider: this.provider.name,
-      provider: this.name,
-      displayName: profile.displayName,
-      username: profile.username,
-      // Use the more robust full name we constructed
-      name: fullName,
-
-      // Safely access the first email value, which could be undefined
-      email: profile.emails?.[0]?.value || '',
-
-      emailVerified: true, // This is an assumption; might need adjustment per provider
-
-      // Safely access the first photo value, which could be undefined
-      photo: profile.photos?.[0]?.value,
-
-      // We remove the `raw` property as it's not part of the standard Profile interface
-      raw: profile,
     };
   }
 }

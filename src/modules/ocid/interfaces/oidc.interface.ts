@@ -1,4 +1,4 @@
-import { UserInfoResponse } from 'openid-client';
+import { JsonValue, UserInfoResponse } from 'openid-client';
 import { Profile, StrategyOptions } from 'passport-openidconnect';
 
 export interface OIDCProviderConfig extends StrategyOptions {
@@ -17,7 +17,9 @@ export interface NormalizedProfile {
   name?: string;
   email: string;
   emailVerified: boolean;
-  photo?: string;
+  profile?: string;
+  picture?: string;
+  [claim: string]: JsonValue | undefined;
   raw: UserInfoResponse;
 }
 

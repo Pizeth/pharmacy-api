@@ -67,7 +67,7 @@ export class OidcProviderService implements OnModuleInit {
 
     for (const provider of providers) {
       try {
-        this.registerProvider(provider);
+        await this.registerProvider(provider);
         this.logger.log(`Registered OIDC provider: ${provider.name}`);
       } catch (error) {
         this.logger.error(
@@ -100,7 +100,7 @@ export class OidcProviderService implements OnModuleInit {
 
     // 3. Register strategy if enabled
     if (provider.isEnabled) {
-      this.registerProvider(provider);
+      await this.registerProvider(provider);
     }
 
     return provider;
@@ -125,7 +125,7 @@ export class OidcProviderService implements OnModuleInit {
 
     // 4. Register new strategy if enabled
     if (provider.isEnabled) {
-      this.registerProvider(provider);
+      await this.registerProvider(provider);
     }
 
     return provider;
@@ -135,7 +135,7 @@ export class OidcProviderService implements OnModuleInit {
     const provider = await this.dbService.updateProvider(id, { isEnabled });
 
     if (isEnabled) {
-      this.registerProvider(provider);
+      await this.registerProvider(provider);
     } else {
       this.unregisterProvider(provider.name);
     }
@@ -172,7 +172,7 @@ export class OidcProviderService implements OnModuleInit {
     return this.strategies.get(providerName);
   }
 
-  private registerProvider(provider: IdentityProvider) {
+  private async registerProvider(provider: IdentityProvider) {
     // const strategy = this.strategyFactory.createStrategy({
     //   ...provider,
     //   callbackURL: `${process.env.APP_URL}/auth/${provider.name}/callback`,
@@ -191,15 +191,24 @@ export class OidcProviderService implements OnModuleInit {
     };
 
     // 2. Create strategy
-    const strategy = this.strategyFactory.createStrategy(runtimeProvider);
+    // const strategy = await this.strategyFactory.createStrategy(runtimeProvider);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const strategy = await this.strategyFactory.createStrategy(provider);
 
-    // 3. Register & use strategy
-    this.passport.use(provider.name, strategy);
+      // 3. Register & use strategy
+      // this.passport.use().createStrategy(provider);
 
-    // Store strategy reference
-    this.strategies.set(strategy.name, strategy);
+      // 3. Register & use strategy
+      this.passport.use(provider.name, strategy);
 
-    this.logger.log(`Strategy registered for provider: ${provider.name}`);
+      // Store strategy reference
+      this.strategies.set(strategy.name, strategy);
+
+      this.logger.log(`Strategy registered for provider: ${provider.name}`);
+    } catch (error) {
+      this.logger.error(error);
+    }
   }
 
   async registerProvider(provider: IdentityProvider) {
