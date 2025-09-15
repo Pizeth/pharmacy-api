@@ -11,7 +11,10 @@ import { ClsService } from 'nestjs-cls';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { TokenService } from 'src/commons/services/token.service';
 import { AppError } from 'src/exceptions/app.exception';
-import { NormalizedProfile } from 'src/modules/ocid/interfaces/oidc.interface';
+import {
+  NormalizedProfile,
+  OidcTokens,
+} from 'src/modules/ocid/interfaces/oidc.interface';
 import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-db.service';
 import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
 import { PrismaService } from 'src/modules/prisma/services/prisma.service';
@@ -34,7 +37,6 @@ import {
   USER_NOT_FOUND,
   VALID_CREDENTIALS,
 } from '../const/user-state.const';
-import { Token } from 'src/modules/ocid/types/oidc';
 
 @Injectable()
 export class AuthService {
@@ -245,6 +247,7 @@ export class AuthService {
   async oidcLogin(
     providerName: string,
     profile: NormalizedProfile,
+    tokens: Token,
   ): Promise<SignedUser> {
     try {
       const user = await this.findOrCreateOidcUser(providerName, profile);
@@ -263,7 +266,7 @@ export class AuthService {
   async oidcLoginDeepSeek(
     providerName: string,
     profile: NormalizedProfile,
-    tokens: Token,
+    tokens: OidcTokens,
   ): Promise<SignedUser> {
     try {
       const user = await this.findOrCreateOidcUserDeepSeek(

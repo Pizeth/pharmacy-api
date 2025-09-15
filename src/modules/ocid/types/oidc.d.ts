@@ -14,3 +14,12 @@ export type AuthenticateCallback = (
   info?: object | string | Array<string | undefined>,
   status?: number | Array<number | undefined>,
 ) => void;
+
+interface SafeAuthenticateCallback {
+  (
+    err: Error | null,
+    user?: Express.User | false | null,
+    info?: object | string | Array<string | undefined>,
+    status?: number | Array<number | undefined>,
+  ): void;
+}

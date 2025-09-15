@@ -31,8 +31,8 @@
     "seed": "tsx prisma/seed.ts --seed"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.887.0",
-    "@aws-sdk/s3-request-presigner": "^3.887.0",
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/s3-request-presigner": "^3.888.0",
     "@dicebear/collection": "^9.2.4",
     "@dicebear/converter": "^9.2.4",
     "@dicebear/core": "^9.2.4",
@@ -47,7 +47,7 @@
     "@nestjs/throttler": "^6.4.0",
     "@prisma/client": "^6.16.1",
     "@types/cbor": "^6.0.4",
-    "axios": "^1.12.0",
+    "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "cbor": "^10.0.11",
     "clamscan": "^2.4.0",
@@ -90,7 +90,7 @@
     "@types/form-data": "^2.5.2",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
-    "@types/node": "^24.3.1",
+    "@types/node": "^24.4.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
     "@types/supertest": "^6.0.3",
