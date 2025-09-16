@@ -35,6 +35,13 @@ export interface OidcUser {
   claim: OidcTokens;
 }
 
+export interface StateData {
+  nonce?: string;
+  state?: string;
+  max_age?: number;
+  code_verifier: string;
+}
+
 // export interface TokenEndpointResponse {
 //   readonly access_token: string;
 //   readonly expires_in?: number;

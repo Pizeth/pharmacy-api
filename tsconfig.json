@@ -4,6 +4,7 @@
     "strict": true,
     "allowJs": true,
     "module": "commonjs",
+    "types": ["node", "express", "express-session"],
     // "module": "ESNext",
     // "moduleResolution": "node",
     // "module": "es2022",
@@ -29,6 +30,7 @@
   },
   "include": [
     "src/**/*",
+    "src/types/**/*",
     "webpack-hmr.config.cjs",
     // "webpack-hmr.config.ts",
     "env.d.ts",
