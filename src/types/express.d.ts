@@ -1,7 +1,11 @@
 // import * as express from 'express';
 
 import { TokenPayload } from './token';
-import { OidcUser, StateData } from '../modules/ocid/interfaces/oidc.interface';
+import {
+  OidcUser,
+  StateData,
+  TrustProxyFn,
+} from '../modules/ocid/interfaces/oidc.interface';
 import 'express-session';
 // declare module 'express' {
 // declare module 'express' {
@@ -15,8 +19,7 @@ import 'express-session';
 declare global {
   namespace Express {
     // This is the function Express stores under 'trust proxy fn'
-    type TrustProxyFn = (addr: string, index: number) => boolean;
-
+    // type TrustProxyFn = (addr: string, index: number) => boolean;
     interface Application {
       get(name: 'trust proxy fn'): TrustProxyFn;
     }

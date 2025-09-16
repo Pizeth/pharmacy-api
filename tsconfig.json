@@ -6,7 +6,7 @@
     "module": "commonjs",
     "types": ["node", "express", "express-session"],
     // "module": "ESNext",
-    // "moduleResolution": "node",
+    // "moduleResolution": "node16",
     // "module": "es2022",
     // "target": "esnext",
     "declaration": true,

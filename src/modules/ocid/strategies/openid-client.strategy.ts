@@ -575,11 +575,11 @@ export class OidcStrategy extends PassportStrategy {
    */
   private getHost(req: Request): string {
     try {
-      const trust = req.app?.get<unknown>('trust proxy fn');
+      const trust = req.app?.get<TrustProxyFn>('trust proxy fn');
       let val = req.get('x-forwarded-host');
 
-      // if (!val || !trust?.(req.socket?.remoteAddress, 0)) {
-      if (!val || !trust?.(req, 0)) {
+      if (!val || !trust?.(req.socket?.remoteAddress, 0)) {
+        // if (!val || !trust?.(req, 0)) {
         val = req.get('host');
       } else if (val.indexOf(',') !== -1) {
         val = val.substring(0, val.indexOf(',')).trimEnd();
