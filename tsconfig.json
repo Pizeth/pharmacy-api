@@ -8,7 +8,6 @@
     // "module": "ESNext",
     // "moduleResolution": "node16",
     // "module": "es2022",
-    // "target": "esnext",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

@@ -1,203 +1,72 @@
 import { Strategy as PassportStrategy } from 'passport-strategy';
 import { Request } from 'express';
 import * as oidc from 'openid-client';
-import { randomBytes, createHash } from 'crypto';
-import passport from 'passport';
-import { StateData } from '../interfaces/oidc.interface';
+// import { randomBytes, createHash } from 'crypto';
+import {
+  AuthenticateOptions,
+  StateData,
+  StrategyOptions,
+  StrategyOptionsBase,
+  StrategyOptionsWithRequest,
+  VerifyCallback,
+} from '../interfaces/oidc.interface';
 import { HttpStatus } from '@nestjs/common';
 import { DuplexRequestInit } from 'src/types/express';
-import { TrustProxyFn } from '../types/oidc';
-
-// Type-safe callback interface for NestJS (replacing passport.AuthenticateCallback)
-export interface VerifyCallback {
-  (
-    error: Error | false | null,
-    user?: Express.User | false,
-    info?: object | string | Array<string | undefined>,
-    status?: number | Array<number | undefined>,
-  ): void;
-}
-
-// Mirror the openid-client authenticate options
-export interface AuthenticateOptions extends passport.AuthenticateOptions {
-  /**
-   * OAuth 2.0 Resource Indicator(s) to use for the request either for the
-   * authorization request or token endpoint request, depending on whether it's
-   * part of {@link Strategy.authenticate} options during the initial redirect or
-   * callback phase.
-   *
-   * This is a request-specific override for {@link StrategyOptions.resource}.
-   */
-  resource?: string | string[];
-  /**
-   * Login Hint to use for the authorization request. It is ignored for token
-   * endpoint requests.
-   */
-  loginHint?: string;
-  /**
-   * ID Token Hint to use for the authorization request. It is ignored for token
-   * endpoint requests.
-   */
-  idTokenHint?: string;
-  /**
-   * OAuth 2.0 Rich Authorization Requests to use for the authorization request.
-   * It is ignored for token endpoint requests.
-   *
-   * This is a request-specific override for
-   * {@link StrategyOptions.authorizationDetails}.
-   */
-  authorizationDetails?:
-    | oidc.AuthorizationDetails
-    | oidc.AuthorizationDetails[];
-  /**
-   * OpenID Connect prompt. This will be used as the `prompt` authorization
-   * request parameter unless specified through other means.
-   */
-  prompt?: string;
-  /**
-   * OAuth 2.0 scope to use for the authorization request. It is ignored for
-   * token endpoint requests.
-   *
-   * This is a request-specific override for {@link StrategyOptions.scope}.
-   */
-  scope?: string | string[];
-  /**
-   * The state option is ignored by this strategy.
-   *
-   * @deprecated
-   */
-  state?: never;
-  /**
-   * OAuth 2.0 redirect_uri to use for the request either for the authorization
-   * request or token endpoint request, depending on whether it's part of
-   * {@link Strategy.authenticate} options during the initial redirect or
-   * callback phase.
-   *
-   * This is a request-specific override for {@link StrategyOptions.callbackURL}.
-   *
-   * Note: The option is called "callbackURL" to keep some continuity and
-   * familiarity with other oauth-based strategies in the passport ecosystem,
-   * namely "passport-oauth2".
-   */
-  callbackURL?: URL | string;
-
-  // Additional options that might be passed by NestJS/Passport
-  successRedirect?: string;
-  failureRedirect?: string;
-  session?: boolean;
-  [key: string]: any;
-}
-
-// DPoP handle function type
-export type getDPoPHandle = (
-  req: Request,
-) => Promise<oidc.DPoPHandle | undefined> | oidc.DPoPHandle | undefined;
-
-export interface StrategyOptions extends StrategyOptionsBase {
-  passReqToCallback?: false;
-}
-
-export interface StrategyOptionsWithRequest extends StrategyOptionsBase {
-  passReqToCallback: true;
-}
-
-// Base strategy options interface
-interface StrategyOptionsBase {
-  /**
-   * Openid-client Configuration instance.
-   */
-  config: oidc.Configuration;
-  /**
-   * Name of the strategy, default is the host component of the authorization
-   * server's issuer identifier.
-   */
-  name?: string;
-  /**
-   * Property in the session to use for storing the authorization request state,
-   * default is the host component of the authorization server's issuer
-   * identifier.
-   */
-  sessionKey?: string;
-  /**
-   * Function used to retrieve an openid-client DPoPHandle for a given request,
-   * when provided the strategy will use DPoP where applicable.
-   */
-  DPoP?: getDPoPHandle;
-  /**
-   * An absolute URL to which the authorization server will redirect the user
-   * after obtaining authorization. The {@link !URL} instance's `href` will be
-   * used as the `redirect_uri` authorization request and token endpoint request
-   * parameters. When string is provided it will be internally casted to a
-   * {@link URL} instance.
-   */
-  callbackURL?: URL | string;
-  /**
-   * OAuth 2.0 Authorization Request Scope. This will be used as the `scope`
-   * authorization request parameter unless specified through other means.
-   */
-  scope?: string;
-  /**
-   * OAuth 2.0 Rich Authorization Request(s). This will be used as the
-   * `authorization_details` authorization request parameter unless specified
-   * through other means.
-   */
-  authorizationDetails?:
-    | oidc.AuthorizationDetails
-    | oidc.AuthorizationDetails[];
-  /**
-   * OAuth 2.0 Resource Indicator(s). This will be used as the `resource`
-   * authorization request parameter unless specified through other means.
-   */
-  resource?: string | string[];
-  /**
-   * Whether the strategy will use PAR. Default is `false`.
-   */
-  usePAR?: boolean;
-  /**
-   * Whether the strategy will use JAR. Its value can be a private key to sign
-   * with or an array with the private key and a modify assertion function that
-   * will be used to modify the request object before it is signed. Default is
-   * `false`.
-   */
-  useJAR?:
-    | false
-    | oidc.CryptoKey
-    | oidc.PrivateKey
-    | [oidc.CryptoKey | oidc.PrivateKey, oidc.ModifyAssertionFunction];
-  /**
-   * Whether the verify function should get the `req` as first argument instead.
-   * Default is `false`.
-   */
-  passReqToCallback?: boolean;
-}
-
-// Verify function types
-export type VerifyFunction = (
-  tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers,
-  done: VerifyCallback,
-) => void;
-
-export type VerifyFunctionWithRequest = (
-  req: Request,
-  tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers,
-  done: VerifyCallback,
-) => void;
+import {
+  TrustProxyFn,
+  VerifyFunction,
+  VerifyFunctionWithRequest,
+} from '../types/oidc';
 
 export class OidcStrategy extends PassportStrategy {
+  /**
+   * Name of the strategy
+   */
   readonly name: string;
-  private readonly _config: oidc.Configuration;
-  private readonly _verify: VerifyFunction | VerifyFunctionWithRequest;
-  private readonly _callbackURL?: URL;
-  private readonly _sessionKey: string;
-  private readonly _passReqToCallback: boolean;
-  private readonly _usePAR: boolean;
-  private readonly _useJAR: StrategyOptionsBase['useJAR'];
-  private readonly _DPoP?: getDPoPHandle;
-  private readonly _scope?: string;
-  private readonly _resource?: string | string[];
-  private readonly _authorizationDetails?:
-    | oidc.AuthorizationDetails
-    | oidc.AuthorizationDetails[];
+  /**
+   * @internal
+   */
+  _config: StrategyOptionsBase['config'];
+  /**
+   * @internal
+   */
+  _verify: VerifyFunction | VerifyFunctionWithRequest;
+  /**
+   * @internal
+   */
+  _callbackURL: Exclude<StrategyOptionsBase['callbackURL'], string>;
+  /**
+   * @internal
+   */
+  _sessionKey: NonNullable<StrategyOptionsBase['sessionKey']>;
+  /**
+   * @internal
+   */
+  _passReqToCallback: StrategyOptionsBase['passReqToCallback'];
+  /**
+   * @internal
+   */
+  _usePAR: StrategyOptionsBase['usePAR'];
+  /**
+   * @internal
+   */
+  _useJAR: StrategyOptionsBase['useJAR'];
+  /**
+   * @internal
+   */
+  _DPoP: StrategyOptionsBase['DPoP'];
+  /**
+   * @internal
+   */
+  _scope: StrategyOptionsBase['scope'];
+  /**
+   * @internal
+   */
+  _resource: StrategyOptionsBase['resource'];
+  /**
+   * @internal
+   */
+  _authorizationDetails: StrategyOptionsBase['authorizationDetails'];
 
   constructor(options: StrategyOptions, verify: VerifyFunction);
   constructor(
@@ -241,8 +110,24 @@ export class OidcStrategy extends PassportStrategy {
   }
 
   /**
-   * Return additional authorization request parameters.
-   * This mirrors the openid-client strategy's method signature.
+   * [Strategy method] Return additional authorization request parameters.
+   *
+   * This method is intended to be overloaded if additional parameters need to
+   * be included an authorization request are needed.
+   *
+   * By default this method takes care of adding the corresponding authorization
+   * endpoint parameters when
+   * {@link AuthenticateOptions.authorizationDetails authorizationDetails},
+   * {@link AuthenticateOptions.idTokenHint idTokenHint},
+   * {@link AuthenticateOptions.loginHint loginHint},
+   * {@link AuthenticateOptions.prompt prompt},
+   * {@link AuthenticateOptions.resource resource}, or
+   * {@link AuthenticateOptions.scope scope} properties of
+   * {@link AuthenticateOptions} are used.
+   *
+   * @param req
+   * @param options This is the value originally passed to
+   *   `passport.authenticate()` as its `options` argument.
    */
   authorizationRequestParams<TOptions extends AuthenticateOptions>(
     req: Request,
@@ -286,8 +171,18 @@ export class OidcStrategy extends PassportStrategy {
   }
 
   /**
-   * Return additional token endpoint request parameters.
-   * This mirrors the openid-client strategy's method signature.
+   * [Strategy method] Return additional token endpoint request parameters.
+   *
+   * This method is intended to be overloaded if additional parameters to be
+   * included in the authorization code grant token endpoint request are
+   * needed.
+   *
+   * By default this method takes care of adding the `resource` token endpoint
+   * parameters when {@link AuthenticateOptions.resource} is used.
+   *
+   * @param req
+   * @param options This is the value originally passed to
+   *   `passport.authenticate()` as its `options` argument.
    */
   authorizationCodeGrantParameters<TOptions extends AuthenticateOptions>(
     req: Request,
@@ -303,53 +198,9 @@ export class OidcStrategy extends PassportStrategy {
   }
 
   /**
-   * Return the current request URL.
-   * This mirrors the openid-client strategy's method signature.
-   */
-  currentUrl(req: Request): URL {
-    return new URL(
-      `${req.protocol}://${this.getHost(req)}${req.originalUrl ?? req.url}`,
-    );
-  }
-
-  /**
-   * Determine whether to initiate an authorization request.
-   * This mirrors the openid-client strategy's method signature.
-   */
-  shouldInitiateAuthRequest<TOptions extends AuthenticateOptions>(
-    req: Request,
-    currentUrl: URL,
-    options: TOptions,
-  ): boolean {
-    return (
-      req.method === 'GET' &&
-      !currentUrl.searchParams.has('code') &&
-      !currentUrl.searchParams.has('error') &&
-      !currentUrl.searchParams.has('response')
-    );
-  }
-
-  /**
-   * Main authenticate method - this is called by Passport
-   */
-  authenticate(req: Request, options: AuthenticateOptions = {}): void {
-    if (!req.session) {
-      return this.error(
-        new Error('OIDC authentication requires session support'),
-      );
-    }
-
-    const currentUrl = this.currentUrl(req);
-
-    if (this.shouldInitiateAuthRequest(req, currentUrl, options)) {
-      this.authorizationRequest(req, options);
-    } else {
-      this.authorizationCodeGrant(req, currentUrl, options);
-    }
-  }
-
-  /**
+   * @private
    * Private method to handle authorization request initiation
+   * @internal
    */
   private async authorizationRequest<TOptions extends AuthenticateOptions>(
     req: Request,
@@ -363,7 +214,7 @@ export class OidcStrategy extends PassportStrategy {
 
       // Handle implicit flow with ID tokens
       if (redirectTo.searchParams.get('response_type')?.includes('id_token')) {
-        redirectTo.searchParams.set('nonce', this.randomNonce());
+        redirectTo.searchParams.set('nonce', oidc.randomNonce());
 
         if (!redirectTo.searchParams.has('response_mode')) {
           redirectTo.searchParams.set('response_mode', 'form_post');
@@ -371,7 +222,7 @@ export class OidcStrategy extends PassportStrategy {
       }
 
       // PKCE implementation
-      const codeVerifier = this.randomPKCECodeVerifier();
+      const codeVerifier = oidc.randomPKCECodeVerifier();
       const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
       redirectTo.searchParams.set('code_challenge', codeChallenge);
       redirectTo.searchParams.set('code_challenge_method', 'S256');
@@ -381,7 +232,7 @@ export class OidcStrategy extends PassportStrategy {
         !this._config.serverMetadata().supportsPKCE() &&
         !redirectTo.searchParams.has('nonce')
       ) {
-        redirectTo.searchParams.set('state', this.randomState());
+        redirectTo.searchParams.set('state', oidc.randomState());
       }
 
       // Set callback URL
@@ -566,7 +417,107 @@ export class OidcStrategy extends PassportStrategy {
     }
   }
 
-  // Helper methods
+  /**
+   * [Strategy method] Return the current request URL.
+   *
+   * This method is intended to be overloaded if its return value does not match
+   * the actual URL the authorization server redirected the user to.
+   *
+   * - Its `searchParams` are used as the authorization response parameters when
+   *   the authorization response request is a GET.
+   * - Its resulting `href` value (after stripping its `searchParams` and `hash`)
+   *   is used as the `redirect_uri` authorization code grant token endpoint
+   *   parameter unless {@link AuthenticateOptions.callbackURL}, or
+   *   {@link StrategyOptionsBase.callbackURL} are used in which case those are
+   *   used as the `redirect_uri` parameter instead.
+   *
+   * Default is
+   *
+   * ```ts
+   * function currentUrl(req: express.Request): URL {
+   *   return new URL(
+   *     `${req.protocol}://${req.host}${req.originalUrl ?? req.url}`,
+   *   )
+   * }
+   * ```
+   *
+   * When behind a reverse proxy it assumes common proxy headers are in use and
+   * that
+   * {@link https://expressjs.com/en/guide/behind-proxies.html Express (behind proxies docs)},
+   * or
+   * {@link https://fastify.dev/docs/latest/Reference/Server/#trustproxy Fastify (trustProxy docs)}
+   * are properly configured to trust them.
+   */
+  private currentUrl(req: Request): URL {
+    return new URL(
+      `${req.protocol}://${this.getHost(req)}${req.originalUrl ?? req.url}`,
+    );
+  }
+
+  /**
+   * [Strategy method] Determine whether to initiate an authorization request.
+   *
+   * This method is intended to be overloaded if custom logic for determining
+   * whether to initiate an authorization request or process an authorization
+   * response.
+   *
+   * By default, this method returns `true` when the request method is GET and
+   * the current URL does not contain `code`, `error`, or `response` query
+   * parameters, indicating that this is an initial authorization request rather
+   * than a callback from the authorization server.
+   *
+   * @param req
+   * @param currentUrl The current request URL as determined by
+   *   {@link Strategy.currentUrl}
+   * @param _options This is the value originally passed to
+   *   `passport.authenticate()` as its `options` argument.
+   */
+  shouldInitiateAuthRequest<TOptions extends AuthenticateOptions>(
+    req: Request,
+    currentUrl: URL,
+    _options: TOptions,
+  ): boolean {
+    return (
+      req.method === 'GET' &&
+      !currentUrl.searchParams.has('code') &&
+      !currentUrl.searchParams.has('error') &&
+      !currentUrl.searchParams.has('response')
+    );
+  }
+
+  /**
+   * [Passport method] Authenticate the request.
+   */
+  authenticate(req: Request, options: AuthenticateOptions = {}): void {
+    if (!req.session) {
+      return this.error(
+        new Error(
+          'OAuth 2.0 authentication requires session support. Did you forget to use express-session middleware?',
+        ),
+      );
+    }
+
+    const currentUrl = this.currentUrl(req);
+
+    // if (this.shouldInitiateAuthRequest(req, currentUrl, options)) {
+    //   this.authorizationRequest(req, options);
+    // } else {
+    //   this.authorizationCodeGrant(req, currentUrl, options);
+    // }
+
+    if (this.shouldInitiateAuthRequest(req, currentUrl, options)) {
+      this.authorizationRequest(req, options).catch((err) =>
+        this.error(err instanceof Error ? err : new Error(String(err))),
+      );
+    } else {
+      this.authorizationCodeGrant(req, currentUrl, options).catch((err) =>
+        this.error(err instanceof Error ? err : new Error(String(err))),
+      );
+    }
+  }
+
+  /* ========== Helper methods ========== */
+
   /**
    * Taken from express@5 req.host implementation to get around the fact that
    * req.host in express@4 is not the host but hostname. Catches errors stemming
@@ -575,10 +526,10 @@ export class OidcStrategy extends PassportStrategy {
    */
   private getHost(req: Request): string {
     try {
-      const trust = req.app?.get<TrustProxyFn>('trust proxy fn');
+      const trust = req.app.get('trust proxy fn') as unknown as TrustProxyFn;
       let val = req.get('x-forwarded-host');
 
-      if (!val || !trust?.(req.socket?.remoteAddress, 0)) {
+      if (!val || !trust(req.socket.remoteAddress ?? '', 0)) {
         // if (!val || !trust?.(req, 0)) {
         val = req.get('host');
       } else if (val.indexOf(',') !== -1) {
@@ -617,24 +568,6 @@ export class OidcStrategy extends PassportStrategy {
       );
     }
   }
-
-  private randomNonce(): string {
-    return randomBytes(16).toString('base64url');
-  }
-
-  private randomState(): string {
-    return randomBytes(16).toString('base64url');
-  }
-
-  private randomPKCECodeVerifier(): string {
-    return randomBytes(32).toString('base64url');
-  }
-
-  // private async calculatePKCECodeChallenge(
-  //   codeVerifier: string,
-  // ): Promise<string> {
-  //   return createHash('sha256').update(codeVerifier).digest('base64url');
-  // }
 
   private expressToUndiciRequest(
     req: Request,
@@ -683,41 +616,4 @@ export class OidcStrategy extends PassportStrategy {
       },
     });
   }
-
-  private async *toUint8(
-    src: AsyncIterable<Uint8Array<ArrayBufferLike>>,
-  ): AsyncIterable<Uint8Array> {
-    for await (const chunk of src) {
-      // Force to plain Uint8Array
-      yield new Uint8Array(chunk);
-    }
-  }
-}
-
-export function expressToFetchRequest(
-  req: Request,
-  targetUrl: URL,
-): globalThis.Request {
-  const headers = new Headers();
-
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) {
-      value.forEach((v) => headers.append(key, v));
-    } else if (value !== undefined) {
-      headers.append(key, value);
-    }
-  }
-
-  const init: DuplexRequestInit = {
-    method: req.method,
-    headers,
-    duplex: 'half',
-  };
-
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    // Explicitly assert to NodeJS.ReadableStream so TS accepts it as BodyInit
-    init.body = req as unknown as ReadableStream;
-  }
-
-  return new Request(targetUrl.href, init);
 }
