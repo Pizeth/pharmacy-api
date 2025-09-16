@@ -4,9 +4,9 @@ import * as oidc from 'openid-client';
 import { randomBytes, createHash } from 'crypto';
 import passport from 'passport';
 import { StateData } from '../interfaces/oidc.interface';
-import { HttpStatus, Request } from '@nestjs/common';
-import { DuplexRequestInit, RequestInitWithDuplex } from 'src/types/express';
-import { Request, Request, type RequestInit } from 'undici';
+import { HttpStatus } from '@nestjs/common';
+import { DuplexRequestInit } from 'src/types/express';
+import { TrustProxyFn } from '../types/oidc';
 
 // Type-safe callback interface for NestJS (replacing passport.AuthenticateCallback)
 export interface VerifyCallback {
@@ -372,7 +372,7 @@ export class OidcStrategy extends PassportStrategy {
 
       // PKCE implementation
       const codeVerifier = this.randomPKCECodeVerifier();
-      const codeChallenge = await this.calculatePKCECodeChallenge(codeVerifier);
+      const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
       redirectTo.searchParams.set('code_challenge', codeChallenge);
       redirectTo.searchParams.set('code_challenge_method', 'S256');
 
@@ -575,13 +575,14 @@ export class OidcStrategy extends PassportStrategy {
    */
   private getHost(req: Request): string {
     try {
-      const trust = req.app.get('trust proxy fn');
+      const trust = req.app?.get<unknown>('trust proxy fn');
       let val = req.get('x-forwarded-host');
 
-      if (!val || !trust?.(req.socket?.remoteAddress, 0)) {
+      // if (!val || !trust?.(req.socket?.remoteAddress, 0)) {
+      if (!val || !trust?.(req, 0)) {
         val = req.get('host');
       } else if (val.indexOf(',') !== -1) {
-        val = val.substring(0, val.indexOf(',')).trimRight();
+        val = val.substring(0, val.indexOf(',')).trimEnd();
       }
 
       return val || req.headers.host || 'localhost';
@@ -629,11 +630,11 @@ export class OidcStrategy extends PassportStrategy {
     return randomBytes(32).toString('base64url');
   }
 
-  private async calculatePKCECodeChallenge(
-    codeVerifier: string,
-  ): Promise<string> {
-    return createHash('sha256').update(codeVerifier).digest('base64url');
-  }
+  // private async calculatePKCECodeChallenge(
+  //   codeVerifier: string,
+  // ): Promise<string> {
+  //   return createHash('sha256').update(codeVerifier).digest('base64url');
+  // }
 
   private expressToUndiciRequest(
     req: Request,

@@ -23,3 +23,5 @@ interface SafeAuthenticateCallback {
     status?: number | Array<number | undefined>,
   ): void;
 }
+
+export type TrustProxyFn = (addr: string | undefined, index: number) => boolean;
