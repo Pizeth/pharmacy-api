@@ -168,7 +168,7 @@ model IdentityProvider {
   issuer          String            @map("issuer") // OIDC issuer URL
   authorizationURL String           @map("authorization_url")
   tokenURL        String            @map("token_url")
-  callbackURL     String            @map("callback_url")
+  // callbackURL     String            @map("callback_url")
   userInfoURL     String            @map("user_info_url")
   clientID        String            @map("client_id")
   clientSecret    String            @map("client_secret")

@@ -2,13 +2,23 @@ import { JsonValue, UserInfoResponse } from 'openid-client';
 import passport from 'passport';
 import * as oidc from 'openid-client';
 import { getDPoPHandle } from '../types/oidc';
+import { IdentityProvider } from '@prisma/client';
 // import { Profile, StrategyOptions } from 'passport-openidconnect';
 
 // Type-safe callback interface for NestJS (replacing passport.AuthenticateCallback)
 export interface VerifyCallback {
   (
     error: Error | false | null,
-    user?: Express.User | false,
+    user?:
+      | Express.User
+      | false
+      | {
+          tokens: oidc.TokenEndpointResponse &
+            oidc.TokenEndpointResponseHelpers;
+          sub: string;
+          provider: IdentityProvider;
+          config: oidc.Configuration;
+        },
     info?: object | string | Array<string | undefined>,
     status?: number | Array<number | undefined>,
   ): void;
@@ -185,7 +195,7 @@ export interface NormalizedProfile {
 }
 
 export interface OidcTokens {
-  accessToken?: string;
+  accessToken: string;
   refreshToken?: string;
   idToken?: string;
   expiresAt?: number;

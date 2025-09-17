@@ -35,8 +35,24 @@ export class DynamicOidcGuard extends AuthGuard('dynamic-oidc') {
 }
 
 @Injectable()
+export class DynamicOidcGuardQwenNew extends AuthGuard('dynamic-oidc') {
+  getAuthenticateOptions(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest<Request>();
+    const providerName = request.params.provider;
+
+    if (!providerName) {
+      throw new Error('Provider name is required in URL path');
+    }
+
+    return {
+      provider: providerName,
+    };
+  }
+}
+
+@Injectable()
 export class DynamicOidcAuthGuardGemini implements CanActivate {
-  private readonly context = DynamicOidcAuthGuard.name;
+  private readonly context = DynamicOidcAuthGuardGemini.name;
   private readonly logger = new Logger(this.context);
 
   constructor(private readonly oidcProviderService: OidcProviderService) {}

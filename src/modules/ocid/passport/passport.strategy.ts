@@ -397,15 +397,26 @@ export class Strategy extends PassportStrategy {
       };
 
       // Call verify function
-      if (options.passReqToCallback ?? this._passReqToCallback) {
-        return (this._verify as VerifyFunctionWithRequest)(
-          req,
-          tokens,
-          verified,
-        );
+      // if (options.passReqToCallback ?? this._passReqToCallback) {
+      //   return (this._verify as VerifyFunctionWithRequest)(
+      //     req,
+      //     tokens,
+      //     verified,
+      //   );
+      // }
+
+      // return (this._verify as VerifyFunction)(tokens, verified);
+
+      const verifyCall =
+        (options.passReqToCallback ?? this._passReqToCallback)
+          ? (this._verify as VerifyFunctionWithRequest)(req, tokens, verified)
+          : (this._verify as VerifyFunction)(tokens, verified);
+
+      if (verifyCall instanceof Promise) {
+        return await verifyCall;
       }
 
-      return (this._verify as VerifyFunction)(tokens, verified);
+      return verifyCall;
     } catch (err) {
       if (
         err instanceof oidc.AuthorizationResponseError &&

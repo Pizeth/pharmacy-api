@@ -3,7 +3,7 @@ import type {
   TokenEndpointResponseHelpers,
   DPoPHandle,
 } from 'openid-client';
-import type { VerifyCallback } from './interfaces/oidc.interface';
+import type { VerifyCallback } from '../interfaces/oidc.interface';
 import { Request } from 'express';
 
 // export type VerifyFunction = (
@@ -42,7 +42,7 @@ export type VerifyFunction = (
    */
   tokens: TokenEndpointResponse & TokenEndpointResponseHelpers,
   done: VerifyCallback,
-) => void;
+) => void | Promise<void>;
 
 export type VerifyFunctionWithRequest = (
   /**
@@ -52,6 +52,6 @@ export type VerifyFunctionWithRequest = (
   req: Request,
   tokens: TokenEndpointResponse & TokenEndpointResponseHelpers,
   done: VerifyCallback,
-) => void;
+) => void | Promise<void>;
 
 export type TrustProxyFn = (addr: string | undefined, index: number) => boolean;

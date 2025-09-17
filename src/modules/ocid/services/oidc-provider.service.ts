@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PassportStatic } from 'passport';
-import { OidcStrategy } from '../../auth/strategies/oidc.strategy';
+// import { OidcStrategy } from './strategies/oidc.strategy';
 import { OidcStrategyFactory } from '../factories/oidc-strategy.factory';
 import { IdentityProvider } from '@prisma/client';
 import { OidcProviderDbService } from './oidc-provider-db.service';
@@ -15,13 +15,13 @@ import { UpdateProviderDto } from '../dto/update-provider.dto';
 import { AppError } from 'src/exceptions/app.exception';
 import { CryptoService } from 'src/commons/services/crypto.service';
 import { OidcIdentityDbService } from './oidc-identity-db.service';
-import * as oidc from 'openid-client';
+import { Strategy } from '../strategies/openid-client.strategy';
 
 @Injectable()
 export class OidcProviderService implements OnModuleInit {
   private readonly context = OidcProviderService.name;
   private readonly logger = new Logger(this.context);
-  private strategies: Map<string, OidcStrategy> = new Map();
+  private strategies: Map<string, Strategy> = new Map();
 
   constructor(
     private readonly dbService: OidcProviderDbService,
@@ -168,7 +168,7 @@ export class OidcProviderService implements OnModuleInit {
     }
   }
 
-  getStrategy(providerName: string): OidcStrategy | undefined {
+  getStrategy(providerName: string): Strategy | undefined {
     return this.strategies.get(providerName);
   }
 
@@ -181,20 +181,20 @@ export class OidcProviderService implements OnModuleInit {
     // 1. Decrypt secret
     // const decryptedSecret = this.decryptSecret(provider.clientSecret);
     const clientSecret = this.crypto.decrypt(provider.clientSecret);
-    const callbackURL = `${process.env.APP_URL}/auth/${provider.name}/callback`;
+    // const callbackURL = `${process.env.APP_URL}/auth/${provider.name}/callback`;
     // provider.clientSecret = decryptedSecret;
     // create a shallow copy so the factory receives decrypted secret
     const runtimeProvider = {
       ...provider,
       clientSecret,
-      callbackURL,
+      // callbackURL,
     };
 
     // 2. Create strategy
     // const strategy = await this.strategyFactory.createStrategy(runtimeProvider);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const strategy = await this.strategyFactory.createStrategy(provider);
+      const strategy =
+        await this.strategyFactory.createStrategy(runtimeProvider);
 
       // 3. Register & use strategy
       // this.passport.use().createStrategy(provider);
@@ -211,92 +211,92 @@ export class OidcProviderService implements OnModuleInit {
     }
   }
 
-  async registerProvider(provider: IdentityProvider) {
-    try {
-      this.logger.log(
-        `Registering provider '${provider.name}' (issuer=${provider.issuer})`,
-      );
+  // async registerProvider(provider: IdentityProvider) {
+  //   try {
+  //     this.logger.log(
+  //       `Registering provider '${provider.name}' (issuer=${provider.issuer})`,
+  //     );
 
-      // Decrypt client secret (if stored encrypted)
-      const clientSecret = this.crypto.decrypt(provider.clientSecret);
-      const callbackURL = `${process.env.APP_URL}/auth/${provider.name}/callback`;
-      // 1) Discover issuer (support provider.issuer being issuer URL or metadata URL)
-      const config = await oidc.discovery(
-        new URL(provider.issuer),
-        provider.clientID,
-        clientSecret,
-      );
-      // 2) Build client
-      const client = new issuer.serverMetadata().Client({
-        client_id: provider.clientID,
-        client_secret: clientSecret,
-        redirect_uris: [provider.callbackURL],
-        response_types: ['code'],
-      });
+  //     // Decrypt client secret (if stored encrypted)
+  //     const clientSecret = this.crypto.decrypt(provider.clientSecret);
+  //     const callbackURL = `${process.env.APP_URL}/auth/${provider.name}/callback`;
+  //     // 1) Discover issuer (support provider.issuer being issuer URL or metadata URL)
+  //     const config = await oidc.discovery(
+  //       new URL(provider.issuer),
+  //       provider.clientID,
+  //       clientSecret,
+  //     );
+  //     // 2) Build client
+  //     const client = new issuer.serverMetadata().Client({
+  //       client_id: provider.clientID,
+  //       client_secret: clientSecret,
+  //       redirect_uris: [provider.callbackURL],
+  //       response_types: ['code'],
+  //     });
 
-      // 3) Build strategy verify function
-      const verify = async (
-        tokenSet: TokenSet,
-        userinfo: any,
-        done: Function,
-      ) => {
-        try {
-          // tokenSet.claims() has the ID token claims
-          const idClaims = tokenSet.claims ? tokenSet.claims() : {};
-          // fallback to userinfo for profile
-          const profile = userinfo || idClaims;
+  //     // 3) Build strategy verify function
+  //     const verify = async (
+  //       tokenSet: TokenSet,
+  //       userinfo: any,
+  //       done: Function,
+  //     ) => {
+  //       try {
+  //         // tokenSet.claims() has the ID token claims
+  //         const idClaims = tokenSet.claims ? tokenSet.claims() : {};
+  //         // fallback to userinfo for profile
+  //         const profile = userinfo || idClaims;
 
-          // Normalize profile as you like (keep minimal here)
-          const normalized = {
-            id: String(
-              idClaims.sub ?? profile.sub ?? profile.sub ?? profile.id ?? '',
-            ),
-            provider: provider.name,
-            providerId: provider.id,
-            displayName:
-              profile.name ?? profile.preferred_username ?? profile.email,
-            email:
-              profile.email ??
-              (profile.emails && profile.emails[0] && profile.emails[0].value),
-            emailVerified: !!(
-              idClaims.email_verified ?? profile.email_verified
-            ),
-            raw: profile,
-          };
+  //         // Normalize profile as you like (keep minimal here)
+  //         const normalized = {
+  //           id: String(
+  //             idClaims.sub ?? profile.sub ?? profile.sub ?? profile.id ?? '',
+  //           ),
+  //           provider: provider.name,
+  //           providerId: provider.id,
+  //           displayName:
+  //             profile.name ?? profile.preferred_username ?? profile.email,
+  //           email:
+  //             profile.email ??
+  //             (profile.emails && profile.emails[0] && profile.emails[0].value),
+  //           emailVerified: !!(
+  //             idClaims.email_verified ?? profile.email_verified
+  //           ),
+  //           raw: profile,
+  //         };
 
-          // Return the normalized profile + the tokenSet. Controller will handle linking/persisting tokens.
-          return done(null, { profile: normalized, tokenSet });
-        } catch (err) {
-          return done(err);
-        }
-      };
+  //         // Return the normalized profile + the tokenSet. Controller will handle linking/persisting tokens.
+  //         return done(null, { profile: normalized, tokenSet });
+  //       } catch (err) {
+  //         return done(err);
+  //       }
+  //     };
 
-      // 4) Create passport-openid-client Strategy instance
-      const params = {
-        scope: provider.scope ?? 'openid profile email',
-        // you can add prompt, access_type for google if you want offline
-      };
+  //     // 4) Create passport-openid-client Strategy instance
+  //     const params = {
+  //       scope: provider.scope ?? 'openid profile email',
+  //       // you can add prompt, access_type for google if you want offline
+  //     };
 
-      const strategy = new OpenIDStrategy(
-        { client, params, passReqToCallback: false },
-        verify,
-      );
+  //     const strategy = new OpenIDStrategy(
+  //       { client, params, passReqToCallback: false },
+  //       verify,
+  //     );
 
-      // Register on passport under the provider.name
-      passport.use(provider.name, strategy);
+  //     // Register on passport under the provider.name
+  //     passport.use(provider.name, strategy);
 
-      // Save strategy
-      this.strategies.set(provider.name, strategy);
+  //     // Save strategy
+  //     this.strategies.set(provider.name, strategy);
 
-      this.logger.log(`Registered strategy for provider '${provider.name}'`);
-    } catch (err) {
-      this.logger.error(
-        `Failed registering provider ${provider.name}: ${err?.message ?? err}`,
-        err,
-      );
-      // keep going — one bad provider shouldn't stop all
-    }
-  }
+  //     this.logger.log(`Registered strategy for provider '${provider.name}'`);
+  //   } catch (err) {
+  //     this.logger.error(
+  //       `Failed registering provider ${provider.name}: ${err?.message ?? err}`,
+  //       err,
+  //     );
+  //     // keep going — one bad provider shouldn't stop all
+  //   }
+  // }
 
   private unregisterProvider(providerName: string) {
     const strategy = this.strategies.get(providerName);
@@ -332,7 +332,7 @@ export class OidcProviderService implements OnModuleInit {
 @Injectable()
 export class OidcProviderServiceDeepSeek implements OnModuleInit {
   private readonly logger = new Logger(OidcProviderService.name);
-  private strategies: Map<string, OidcStrategy> = new Map();
+  private strategies: Map<string, Strategy> = new Map();
 
   constructor(
     private readonly dbService: OidcProviderDbService,
@@ -373,7 +373,7 @@ export class OidcProviderServiceDeepSeek implements OnModuleInit {
       clientSecret: encryptedSecret,
     });
 
-    if (provider.enabled) {
+    if (provider.isEnabled) {
       await this.registerProvider(provider);
     }
 
