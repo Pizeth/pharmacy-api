@@ -6,7 +6,6 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PassportStatic } from 'passport';
-// import { OidcStrategy } from './strategies/oidc.strategy';
 import { OidcStrategyFactory } from '../factories/oidc-strategy.factory';
 import { IdentityProvider } from '@prisma/client';
 import { OidcProviderDbService } from './oidc-provider-db.service';
@@ -15,7 +14,8 @@ import { UpdateProviderDto } from '../dto/update-provider.dto';
 import { AppError } from 'src/exceptions/app.exception';
 import { CryptoService } from 'src/commons/services/crypto.service';
 import { OidcIdentityDbService } from './oidc-identity-db.service';
-import { Strategy } from '../strategies/openid-client.strategy';
+import { Strategy } from '../passport/passport.strategy';
+// import { Strategy } from '../strategies/openid-client.strategy';
 
 @Injectable()
 export class OidcProviderService implements OnModuleInit {
@@ -326,6 +326,57 @@ export class OidcProviderService implements OnModuleInit {
 
     // Re-register all enabled providers from DB
     await this.registerAllProviders();
+  }
+
+  // Additional utility methods for better management
+
+  /**
+   * Check if a provider strategy is currently registered
+   */
+  isProviderRegistered(providerName: string): boolean {
+    return this.strategies.has(providerName);
+  }
+
+  /**
+   * Get list of all currently registered provider names
+   */
+  getRegisteredProviderNames(): string[] {
+    return Array.from(this.strategies.keys());
+  }
+
+  /**
+   * Get count of registered strategies
+   */
+  getRegisteredProviderCount(): number {
+    return this.strategies.size;
+  }
+
+  /**
+   * Validate that all enabled providers in DB are registered
+   */
+  async validateProviderConsistency(): Promise<{
+    consistent: boolean;
+    missingStrategies: string[];
+    extraStrategies: string[];
+  }> {
+    const enabledProviders = await this.getAllEnabledProviders();
+    const enabledProviderNames = new Set(enabledProviders.map((p) => p.name));
+    const registeredProviderNames = new Set(this.getRegisteredProviderNames());
+
+    const missingStrategies = Array.from(enabledProviderNames).filter(
+      (name) => !registeredProviderNames.has(name),
+    );
+
+    const extraStrategies = Array.from(registeredProviderNames).filter(
+      (name) => !enabledProviderNames.has(name),
+    );
+
+    return {
+      consistent:
+        missingStrategies.length === 0 && extraStrategies.length === 0,
+      missingStrategies,
+      extraStrategies,
+    };
   }
 }
 

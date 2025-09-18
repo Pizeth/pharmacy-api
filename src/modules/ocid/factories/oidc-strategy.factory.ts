@@ -323,9 +323,10 @@ import {
   StrategyOptions,
   VerifyCallback,
 } from '../interfaces/oidc.interface';
-import { Strategy } from '../strategies/openid-client.strategy';
+// import { Strategy } from '../strategies/openid-client.strategy';
 import { VerifyFunction } from '../types/oidc';
 import { IDToken } from 'openid-client';
+import { Strategy } from '../passport/passport.strategy';
 
 @Injectable()
 export class OidcStrategyFactory {
