@@ -1,8 +1,8 @@
 import { Module, Logger as l } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
-import { ZodError } from 'zod'; // Import Zod
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { z, ZodError } from 'zod';
 import {
   I18nModule,
   AcceptLanguageResolver,
@@ -13,20 +13,23 @@ import {
 } from 'nestjs-i18n';
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
-// import { Logger } from './logs/logger';
-// import { UserModule } from './modules/users/user.module';
 import { FileModule } from './modules/files/file.module';
 import { ClsModule } from 'nestjs-cls';
 import { v4 as uuidv4 } from 'uuid';
 import { Request } from 'express';
 import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { ValidationError } from './exceptions/zod-validatoin.exception';
+import { ProfileModule } from './modules/profiles/profile.module';
+// import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      // load: [oidcProviderConfig], // Load custom config factory
       validate: (config: Record<string, any>) => {
         // l.log(config);
         try {
@@ -36,20 +39,25 @@ import { TimeParserModule } from './modules/time-parser/time-parser.module';
         } catch (error: unknown) {
           l.log(error);
           if (error instanceof ZodError) {
-            const errorMessages = error.errors.map((e) => {
-              // e.message already contains the internationalized message from our helpers
-              return `${e.path.join('.')}: ${e.message}`;
-            });
-            // const errorMessages = error.errors.map(
-            //   (e) => `${e.path.join('.')}: ${e.message}`,
+            // // const errorMessages = error.errors.map((e) => {
+            // const errorMessages = error.issues.map((e) => {
+            //   // e.message already contains the internationalized message from our helpers
+            //   return `${e.path.join('.')}: ${e.message}`;
+            // });
+            // // const errorMessages = error.errors.map(
+            // //   (e) => `${e.path.join('.')}: ${e.message}`,
+            // // );
+            // console.error(
+            //   '❌ Configuration validation error details:',
+            //   JSON.stringify(z.treeifyError(error), null, 2),
+            //   // JSON.stringify(error.flatten(), null, 2),
             // );
-            console.error(
-              '❌ Configuration validation error details:',
-              JSON.stringify(error.flatten(), null, 2),
-            );
-            throw new Error(
-              `Configuration validation failed:\n${errorMessages.join('\n')}`,
-            );
+            // throw new Error(
+            //   `Configuration validation failed:\n${errorMessages.join('\n')}`,
+            // );
+            if (error instanceof ZodError) {
+              throw new ValidationError(error, z.treeifyError);
+            }
           }
           console.error(
             '❌ Unexpected error during configuration validation:',
@@ -73,8 +81,13 @@ import { TimeParserModule } from './modules/time-parser/time-parser.module';
           cls.set('userId', req.headers['x-user-id']);
           cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
           cls.set('userAgent', req.headers['user-agent']);
+          cls.set('acceptLanguage', req.headers['accept-language']);
+          cls.set('referer', req.headers['referer']);
+          cls.set('origin', req.headers['origin']);
           cls.set('url', req.url);
           cls.set('method', req.method);
+          cls.set('user', req.user);
+
           // If you use an auth guard that sets `req.user`, you can set it here too
           // cls.set('user', req.user);
         },
@@ -101,25 +114,20 @@ import { TimeParserModule } from './modules/time-parser/time-parser.module';
         GrpcMetadataResolver,
       ],
     }),
-
-    // JwtModule.registerAsync({
-    //   inject: [ConfigService],
-    //   useFactory: (config: ConfigService) => ({
-    //     secret: config.get('SECRET_KEY'),
-    //     signOptions: { expiresIn: config.get('EXPIRES_IN') },
-    //   }),
-    // }),
-    // PrismaModule,
-    // HttpModule,
     AuthModule,
     FileModule,
     TimeParserModule,
+    ProfileModule,
   ],
   providers: [
     // Logger,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_PIPE,
+      useClass: ZodValidationPipe,
     },
   ],
   exports: [], // Export if other modules need it

@@ -12,7 +12,8 @@ import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
 import { DiceBearStyle, type } from 'src/types/commons.enum';
 import { ImagesService } from 'src/modules/images/services/images.service';
-import { UserDetail } from 'src/types/dto';
+import { SanitizedUser, UserDetail } from 'src/types/dto';
+import { UpdateUserDto } from '../dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -66,8 +67,13 @@ export class UsersService {
           ],
         },
         include: {
-          profile: true,
           role: true,
+          profile: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
           refreshTokens: true,
           auditTrail: true,
         },
@@ -84,19 +90,26 @@ export class UsersService {
     }
   }
 
-  async getOne(where: Prisma.UserWhereUniqueInput): Promise<User | null> {
+  async getOne(where: Prisma.UserWhereUniqueInput): Promise<UserDetail | null> {
     try {
-      const modelName = 'user';
-      return await this.dbHelper.findOne<typeof modelName, User>({
-        model: modelName,
-        where: where,
+      const model = 'user';
+      const result = await this.dbHelper.findOne<typeof model, User>({
+        model,
+        where,
         include: {
-          profile: true,
           role: true,
+          profile: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
           refreshTokens: true,
           auditTrail: true,
         },
       });
+
+      return result as UserDetail | null;
     } catch (error) {
       this.logger.error(
         `Error finding user with ${JSON.stringify(where)}:`,
@@ -137,9 +150,9 @@ export class UsersService {
     orderBy?: Prisma.UserOrderByWithRelationInput,
     select?: Prisma.UserSelect,
   ): Promise<PaginatedDataResult<User>> {
-    const modelName = 'user';
+    const model = 'user';
     return this.dbHelper.getPaginatedData({
-      model: modelName,
+      model,
       page,
       pageSize,
       cursor,
@@ -149,120 +162,151 @@ export class UsersService {
     });
   }
 
+  /**
+   * Creates a new user in the system.
+   *
+   * This function handles the creation of a new user with the provided data,
+   * including optional file handling for avatar uploads. It ensures that the
+   * username and email are unique before proceeding with the user creation
+   * transaction. If a file is provided, it attempts to upload it as the user's
+   * avatar. The password is securely hashed before being stored.
+   *
+   * @param createUserDto - The data transfer object containing user details.
+   * @param file - An optional file representing the user's avatar.
+   *
+   * @returns A promise that resolves to the created user object, excluding the password.
+   *
+   * @throws {AppError} If the username or email already exists, or if an error
+   * occurs during user creation.
+   */
   async create(
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
-  ): Promise<Omit<User, 'password'>> {
+    tx?: Prisma.TransactionClient,
+  ): Promise<SanitizedUser> {
+    const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const fileName = FileUtil.generateFileName(createUserDto.username, file);
     try {
-      return this.prisma.$transaction(
-        async (tx) => {
-          // Check unique constraints within transaction
-          const [existingUsername, existingEmail] = await Promise.all([
-            this.getOne({ username: createUserDto.username }),
-            this.getOne({ email: createUserDto.email }),
-          ]);
+      // return prismaClient.$transaction(
+      // async (currentx) => {
+      // Check unique constraints within transaction
+      const [existingUsername, existingEmail] = await Promise.all([
+        this.getOne({ username: createUserDto.username }),
+        this.getOne({ email: createUserDto.email }),
+      ]);
 
-          if (existingUsername) {
-            throw new AppError(
-              `Username ${createUserDto.username} already exists!`,
-              HttpStatus.CONFLICT,
-              UsersService.name,
-              {
-                ACTION: 'Register New User',
-                ROOT: 'Duplicate Data!',
-                FIELD: 'username',
-                CODE: 'DUPLICATE_USERNAME',
-                VALUE: createUserDto.username,
-              },
-            );
-          }
+      if (existingUsername) {
+        throw new AppError(
+          `Username ${createUserDto.username} already exists!`,
+          HttpStatus.CONFLICT,
+          UsersService.name,
+          {
+            ACTION: 'Register New User',
+            ROOT: 'Duplicate Data!',
+            FIELD: 'username',
+            CODE: 'DUPLICATE_USERNAME',
+            VALUE: createUserDto.username,
+          },
+        );
+      }
 
-          if (existingEmail) {
-            throw new AppError(
-              `Email ${createUserDto.email} already exists!`,
-              HttpStatus.CONFLICT,
-              UsersService.name,
-              {
-                ACTION: 'Register New User',
-                ROOT: 'Duplicate Data!',
-                FIELD: 'email',
-                CODE: 'DUPLICATE_EMAIL',
-                VALUE: createUserDto.email,
-              },
-            );
-          }
+      if (existingEmail) {
+        throw new AppError(
+          `Email ${createUserDto.email} already exists!`,
+          HttpStatus.CONFLICT,
+          UsersService.name,
+          {
+            ACTION: 'Register New User',
+            ROOT: 'Duplicate Data!',
+            FIELD: 'email',
+            CODE: 'DUPLICATE_EMAIL',
+            VALUE: createUserDto.email,
+          },
+        );
+      }
 
-          // Handle file upload if provided
-          // if (file) {
-          //   const avatar = await this.fileService.uploadFile(file, fileName);
-          //   createUserDto.avatar =
-          //     avatar &&
-          //     avatar.type === type.Upload &&
-          //     avatar.status === HttpStatus.CREATED
-          //       ? avatar.url
-          //       : placeholderImage;
-          // } else {
-          //   createUserDto.avatar =
-          //     this.imageService.generateImage(placeholderImage);
-          // }
+      // Handle file upload if provided
+      // if (file) {
+      //   const avatar = await this.fileService.uploadFile(file, fileName);
+      //   createUserDto.avatar =
+      //     avatar &&
+      //     avatar.type === type.Upload &&
+      //     avatar.status === HttpStatus.CREATED
+      //       ? avatar.url
+      //       : placeholderImage;
+      // } else {
+      //   createUserDto.avatar =
+      //     this.imageService.generateImage(placeholderImage);
+      // }
 
-          const placeholderImage = this.imageService.getUrl(
-            DiceBearStyle.Initials,
-            createUserDto.username,
-          );
-
-          createUserDto.avatar = file
-            ? await this.fileService
-                .uploadFile(file, fileName)
-                .then((avatar) =>
-                  avatar &&
-                  avatar.type === type.Upload &&
-                  avatar.status === HttpStatus.CREATED
-                    ? avatar.url
-                    : placeholderImage,
-                )
-            : placeholderImage;
-
-          // After validation succeeds, transform the object by creating a mutable copy of the validated data.
-          const userData = createUserDto;
-          // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
-          delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
-
-          // Use injected PasswordUtils service to hash the password.
-          const hashedPassword = await this.passwordUtils.hash(
-            userData.password,
-          );
-
-          this.logger.debug('User data:', userData);
-
-          // Create user with more detailed error tracking
-          return tx.user.create({
-            data: {
-              ...userData,
-              password: hashedPassword, // Use the hashed password
-              // Add audit trail information
-              auditTrail: {
-                create: {
-                  action: AuditActionType.CREATE,
-                  targetType: AuditTargetType.User,
-                  targetId: '0', // Placeholder.
-                  userAgent: 'SYSTEM',
-                  timestamp: new Date(),
-                  ipAddress: this.cls.get<string>('ip') || '',
-                  description: 'DEFAULT_ADMIN_SEEDED',
-                },
-              },
-            },
-          });
-        },
-        {
-          maxWait: 5000, // default: 2000
-          timeout: 25000, // default: 5000
-        },
+      const placeholderImage = this.imageService.getUrl(
+        DiceBearStyle.Initials,
+        createUserDto.username,
       );
 
-      // Best practice: don't return the password hash in the response.
+      createUserDto.avatar = file
+        ? await this.fileService
+            .uploadFile(file, fileName)
+            .then((avatar) =>
+              avatar &&
+              avatar.type === type.Upload &&
+              avatar.status === HttpStatus.CREATED
+                ? avatar.url
+                : placeholderImage,
+            )
+        : placeholderImage;
+
+      // After validation succeeds, transform the object by creating a mutable copy of the validated data.
+      const userData = createUserDto;
+      // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
+      delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
+
+      // Use injected PasswordUtils service to hash the password.
+      const hashedPassword = userData.password
+        ? await this.passwordUtils.hash(userData.password)
+        : '';
+
+      this.logger.debug('User data:', userData);
+
+      // Create user with more detailed error tracking
+      const result = await prismaClient.user.create({
+        data: {
+          ...userData,
+          password: hashedPassword, // Use the hashed password
+
+          // Add audit trail information
+          auditTrail: {
+            create: {
+              action: AuditActionType.CREATE,
+              targetType: AuditTargetType.User,
+              targetId: '0', // Placeholder.
+              userAgent: 'SYSTEM',
+              timestamp: new Date(),
+              ipAddress: this.cls.get<string>('ip') || '',
+              description: 'DEFAULT_ADMIN_SEEDED',
+            },
+          },
+        },
+        include: {
+          role: true,
+          profile: true,
+          identities: {
+            include: {
+              provider: true,
+            },
+          },
+          refreshTokens: true,
+          auditTrail: true,
+        },
+      });
+
+      return result as unknown as SanitizedUser;
+      // },
+      //   {
+      //     maxWait: 5000, // default: 2000
+      //     timeout: 25000, // default: 5000
+      //   },
+      // );
       // Use the omit helper function for a cleaner approach
       // const result = ObjectOmitter.omit(newUser, 'password');
 
@@ -319,7 +363,6 @@ export class UsersService {
       //   },
       // );
     } catch (error: unknown) {
-      this.logger.error('jom yeak error!', error);
       this.logger.debug('File name:', fileName);
       if (fileName) {
         try {
@@ -359,6 +402,13 @@ export class UsersService {
     // return result;
   }
 
+  async update(id: number, data: UpdateUserDto): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
   /**
    * Get a paginated list of users with basic information.
    * Demonstrates simple pagination and ordering.
@@ -377,7 +427,7 @@ export class UsersService {
       page,
       pageSize,
       where: {
-        enabledFlag: true, // Only active users
+        isEnabled: true, // Only active users
         isBan: false, // Not banned
         deletedAt: null, // Not soft-deleted
       },
@@ -412,7 +462,7 @@ export class UsersService {
       page,
       pageSize,
       where: {
-        enabledFlag: true,
+        isEnabled: true,
         deletedAt: null,
         OR: [
           { username: { contains: searchTerm, mode: 'insensitive' } },
@@ -447,7 +497,7 @@ export class UsersService {
       pageSize,
       where: {
         // role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
-        enabledFlag: true,
+        isEnabled: true,
         isBan: false,
         OR: [
           { lastLogin: { lt: lastLoginThreshold } },
@@ -489,7 +539,7 @@ export class UsersService {
       pageSize,
       cursor: cursorArg,
       where: {
-        enabledFlag: true,
+        isEnabled: true,
         deletedAt: null,
       },
       orderBy: { id: 'asc' }, // Cursor pagination requires a stable, unique order
@@ -586,5 +636,9 @@ export class UsersService {
     return this.prisma.user.delete({
       where,
     });
+  }
+
+  getImagePlaceholder(username: string): string {
+    return this.imageService.getUrl(DiceBearStyle.Initials, username);
   }
 }

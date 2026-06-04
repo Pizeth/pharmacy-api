@@ -138,16 +138,19 @@
 //   }
 // }
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
 import { ConfigService } from '@nestjs/config';
 import { TokenService } from 'src/commons/services/token.service';
 import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { OidcSeeder } from './oidc.seeder';
+import { Prisma } from '@prisma/client';
+import { CryptoService } from 'src/commons/services/crypto.service';
 
 @Injectable()
-export class Seeder {
+export class Seeder implements OnModuleInit {
   private readonly logger = new Logger(Seeder.name);
 
   // With a clean DI graph, we can go back to simple constructor injection.
@@ -156,11 +159,19 @@ export class Seeder {
     private readonly config: ConfigService,
     private readonly tokenService: TokenService,
     private readonly passwordUtils: PasswordUtils,
+    private readonly cryptoService: CryptoService,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    this.logger.debug(`TokenService injected: ${!!this.tokenService}`);
+    this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+  }
+  onModuleInit() {
+    this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
+    this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    // throw new Error('Method not implemented.');
   }
 
   async run(command: 'seed' | 'clear') {
@@ -185,7 +196,9 @@ export class Seeder {
 
   private async seedAll() {
     // Access configuration safely with fallbacks
-    const nodeEnv = this.config.get<string>('NODE_ENV', 'DEVELOPMENT');
+    const nodeEnv = this.config
+      .get<string>('NODE_ENV', 'DEVELOPMENT')
+      .toLowerCase();
     this.logger.log(`nodeEnv is ${nodeEnv}`);
     const allowProdSeeding = this.config.get<string>(
       'ALLOW_PRODUCTION_SEEDING',
@@ -216,13 +229,33 @@ export class Seeder {
       this.tokenService,
       this.passwordUtils,
     );
-    this.logger.log('🔧 Seeding roles...');
-    const roles = await roleSeeder.seed();
+    const oidcSeeder = new OidcSeeder(
+      this.prisma,
+      this.config,
+      this.cryptoService,
+    );
 
-    this.logger.log('👤 Seeding users...');
-    await userSeeder.seed(roles);
+    const result = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        this.logger.log('🔧 Seeding roles...');
+        const roles = await roleSeeder.seed(tx);
+
+        this.logger.log('👤 Seeding users...');
+        const user = await userSeeder.seed(roles, tx);
+
+        this.logger.log('🔐 Seeding OIDC Providers...');
+        const providers = await oidcSeeder.seed(user, tx);
+
+        return { roles, user, providers };
+      },
+      {
+        maxWait: 5000, // default: 2000
+        timeout: 10000, // default: 5000
+      },
+    );
 
     this.logger.log('📊 Database Seeding completed');
+    return result;
   }
 
   private async clearAll() {
@@ -230,6 +263,7 @@ export class Seeder {
 
     await this.prisma.$transaction([
       // Clear in reverse order of dependencies
+      this.prisma.identityProvider.deleteMany(),
       this.prisma.refreshToken.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),

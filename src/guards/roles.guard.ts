@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { Observable } from 'rxjs';
 import { Roles } from 'src/decorators/roles.decorator';
 import { AppError } from 'src/exceptions/app.exception';
+import { SanitizedUser } from 'src/types/dto';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -32,7 +33,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request.user;
+    const user = request.user as SanitizedUser;
     if (!user) {
       this.logger.error('Access denied! Authentication Bearer not found!');
       throw new AppError(

@@ -13,11 +13,11 @@ export const signInSchema = z.object({
     .trim()
     .min(5, 'Username must be at least 5 characters')
     .max(50, 'Username must be at most 50 characters')
-    .openapi({
+    .meta({
       description: 'The public username for the user.',
       example: 'john_doe',
     }),
-  password: z.string().trim().openapi({
+  password: z.string().trim().meta({
     description: 'User password',
     example: 'S3cureP@ssword!',
     format: 'password', // This will hide the value in Swagger UI

@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-// import { PasswordUtils } from 'src/commons/services/password-utils.service';
-// import { TokenService } from './services/token.service';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -12,10 +10,11 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { ImagesModule } from 'src/modules/images/image.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ValidationExceptionFilter } from 'src/filters/validation-exception.filter';
+import { CryptoService } from './services/crypto.service';
 
 @Module({
   imports: [
-    // HttpModule,
     FileModule,
     ImagesModule,
     JwtModule.registerAsync({
@@ -29,16 +28,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   providers: [
-    // PasswordUtils,
-    // TokenService,
-    // VirusScanService,
-    // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
+    CryptoService,
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: ValidationExceptionFilter,
     },
     {
       provide: APP_FILTER,
@@ -50,17 +50,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     },
   ],
   exports: [
-    // PasswordUtils,
-    // TokenService,
-    // VirusScanService,
-    // ObjectOmitter,
     ExceptionService,
     LoggerService,
     QrCodeServicce,
+    CryptoService,
     FileModule,
     ImagesModule,
     JwtModule,
-    // HttpModule,
   ],
 })
 export class CommonModule {}
