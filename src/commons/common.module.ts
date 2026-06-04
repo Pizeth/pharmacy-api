@@ -2,15 +2,15 @@ import { Module } from '@nestjs/common';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
-import { GlobalExceptionFilter } from 'src/filters/http-exception.filter';
-import { TransformInterceptor } from 'src/interceptors/transform.interceptor';
-import { QrCodeServicce } from 'src/commons/configs/qr-code.service';
-import { FileModule } from 'src/modules/files/file.module';
+import { GlobalExceptionFilter } from 'filters/http-exception.filter';
+import { TransformInterceptor } from 'interceptors/transform.interceptor';
+import { QrCodeServicce } from 'commons/configs/qr-code.service';
+import { FileModule } from 'modules/files/file.module';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { ImagesModule } from 'src/modules/images/image.module';
+import { ImagesModule } from 'modules/images/image.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ValidationExceptionFilter } from 'src/filters/validation-exception.filter';
+import { ValidationExceptionFilter } from 'filters/validation-exception.filter';
 import { CryptoService } from './services/crypto.service';
 
 @Module({

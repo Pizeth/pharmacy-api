@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
-import { ExceptionData } from 'src/types/exception';
+import { ExceptionData } from 'types/exception';
 import { UAParser } from 'ua-parser-js';
 
 @Injectable()

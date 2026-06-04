@@ -6,27 +6,22 @@ import {
   Prisma,
   RefreshToken,
   UserIdentity,
-} from '@prisma/client';
+} from 'generated/prisma/client';
 import { ClsService } from 'nestjs-cls';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
-import { TokenService } from 'src/commons/services/token.service';
-import { AppError } from 'src/exceptions/app.exception';
+import { PasswordUtils } from 'commons/services/password-utils.service';
+import { TokenService } from 'commons/services/token.service';
+import { AppError } from 'exceptions/app.exception';
 import {
   NormalizedProfile,
   OidcTokens,
-} from 'src/modules/ocid/interfaces/oidc.interface';
-import { OidcIdentityDbService } from 'src/modules/ocid/services/oidc-identity-db.service';
-import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
-import { CreateUserDto } from 'src/modules/users/dto/create-user.dto';
-import { UsersService } from 'src/modules/users/services/users.service';
-import {
-  AccessToken,
-  SanitizedUser,
-  SignedUser,
-  UserDetail,
-} from 'src/types/dto';
-import { TokenPayload } from 'src/types/token';
+} from 'modules/ocid/interfaces/oidc.interface';
+import { OidcIdentityDbService } from 'modules/ocid/services/oidc-identity-db.service';
+import { OidcProviderService } from 'modules/ocid/services/oidc-provider.service';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
+import { CreateUserDto } from 'modules/users/dto/create-user.dto';
+import { UsersService } from 'modules/users/services/users.service';
+import { AccessToken, SanitizedUser, SignedUser, UserDetail } from 'types/dto';
+import { TokenPayload } from 'types/token';
 import { UAParser } from 'ua-parser-js';
 import {
   INVALID_CREDENTIALS,
@@ -247,7 +242,7 @@ export class AuthService {
   async oidcLogin(
     providerName: string,
     profile: NormalizedProfile,
-    tokens: Token,
+    // tokens: Token,
   ): Promise<SignedUser> {
     try {
       const user = await this.findOrCreateOidcUser(providerName, profile);
@@ -263,28 +258,28 @@ export class AuthService {
     }
   }
 
-  async oidcLoginDeepSeek(
-    providerName: string,
-    profile: NormalizedProfile,
-    tokens: OidcTokens,
-  ): Promise<SignedUser> {
-    try {
-      const user = await this.findOrCreateOidcUserDeepSeek(
-        providerName,
-        profile,
-        tokens,
-      );
-      return this.login(user);
-    } catch (error) {
-      this.logger.error('Error during OIDC login:', error);
-      throw new AppError(
-        'OIDC login failed',
-        HttpStatus.UNAUTHORIZED,
-        this.context,
-        error,
-      );
-    }
-  }
+  // async oidcLoginDeepSeek(
+  //   providerName: string,
+  //   profile: NormalizedProfile,
+  //   tokens: OidcTokens,
+  // ): Promise<SignedUser> {
+  //   try {
+  //     const user = await this.findOrCreateOidcUserDeepSeek(
+  //       providerName,
+  //       profile,
+  //       tokens,
+  //     );
+  //     return this.login(user);
+  //   } catch (error) {
+  //     this.logger.error('Error during OIDC login:', error);
+  //     throw new AppError(
+  //       'OIDC login failed',
+  //       HttpStatus.UNAUTHORIZED,
+  //       this.context,
+  //       error,
+  //     );
+  //   }
+  // }
 
   async register(registerDto: CreateUserDto, file?: Express.Multer.File) {
     try {
@@ -376,46 +371,46 @@ export class AuthService {
     }
   }
 
-  async findOrCreateOidcUserDeepSeek(
-    providerName: string,
-    profile: NormalizedProfile,
-    tokens: Token,
-  ): Promise<SanitizedUser> {
-    const provider =
-      await this.oidcProviderService.getOidcIdentityProvider(providerName);
+  // async findOrCreateOidcUserDeepSeek(
+  //   providerName: string,
+  //   profile: NormalizedProfile,
+  //   // tokens: Token,
+  // ): Promise<SanitizedUser> {
+  //   const provider =
+  //     await this.oidcProviderService.getOidcIdentityProvider(providerName);
 
-    if (!provider) {
-      throw new AppError('Provider not found', HttpStatus.NOT_FOUND);
-    }
+  //   if (!provider) {
+  //     throw new AppError('Provider not found', HttpStatus.NOT_FOUND);
+  //   }
 
-    // Find existing identity
-    const identity = await this.oidcIdentityService.getOidcIdentity({
-      providerId: provider.id,
-      providerUserId: profile.id,
-    });
+  //   // Find existing identity
+  //   const identity = await this.oidcIdentityService.getOidcIdentity({
+  //     providerId: provider.id,
+  //     providerUserId: profile.id,
+  //   });
 
-    if (identity) {
-      // Update tokens
-      await this.oidcIdentityService.update(identity.id, {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        expiresAt: tokens.expiresAt,
-      });
-      return identity.user;
-    }
+  //   if (identity) {
+  //     // Update tokens
+  //     await this.oidcIdentityService.update(identity.id, {
+  //       accessToken: tokens.accessToken,
+  //       refreshToken: tokens.refreshToken,
+  //       expiresAt: tokens.expiresAt,
+  //     });
+  //     return identity.user;
+  //   }
 
-    // Find by email
-    if (profile.email) {
-      const user = await this.usersService.getUser(profile.email);
-      if (user) {
-        await this.linkOIDCAccount(user.id, provider.id, profile, tokens);
-        return this.sanitizeUser(user);
-      }
-    }
+  //   // Find by email
+  //   if (profile.email) {
+  //     const user = await this.usersService.getUser(profile.email);
+  //     if (user) {
+  //       await this.linkOIDCAccount(user.id, provider.id, profile, tokens);
+  //       return this.sanitizeUser(user);
+  //     }
+  //   }
 
-    // Create new user
-    return this.createUserWithIdentity(provider.id, profile, tokens);
-  }
+  //   // Create new user
+  //   return this.createUserWithIdentity(provider.id, profile, tokens);
+  // }
 
   async refresh(refreshToken: string): Promise<AccessToken> {
     try {

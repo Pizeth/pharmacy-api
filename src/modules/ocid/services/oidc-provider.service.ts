@@ -7,14 +7,16 @@ import {
 } from '@nestjs/common';
 import { PassportStatic } from 'passport';
 import { OidcStrategyFactory } from '../factories/oidc-strategy.factory';
-import { IdentityProvider } from '@prisma/client';
+import { IdentityProvider } from 'generated/prisma/client';
 import { OidcProviderDbService } from './oidc-provider-db.service';
 import { CreateProviderDto } from '../dto/create-provider.dto';
 import { UpdateProviderDto } from '../dto/update-provider.dto';
-import { AppError } from 'src/exceptions/app.exception';
-import { CryptoService } from 'src/commons/services/crypto.service';
+import { AppError } from 'exceptions/app.exception';
+import { CryptoService } from 'commons/services/crypto.service';
 import { OidcIdentityDbService } from './oidc-identity-db.service';
 import { Strategy } from '../passport/passport.strategy';
+// import { OidcStrategy } from 'modules/auth/strategies/oidc.strategy';
+
 // import { Strategy } from '../strategies/openid-client.strategy';
 
 @Injectable()
@@ -406,7 +408,7 @@ export class OidcProviderServiceDeepSeek implements OnModuleInit {
       } catch (error) {
         this.logger.error(
           `Failed to register provider ${provider.name}`,
-          error.stack,
+          error,
         );
       }
     }
@@ -439,17 +441,17 @@ export class OidcProviderServiceDeepSeek implements OnModuleInit {
     const provider = await this.dbService.updateProvider(id, data);
     this.unregisterProvider(provider.name);
 
-    if (provider.enabled) {
+    if (provider.isEnabled) {
       await this.registerProvider(provider);
     }
 
     return provider;
   }
 
-  async toggleProvider(id: number, enabled: boolean) {
-    const provider = await this.dbService.updateProvider(id, { enabled });
+  async toggleProvider(id: number, isEnabled: boolean) {
+    const provider = await this.dbService.updateProvider(id, { isEnabled });
 
-    if (enabled) {
+    if (isEnabled) {
       await this.registerProvider(provider);
     } else {
       this.unregisterProvider(provider.name);
@@ -468,13 +470,13 @@ export class OidcProviderServiceDeepSeek implements OnModuleInit {
     return this.dbService.deleteProvider(id);
   }
 
-  getStrategy(providerName: string): OidcStrategy | undefined {
+  getStrategy(providerName: string): Strategy | undefined {
     return this.strategies.get(providerName);
   }
 
   private async registerProvider(provider: IdentityProvider) {
     const decryptedSecret = this.crypto.decrypt(provider.clientSecret);
-    const strategy = this.strategyFactory.createStrategy({
+    const strategy = await this.strategyFactory.createStrategy({
       ...provider,
       clientSecret: decryptedSecret,
     });
@@ -496,7 +498,7 @@ export class OidcProviderServiceDeepSeek implements OnModuleInit {
 export class OidcProviderServiceClaude implements OnModuleInit {
   private readonly context = OidcProviderService.name;
   private readonly logger = new Logger(this.context);
-  private strategies: Map<string, OidcStrategy> = new Map();
+  private strategies: Map<string, Strategy> = new Map();
 
   constructor(
     private readonly dbService: OidcProviderDbService,
@@ -601,7 +603,7 @@ export class OidcProviderServiceClaude implements OnModuleInit {
     }
   }
 
-  getStrategy(providerName: string): OidcStrategy | undefined {
+  getStrategy(providerName: string): Strategy | undefined {
     return this.strategies.get(providerName);
   }
 
@@ -614,7 +616,7 @@ export class OidcProviderServiceClaude implements OnModuleInit {
     };
 
     // Create strategy
-    const strategy = this.strategyFactory.createStrategy(
+    const strategy = await this.strategyFactory.createStrategy(
       providerWithDecryptedSecret,
     );
 
@@ -651,7 +653,7 @@ export class OidcProviderServiceClaude implements OnModuleInit {
 export class OidcProviderServiceGemini implements OnModuleInit {
   private readonly context = OidcProviderService.name;
   private readonly logger = new Logger(this.context);
-  private strategies: Map<string, OidcStrategy> = new Map();
+  private strategies: Map<string, Strategy> = new Map();
 
   constructor(
     private readonly dbService: OidcProviderDbService,

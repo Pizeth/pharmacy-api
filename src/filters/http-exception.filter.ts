@@ -19,7 +19,7 @@ import { Request, Response } from 'express';
 import statusCodes from 'http-status-codes';
 import { ClsService } from 'nestjs-cls';
 // import { ExceptionData } from 'src/types/exception';
-import { ExceptionService } from 'src/commons/services/exception.service';
+import { ExceptionService } from 'commons/services/exception.service';
 import { UAParser } from 'ua-parser-js';
 
 @Injectable()

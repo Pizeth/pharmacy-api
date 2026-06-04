@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 // -----------------------------------------------------------------
 // The Duration Parser Service
 // Location: src/modules/time-parser/services/time-parser.service.ts
@@ -7,21 +8,21 @@ import { ConfigType } from '@nestjs/config';
 import { Duration } from 'luxon';
 import path from 'path';
 import fs, { promises } from 'fs';
-import { DurationParseError } from 'src/exceptions/duration-parse.exception';
+// import { DurationParseError } from 'src/exceptions/duration-parse.exception';
 import timeParserConfig from '../../configs/time-parser.config';
-import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
+// import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
 import {
   TIME_MULTIPLIERS,
   UNIT_ALIASES,
   AMBIGUOUS_UNITS,
   RELATIVE_TIME_UNITS,
 } from '../../constants/time';
-import { CacheService } from 'src/modules/cache/services/cache.service';
+import { CacheService } from 'modules/cache/services/cache.service';
 import {
   LOCALIZATION_CACHE,
   PLURAL_RULES_CACHE,
   SUGGESTION_CACHE,
-} from 'src/modules/cache/tokens/cache.tokens';
+} from 'modules/cache/tokens/cache.tokens';
 import {
   ParseOptions,
   FormatOptions,
@@ -30,6 +31,8 @@ import {
   LocalizationConfig,
 } from '../../interfaces/time.interface';
 import type { PluralCategory, UnitTime } from '../../types/time';
+import { DurationParseError } from 'exceptions/duration-parse.exception';
+import { SuggestionService } from 'modules/suggestion/services/suggestion.service';
 
 @Injectable()
 /**
@@ -120,7 +123,7 @@ export class TimeParserService implements OnModuleInit {
           ms,
         ),
       ),
-    ]) as Promise<T>;
+    ]);
   }
 
   async onModuleInit() {
@@ -325,8 +328,6 @@ export class TimeParserService implements OnModuleInit {
   //     };
   //   }
 
-  //   // 1) Timestamp forms like "1:02:03.250" or "02:03"
-  //   if (allowTimestamp && trimmed.includes(':')) {
   //     const ts = parseTimestamp(trimmed);
   //     if (ts) {
   //       return {
@@ -343,6 +344,8 @@ export class TimeParserService implements OnModuleInit {
   //         rest: '',
   //         warnings,
   //         errors,
+  //   // 1) Timestamp forms like "1:02:03.250" or "02:03"
+  //   if (allowTimestamp && trimmed.includes(':')) {
   //       };
   //     }
   //   }

@@ -1,9 +1,9 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { AppError } from 'src/exceptions/app.exception';
-import { CryptoAlgorithm } from 'src/types/commons.enum';
-import { CipherGCMTypes, ExtractBySuffix } from 'src/types/crypto-algorithm';
+import { AppError } from 'exceptions/app.exception';
+import { CryptoAlgorithm } from 'types/commons.enum';
+import { CipherGCMTypes, ExtractBySuffix } from 'types/crypto-algorithm';
 
 @Injectable()
 export class CryptoService {

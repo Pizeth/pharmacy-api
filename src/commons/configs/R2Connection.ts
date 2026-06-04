@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -70,16 +70,19 @@ export class R2Service {
         fileName,
         url: publicUrl,
       };
-    } catch (error: any) {
+    } catch (error) {
       // Handle potential errors
       this.logger.error(`Error uploading file ${fileName}:`, error);
-      return {
-        status: error.statusCode || 500,
-        message: error.message || 'Failed to upload file',
-        fileName,
-        url: '',
-        error: error.toString(),
-      };
+      if (error instanceof Error) {
+        return {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.message || 'Failed to upload file',
+          fileName,
+          url: '',
+          error: error.toString(),
+        };
+      }
+      throw error;
     }
   }
 
@@ -102,15 +105,18 @@ export class R2Service {
         message: 'File deleted successfully',
         fileName,
       };
-    } catch (error: any) {
+    } catch (error) {
       // Handle potential errors
       this.logger.error(`Error deleting file ${fileName}:`, error);
-      return {
-        status: error.statusCode || 500,
-        message: error.message || 'Failed to delete file',
-        fileName,
-        error: error.toString(),
-      };
+      if (error instanceof Error) {
+        return {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: error.message || 'Failed to delete file',
+          fileName,
+          error: error.toString(),
+        };
+      }
+      throw error;
     }
   }
 
@@ -125,10 +131,14 @@ export class R2Service {
 
       await this.r2Client.send(command);
       return true;
-    } catch (error: any) {
-      if (error.name === 'NotFound') {
-        return false;
+    } catch (error) {
+      if (error instanceof Error) {
+        // if (error.name === 'NotFound') {
+        //   return false;
+        // }
+        return error.name === 'NotFound';
       }
+
       this.logger.error(`Error checking file existence ${fileName}:`, error);
       throw error;
     }

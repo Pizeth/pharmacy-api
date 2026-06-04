@@ -8,7 +8,7 @@
 //   | 'objectVersionId'
 // >;
 
-import { AuthMethod } from '@prisma/client';
+import { AuthMethod } from 'generated/prisma/client';
 import { SensitiveField } from './commons.enum';
 
 interface RoleToken {

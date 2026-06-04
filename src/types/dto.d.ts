@@ -6,7 +6,7 @@ import {
   User,
   UserIdentity,
   IdentityProvider,
-} from '@prisma/client';
+} from 'generated/prisma/client';
 
 export interface UserIdentityDetail extends UserIdentity {
   provider: IdentityProvider;

@@ -4,7 +4,7 @@
     "strict": true,
     "allowJs": true,
     "module": "commonjs",
-    "types": ["node", "express", "express-session"],
+    "types": ["node", "express", "express-session", "jest", "multer"],
     // "module": "ESNext",
     // "moduleResolution": "node16",
     // "module": "es2022",
@@ -18,19 +18,22 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "*": ["./src/*"]
+    }
   },
   "include": [
     "src/**/*",
     "src/types/**/*",
     "webpack-hmr.config.cjs",
+    "prisma.config.ts",
     // "webpack-hmr.config.ts",
     "env.d.ts",
     "prisma/seed.ts",

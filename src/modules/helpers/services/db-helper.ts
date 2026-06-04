@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { PrismaClient, Prisma } from 'generated/prisma/client';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
 // import { PrismaService } from 'src/prisma.service';
 import {
   GetPaginatedDataParams,
@@ -8,7 +8,7 @@ import {
   ModelDelegate,
   PaginationMetadata,
   FindByIdParams,
-} from 'src/types/types';
+} from 'types/types';
 
 @Injectable() // Make DBHelper injectable
 export class DBHelper {

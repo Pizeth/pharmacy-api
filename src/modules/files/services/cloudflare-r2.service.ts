@@ -18,12 +18,12 @@ import {
   R2DeleteSuccessResponse,
   R2UploadSuccessResponse,
   // HttpErrorStatusEnum,
-} from 'src/types/types';
-import { VirusScanService } from 'src/commons/services/virus-scan.service';
+} from 'types/types';
+import { VirusScanService } from 'commons/services/virus-scan.service';
 // import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { AppError } from 'src/exceptions/app.exception';
-import { type } from 'src/types/commons.enum';
+import { AppError } from 'exceptions/app.exception';
+import { type } from 'types/commons.enum';
 
 @Injectable()
 export class R2Service implements OnModuleInit {
@@ -206,9 +206,11 @@ export class R2Service implements OnModuleInit {
       // The response.Body is a Readable stream
       const stream = response.Body as Readable;
       return stream;
-    } catch (error: unknown) {
+    } catch (error) {
       this.logger.error(`Error getting file '${key}':`, JSON.stringify(error));
-      throw new Error(`Error getting file '${key}' from Cloudflare R2`);
+      throw new Error(`Error getting file '${key}' from Cloudflare R2`, {
+        cause: error,
+      });
     }
   }
 

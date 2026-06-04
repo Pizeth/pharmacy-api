@@ -6,7 +6,7 @@
 
 import { UploadedFile } from '@nestjs/common';
 import { FileValidationPipe } from '../pipes/file-validation.pipe'; // Adjust path
-import { FileValidationOptions } from 'src/types/file';
+import { FileValidationOptions } from 'types/file';
 
 export const ValidateFile = (
   options: FileValidationOptions = {}, // Default to empty object

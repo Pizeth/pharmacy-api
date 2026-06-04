@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { CreateProviderDto } from '../dto/create-provider.dto';
 import { UpdateProviderDto } from '../dto/update-provider.dto';
-import { AppError } from 'src/exceptions/app.exception';
-import { PaginatedDataResult } from 'src/types/types';
-import { DBHelper } from 'src/modules/helpers/services/db-helper';
-import { IdentityProvider, Prisma } from '@prisma/client';
+import { AppError } from 'exceptions/app.exception';
+import { PaginatedDataResult } from 'types/types';
+import { DBHelper } from 'modules/helpers/services/db-helper';
+import { IdentityProvider, Prisma } from 'generated/prisma/client';
 
 @Injectable()
 export class OidcProviderDbService {

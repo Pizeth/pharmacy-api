@@ -5,7 +5,7 @@
 //   };
 // }
 
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from 'generated/prisma/client';
 import { Readable } from 'stream';
 import { HttpErrorStatusEnum, type } from './commons.enum';
 import { HttpStatus } from '@nestjs/common';

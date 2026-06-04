@@ -156,18 +156,15 @@
 // It is now part of the `ImagesModule`.
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Style } from '@dicebear/core';
-import { createAvatar } from '@dicebear/core';
-import * as collections from '@dicebear/collection';
+import { Avatar as createAvatar, Style } from '@dicebear/core';
+import * as allStyleDefinitions from '@dicebear/styles/dist';
+// import { createAvatar } from '@dicebear/core'; // ver9
+// import * as collections from '@dicebear/collection'; //ver9
 import { ImageOptionsDto } from '../dto/image-options.dto';
+import { AvailableFonts, DiceBearStyle, ImageFormat } from 'types/commons.enum';
+import type { AvatarResult } from 'types/file';
 import {
-  AvailableFonts,
-  DiceBearStyle,
-  ImageFormat,
-} from 'src/types/commons.enum';
-import type { AvatarResult } from 'src/types/file';
-import {
-  Avatar,
+  // Avatar,
   toAvif,
   toJpeg,
   toPng,
@@ -182,20 +179,75 @@ import { ConfigService } from '@nestjs/config';
 export class ImagesService implements OnModuleInit {
   private readonly logger = new Logger(ImagesService.name);
   // This property will hold all available style collections except the default export.
-  private readonly availableStyles: Record<string, Style<any>>;
+  private readonly availableStyles: Record<string, Style<any>> = {};
   private readonly loadedFontPaths = new Map<AvailableFonts, string>(); // <-- Cache for loaded fonts
   private defaultAvatarOptions: Partial<ImageOptionsDto> = {}; // <-- Will hold parsed defaults
 
   constructor(private readonly configService: ConfigService) {
-    // Create a mutable copy of the imported collections object.
-    const styles = { ...collections };
+    // // Create a mutable copy of the imported collections object.
+    // const styles = { ...collections };
 
-    // Safely delete the 'default' key from our copy. This leaves only the named exports.
-    delete (styles as { default?: unknown }).default;
+    // // Safely delete the 'default' key from our copy. This leaves only the named exports.
+    // delete (styles as { default?: unknown }).default;
 
-    // Assign the cleaned object to the class property for use in other methods.
-    this.availableStyles = styles;
+    // // Assign the cleaned object to the class property for use in other methods.
+    // this.availableStyles = styles;
+    this.loadAllDiceBearStyles();
     this.loadDefaultOptions(); // <-- Load defaults when service is instantiated
+  }
+
+  /**
+   * Dynamically loads all style JSON definitions from the npm package
+   */
+  private loadAllDiceBearStyles() {
+    try {
+      // 1. Locate the package directory inside node_modules
+      const packagePath = path.dirname(
+        require.resolve('@dicebear/styles/package.json'),
+      );
+
+      // If the files are wrapped in a subfolder like 'dist', point to it
+      let stylesDir = path.join(packagePath, 'dist');
+      if (!fs.existsSync(stylesDir)) {
+        stylesDir = packagePath; // Fallback if files are in root
+      }
+
+      // 2. Scan the folder for all JSON schema files
+      const files = fs.readdirSync(stylesDir);
+
+      for (const file of files) {
+        if (file.endsWith('.json') && file !== 'package.json') {
+          const styleName = path.basename(file, '.json');
+          const fullPath = path.join(stylesDir, file);
+
+          try {
+            // 3. Read the contents and parse the JSON configuration
+            const rawContent = fs.readFileSync(fullPath, 'utf8');
+            const definition = JSON.parse(rawContent) as Record<
+              string,
+              unknown
+            >;
+
+            // 4. Register the modern Style engine into your tracking map
+            this.availableStyles[styleName] = new Style(definition);
+          } catch (fileError) {
+            this.logger.error(
+              `Failed to parse style configuration for ${file}:`,
+              fileError,
+            );
+          }
+        }
+      }
+
+      this.logger.log(
+        `Successfully mapped ${Object.keys(this.availableStyles).length} DiceBear v10 styles.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Critical failure mapping the `@dicebear/styles` module folder:',
+        error,
+      );
+    }
   }
 
   // Use the onModuleInit lifecycle hook to load and verify font paths at startup.

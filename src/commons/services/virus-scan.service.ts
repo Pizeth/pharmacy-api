@@ -6,7 +6,7 @@ import FormData from 'form-data';
 import {
   VirusTotalReport,
   VirusTotalAnalysisResponse,
-} from 'src/types/virus_total';
+} from 'types/virus_total';
 import statusCode from 'http-status-codes';
 import { TotalVirusResponseHandlerService } from './totalvirus_response_handler.service';
 

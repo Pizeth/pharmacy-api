@@ -9,21 +9,21 @@ import {
   Module,
   Type,
 } from '@nestjs/common';
-import { Seeder } from '../src/modules/prisma/seeders/seeder'; // Adjust path if needed
-import { SeederModule } from 'src/modules/prisma/seeders/seeder.module';
-// import { PrismaService } from 'src/modules/prisma/services/prisma.service';
-// import { TokenService } from 'src/commons/services/token.service';
-// import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { Seeder } from 'modules/prisma/seeders/seeder'; // Adjust path if needed
+import { SeederModule } from 'modules/prisma/seeders/seeder.module';
+// import { PrismaService } from ' modules/prisma/services/prisma.service';
+// import { TokenService } from ' commons/services/token.service';
+// import { PasswordUtils } from ' commons/services/password-utils.service';
 // import { ConfigService } from '@nestjs/config';
-import { CacheService } from 'src/modules/cache/services/cache.service';
-import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
-import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
+import { CacheService } from 'modules/cache/services/cache.service';
+import { SuggestionService } from 'modules/suggestion/services/suggestion.service';
+import { TimeParserService } from 'modules/time-parser/services/time-parser.service/time-parser.service';
 import { INestApplicationContext } from '@nestjs/common';
-import { PrismaModule } from 'src/modules/prisma/prisma.module';
-import { CacheModule } from 'src/modules/cache/cache.module';
-import { SuggestionModule } from 'src/modules/suggestion/suggestion.module';
-import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { PrismaModule } from 'modules/prisma/prisma.module';
+import { CacheModule } from 'modules/cache/cache.module';
+import { SuggestionModule } from 'modules/suggestion/suggestion.module';
+import { TimeParserModule } from 'modules/time-parser/time-parser.module';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
 const logger = new Logger('PrismaSeeder');

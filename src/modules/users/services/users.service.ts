@@ -1,18 +1,23 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/services/prisma.service';
-import { AuditActionType, AuditTargetType, Prisma, User } from '@prisma/client';
+import {
+  AuditActionType,
+  AuditTargetType,
+  Prisma,
+  User,
+} from 'generated/prisma/client';
 import { DBHelper } from '../../helpers/services/db-helper';
 import { PaginatedDataResult } from '../../../types/types';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { PasswordUtils } from 'commons/services/password-utils.service';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
-import { AppError } from 'src/exceptions/app.exception';
-import { FileUtil } from 'src/utils/file.util';
+import { R2Service } from 'modules/files/services/cloudflare-r2.service';
+import { AppError } from 'exceptions/app.exception';
+import { FileUtil } from 'utils/file.util';
 import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
-import { DiceBearStyle, type } from 'src/types/commons.enum';
-import { ImagesService } from 'src/modules/images/services/images.service';
-import { SanitizedUser, UserDetail } from 'src/types/dto';
+import { DiceBearStyle, type } from 'types/commons.enum';
+import { ImagesService } from 'modules/images/services/images.service';
+import { SanitizedUser, UserDetail } from 'types/dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 
 @Injectable()
@@ -300,7 +305,7 @@ export class UsersService {
         },
       });
 
-      return result as unknown as SanitizedUser;
+      return result;
       // },
       //   {
       //     maxWait: 5000, // default: 2000

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigValidationMessages } from 'src/types/i18n';
+import { ConfigValidationMessages } from 'types/i18n';
 
 export class ConfigI18nLoader {
   private static messages: ConfigValidationMessages;

@@ -1,7 +1,8 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AuthMethod } from '@prisma/client';
+// import { AuthMethod } from '@prisma/client';
 import { Request } from 'express';
-import { SanitizedUser } from 'src/types/dto';
+import { AuthMethod } from 'generated/prisma/client';
+import { SanitizedUser } from 'types/dto';
 
 // export const CurrentUser = createParamDecorator((ctx: ExecutionContext) => {
 //   const request = ctx.switchToHttp().getRequest<Request>();
@@ -22,8 +23,9 @@ export const CurrentUser = createParamDecorator(
     | AuthMethod[]
     | null => {
     const request = ctx.switchToHttp().getRequest<Request>();
-    const user = request.user as SanitizedUser;
+    const user = request.user as unknown as SanitizedUser;
 
-    return data ? user?.[data] : user;
+    // return data ? user?.[data] : user;
+    return user;
   },
 );

@@ -2,24 +2,24 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
-import { RefreshToken } from '@prisma/client';
+import { RefreshToken } from 'generated/prisma/client';
 import { Request } from 'express';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
-import { Sanitized, SensitiveKey, TokenPayload } from 'src/types/token';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
+import { Sanitized, SensitiveKey, TokenPayload } from 'types/token';
 // import { AppError } from 'src/middlewares/app-errors.middleware';
 import statusCode from 'http-status-codes';
-import { AppError } from 'src/exceptions/app.exception';
+import { AppError } from 'exceptions/app.exception';
 import {
   ALIAS_MAP,
   AmbiguousUnit,
   SensitiveField,
   UNIT_MULTIPLIERS,
   UnitTime,
-} from 'src/types/commons.enum';
+} from 'types/commons.enum';
 import { ClsService } from 'nestjs-cls';
-import { SanitizedUser } from 'src/types/dto';
+import { SanitizedUser } from 'types/dto';
 import { Algorithm } from 'jsonwebtoken';
-import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
+import { TimeParserService } from 'modules/time-parser/services/time-parser.service/time-parser.service';
 
 @Injectable()
 export class TokenService {

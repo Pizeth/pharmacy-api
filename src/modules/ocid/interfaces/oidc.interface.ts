@@ -2,7 +2,7 @@ import { JsonValue, UserInfoResponse } from 'openid-client';
 import passport from 'passport';
 import * as oidc from 'openid-client';
 import { getDPoPHandle } from '../types/oidc';
-import { IdentityProvider } from '@prisma/client';
+import { IdentityProvider } from 'generated/prisma/client';
 // import { Profile, StrategyOptions } from 'passport-openidconnect';
 
 // Type-safe callback interface for NestJS (replacing passport.AuthenticateCallback)

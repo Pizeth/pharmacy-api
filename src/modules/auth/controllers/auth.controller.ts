@@ -15,14 +15,14 @@ import {
   Delete,
 } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
-import { OidcProviderService } from 'src/modules/ocid/services/oidc-provider.service';
+import { OidcProviderService } from 'modules/ocid/services/oidc-provider.service';
 import { Request as ExpressRequest, Response } from 'express';
 // import { AuthGuard } from '@nestjs/passport';
-import { AppError } from 'src/exceptions/app.exception';
+import { AppError } from 'exceptions/app.exception';
 import { LocalAuthGuard } from '../guards/local.guard';
-import { SanitizedUser, SignedUser } from 'src/types/dto';
+import { SanitizedUser, SignedUser } from 'types/dto';
 import { JwtAuthGuard } from '../guards/jwt.guard';
-import { CurrentUser } from 'src/decorators/current-user.decorator';
+import { CurrentUser } from 'decorators/current-user.decorator';
 import { DynamicOidcGuard } from '../guards/oidc.guard';
 @Controller('auth')
 export class AuthController {

@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { ValidationError } from 'src/exceptions/zod-validatoin.exception';
+import { ValidationError } from 'exceptions/zod-validatoin.exception';
 
 @Catch(ValidationError)
 export class ValidationExceptionFilter implements ExceptionFilter {

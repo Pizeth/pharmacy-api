@@ -1,7 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { Response } from 'express';
-import { type } from 'src/types/commons.enum';
-import { R2ErrorResponse } from 'src/types/types';
+import { type } from 'types/commons.enum';
+import { R2ErrorResponse } from 'types/types';
 
 @Catch()
 export class R2ExceptionFilter implements ExceptionFilter {

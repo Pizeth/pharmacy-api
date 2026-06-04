@@ -5,7 +5,7 @@ import {
   VirusTotalApiErrorResponse,
   VirusTotalResponse,
   VirusTotalAnalysisResponse,
-} from 'src/types/virus_total';
+} from 'types/virus_total';
 
 @Injectable()
 export class TotalVirusResponseHandlerService {
