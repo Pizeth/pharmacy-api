@@ -38,5 +38,12 @@
     "env.d.ts",
     "prisma/seed.ts",
     "src/modules/prisma/services/prisma.service.ts"
+  ],
+  // CRUCIAL FIX: Excludes the generated Prisma files from the TypeScript Project compiler
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "src/generated/prisma/client/**/*"
   ]
 }

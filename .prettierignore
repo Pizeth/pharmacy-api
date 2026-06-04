@@ -1,0 +1,2 @@
+# Ignore the default Prisma Client output directory
+src/generated/prisma/client/**/*
