@@ -10,15 +10,15 @@ import {
   //   Delete,
 } from '@nestjs/common';
 // import { UsersService } from './user.service';
-import { Prisma, User, User as UserModel } from '@prisma/client';
-import { PaginatedDataResult } from 'src/types/types';
+import { Prisma, User, User as UserModel } from 'generated/prisma/client';
+import { PaginatedDataResult } from 'types/types';
 import { UsersService } from '../services/users.service';
 import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { ValidateFile } from 'src/decorators/validate-upload.decorator';
+import { ValidateFile } from 'decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Public } from 'src/decorators/public.decorator';
-import { Roles } from 'src/decorators/roles.decorator';
+import { Public } from 'decorators/public.decorator';
+import { Roles } from 'decorators/roles.decorator';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
 @Controller({ path: 'users', version: '1' })

@@ -2,8 +2,8 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TokenPayload } from 'src/types/token';
-import { AppError } from 'src/exceptions/app.exception';
+import { TokenPayload } from 'types/token';
+import { AppError } from 'exceptions/app.exception';
 import { AuthService } from '../services/auth.service';
 
 @Injectable()

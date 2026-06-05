@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { PRODUCTS_CACHE, USERS_CACHE } from './tokens/cache.tokens';
 // import { CacheWrapper } from 'src/types/cache';
-import { Product, User } from '@prisma/client';
+import { Product, User } from 'generated/prisma/client';
 import { EnhancedCache } from './customs/enhanced-cache';
 import { CacheWrapper } from './interfaces/caches';
 import { CacheService } from './services/cache.service';

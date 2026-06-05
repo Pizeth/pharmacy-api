@@ -10,7 +10,7 @@ import {
   VerifyCallback,
 } from '../interfaces/oidc.interface';
 import { HttpStatus } from '@nestjs/common';
-import { DuplexRequestInit } from 'src/types/express';
+import { DuplexRequestInit } from 'types/express';
 import {
   TrustProxyFn,
   VerifyFunction,

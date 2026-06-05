@@ -3,16 +3,16 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplicationContext } from '@nestjs/common';
 import type { Type, DynamicModule } from '@nestjs/common';
 import { Logger, Module } from '@nestjs/common';
-import { CacheService } from 'src/modules/cache/services/cache.service';
-import { SeederModule } from 'src/modules/prisma/seeders/seeder.module';
-import { BKTreeService } from 'src/modules/suggestion/services/bk-tree/bk-tree.service';
-import { LevenshteinService } from 'src/modules/suggestion/services/levenshtein/levenshtein.service';
-import { SuggestionService } from 'src/modules/suggestion/services/suggestion.service';
-import { SuggestionModule } from 'src/modules/suggestion/suggestion.module';
-import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
-import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
-import { CacheModule } from 'src/modules/cache/cache.module';
-import { LevenshteinModule } from 'src/modules/suggestion/services/levenshtein/levenshtein.module';
+import { CacheService } from 'modules/cache/services/cache.service';
+import { SeederModule } from 'modules/prisma/seeders/seeder.module';
+import { BKTreeService } from 'modules/suggestion/services/bk-tree/bk-tree.service';
+import { LevenshteinService } from 'modules/suggestion/services/levenshtein/levenshtein.service';
+import { SuggestionService } from 'modules/suggestion/services/suggestion.service';
+import { SuggestionModule } from 'modules/suggestion/suggestion.module';
+import { TimeParserService } from 'modules/time-parser/services/time-parser.service/time-parser.service';
+import { TimeParserModule } from 'modules/time-parser/time-parser.module';
+import { CacheModule } from 'modules/cache/cache.module';
+import { LevenshteinModule } from 'modules/suggestion/services/levenshtein/levenshtein.module';
 
 const logger = new Logger('DiagBootstrap');
 

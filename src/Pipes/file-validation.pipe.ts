@@ -6,7 +6,7 @@ import {
   ArgumentMetadata,
   Logger,
 } from '@nestjs/common';
-import type { FileValidationOptions } from 'src/types/file';
+import type { FileValidationOptions } from 'types/file';
 
 @Injectable()
 export class FileValidationPipe implements PipeTransform {

@@ -598,7 +598,7 @@ export class TimeParserService implements OnModuleInit {
       );
     } catch (error: unknown) {
       Logger.error(`Failed to read locales directory`, error);
-      throw new Error(`Failed to read locales dir:`);
+      throw new Error(`Failed to read locales dir:`, { cause: error });
     }
   }
 

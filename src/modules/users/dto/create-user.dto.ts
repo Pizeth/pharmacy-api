@@ -2,7 +2,7 @@
 // Define your DTO using Zod and `createZodDto`
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
-import { AuthMethod } from '@prisma/client';
+import { AuthMethod } from 'generated/prisma/client';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 

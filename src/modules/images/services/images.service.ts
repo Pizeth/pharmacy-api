@@ -156,15 +156,16 @@
 // It is now part of the `ImagesModule`.
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Avatar as createAvatar, Style } from '@dicebear/core';
-import * as allStyleDefinitions from '@dicebear/styles/dist';
-// import { createAvatar } from '@dicebear/core'; // ver9
-// import * as collections from '@dicebear/collection'; //ver9
+import {
+  Avatar as createAvatar,
+  Style,
+  OptionsDescriptor,
+} from '@dicebear/core';
 import { ImageOptionsDto } from '../dto/image-options.dto';
 import { AvailableFonts, DiceBearStyle, ImageFormat } from 'types/commons.enum';
 import type { AvatarResult } from 'types/file';
 import {
-  // Avatar,
+  Avatar,
   toAvif,
   toJpeg,
   toPng,
@@ -174,6 +175,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
+import { allStyles } from 'dicebear-styles.map';
 
 @Injectable()
 export class ImagesService implements OnModuleInit {
@@ -194,60 +196,6 @@ export class ImagesService implements OnModuleInit {
     // this.availableStyles = styles;
     this.loadAllDiceBearStyles();
     this.loadDefaultOptions(); // <-- Load defaults when service is instantiated
-  }
-
-  /**
-   * Dynamically loads all style JSON definitions from the npm package
-   */
-  private loadAllDiceBearStyles() {
-    try {
-      // 1. Locate the package directory inside node_modules
-      const packagePath = path.dirname(
-        require.resolve('@dicebear/styles/package.json'),
-      );
-
-      // If the files are wrapped in a subfolder like 'dist', point to it
-      let stylesDir = path.join(packagePath, 'dist');
-      if (!fs.existsSync(stylesDir)) {
-        stylesDir = packagePath; // Fallback if files are in root
-      }
-
-      // 2. Scan the folder for all JSON schema files
-      const files = fs.readdirSync(stylesDir);
-
-      for (const file of files) {
-        if (file.endsWith('.json') && file !== 'package.json') {
-          const styleName = path.basename(file, '.json');
-          const fullPath = path.join(stylesDir, file);
-
-          try {
-            // 3. Read the contents and parse the JSON configuration
-            const rawContent = fs.readFileSync(fullPath, 'utf8');
-            const definition = JSON.parse(rawContent) as Record<
-              string,
-              unknown
-            >;
-
-            // 4. Register the modern Style engine into your tracking map
-            this.availableStyles[styleName] = new Style(definition);
-          } catch (fileError) {
-            this.logger.error(
-              `Failed to parse style configuration for ${file}:`,
-              fileError,
-            );
-          }
-        }
-      }
-
-      this.logger.log(
-        `Successfully mapped ${Object.keys(this.availableStyles).length} DiceBear v10 styles.`,
-      );
-    } catch (error) {
-      this.logger.error(
-        'Critical failure mapping the `@dicebear/styles` module folder:',
-        error,
-      );
-    }
   }
 
   // Use the onModuleInit lifecycle hook to load and verify font paths at startup.
@@ -276,6 +224,28 @@ export class ImagesService implements OnModuleInit {
       } catch (error) {
         this.logger.error(`Failed to verify font path for: ${font}`, error);
       }
+    }
+  }
+
+  /**
+   * Instantiates all DiceBear style definitions from our pre-compiled map file
+   */
+  private loadAllDiceBearStyles() {
+    try {
+      // Loop over every style schema present in your generated map
+      for (const [styleName, styleSchema] of Object.entries(allStyles)) {
+        // Instantiate the Style engine with the static JSON schema definition
+        this.availableStyles[styleName] = new Style(styleSchema);
+      }
+
+      this.logger.log(
+        `Successfully mapped ${Object.keys(this.availableStyles).length} DiceBear style collections.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Critical failure mapping the compiled DiceBear styles:',
+        error,
+      );
     }
   }
 
@@ -338,11 +308,24 @@ export class ImagesService implements OnModuleInit {
   ): Promise<AvatarResult> {
     // const { seed, ...styleOptions } = options; // Separate seed from other options
     try {
+      // if (format === ImageFormat.JSON) {
+      //   const selectedCollection = this.selectCollection(style);
+      //   return {
+      //     contentType: 'application/json',
+      //     body: JSON.stringify(selectedCollection.schema?.properties ?? {}),
+      //   };
+      // }
+
       if (format === ImageFormat.JSON) {
         const selectedCollection = this.selectCollection(style);
+
+        // Wrap the instantiated Style package with an OptionsDescriptor
+        const descriptor = new OptionsDescriptor(selectedCollection);
+
         return {
           contentType: 'application/json',
-          body: JSON.stringify(selectedCollection.schema?.properties ?? {}),
+          // .toJSON() yields the mapped configuration structure safely
+          body: JSON.stringify(descriptor.toJSON() ?? {}),
         };
       }
 
@@ -546,7 +529,7 @@ export class ImagesService implements OnModuleInit {
 
     // Create a mutable copy of the options object.
     const styleOptions = { ...options };
-
+    // const { fontFamily, includeExif, ...styleOptions } = options;
     // Safely delete the 'fontFamily' and includeExif key from our copy,
     // so it's not passed directly to createAvatar,
     // as it's a converter option, not a style option.
@@ -555,7 +538,7 @@ export class ImagesService implements OnModuleInit {
     this.logger.debug(
       `Creating avatar with style: ${style}, options: ${JSON.stringify(styleOptions)}`,
     );
-    return createAvatar(selectedCollection, {
+    return new createAvatar(selectedCollection, {
       ...styleOptions,
     });
   }

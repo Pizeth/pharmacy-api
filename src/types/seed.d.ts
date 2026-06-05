@@ -1,4 +1,4 @@
-import { AuthMethod, Role } from '@prisma/client';
+import { AuthMethod, Role } from 'generated/prisma/client';
 import { Sex } from './commons.enum';
 
 export interface SuperAdminData {

@@ -5,7 +5,7 @@
 // This DTO validates all the optional query parameters you can pass to the API.
 
 import { createZodDto } from 'nestjs-zod';
-import { AvailableFonts } from 'src/types/commons.enum';
+import { AvailableFonts } from 'types/commons.enum';
 import { z } from 'zod';
 
 // export const imageOptionsSchema1 = z
@@ -67,7 +67,11 @@ export const imageOptionsSchema = z
   .object({
     // General options
     seed: z.string().optional(),
-    flip: z.coerce.boolean().optional(),
+    // FIX: DiceBear v10 flip expects an array containing 'horizontal' or 'vertical'
+    flip: z.preprocess(
+      preprocessStringOrArray,
+      z.array(z.enum(['horizontal', 'vertical'])).optional(),
+    ),
     rotate: z.coerce.number().int().min(0).max(360).optional(),
     scale: z.coerce.number().int().min(0).max(200).optional(),
     radius: z.coerce.number().int().min(0).max(50).optional(),
@@ -94,7 +98,7 @@ export const imageOptionsSchema = z
     // Font options for the 'initials' style
     fontFamily: z.preprocess(
       preprocessStringOrArray,
-      z.array(z.nativeEnum(AvailableFonts)).optional(),
+      z.array(z.enum(AvailableFonts)).optional(),
     ),
     // fontFamily: z.nativeEnum(AvailableFonts).optional(),
     fontSize: z.coerce.number().int().min(1).max(100).optional(),

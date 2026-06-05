@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { DBHelper } from 'src/modules/helpers/services/db-helper';
-import { PrismaService } from 'src/modules/prisma/services/prisma.service';
+import { DBHelper } from 'modules/helpers/services/db-helper';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { CreateProfileDto } from '../dto/create-profile.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dt';
-import { Prisma, Profile } from '@prisma/client';
-import { AppError } from 'src/exceptions/app.exception';
-import { PaginatedDataResult } from 'src/types/types';
+import { Prisma, Profile } from 'generated/prisma/client';
+import { AppError } from 'exceptions/app.exception';
+import { PaginatedDataResult } from 'types/types';
 
 @Injectable()
 export class ProfilesService {

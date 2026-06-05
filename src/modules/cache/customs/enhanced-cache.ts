@@ -10,9 +10,10 @@ import {
 } from '../interfaces/caches';
 
 // Enhanced cache implementation
-export class EnhancedCache<K extends {}, V extends {}>
-  implements AdvancedCacheWrapper<K, V>
-{
+export class EnhancedCache<
+  K extends {},
+  V extends {},
+> implements AdvancedCacheWrapper<K, V> {
   private readonly cache: CacheWrapper<K, V>;
   private hits = 0;
   private misses = 0;

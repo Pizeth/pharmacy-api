@@ -6,7 +6,7 @@ import { IdentityProvider } from '@prisma/client';
 import {
   NormalizedProfile,
   OidcTokens,
-} from 'src/modules/ocid/interfaces/oidc.interface';
+} from 'modules/ocid/interfaces/oidc.interface';
 
 @Injectable()
 export class DynamicOidcStrategy extends PassportStrategy(

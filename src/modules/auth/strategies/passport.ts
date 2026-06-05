@@ -7,7 +7,7 @@ import {
   TrustProxyFn,
   VerifyFunction,
   VerifyFunctionWithRequest,
-} from 'src/modules/ocid/types/oidc';
+} from 'modules/ocid/types/oidc';
 import {
   AuthenticateOptions,
   StateData,
@@ -15,7 +15,7 @@ import {
   StrategyOptionsBase,
   StrategyOptionsWithRequest,
   VerifyCallback,
-} from 'src/modules/ocid/interfaces/oidc.interface';
+} from 'modules/ocid/interfaces/oidc.interface';
 import { HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
 

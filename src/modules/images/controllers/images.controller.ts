@@ -21,8 +21,8 @@ import {
   // AvailableFonts,
   DiceBearStyle,
   ImageFormat,
-} from 'src/types/commons.enum';
-import { Public } from 'src/decorators/public.decorator';
+} from 'types/commons.enum';
+import { Public } from 'decorators/public.decorator';
 
 @ApiTags('Images')
 @Controller('images')

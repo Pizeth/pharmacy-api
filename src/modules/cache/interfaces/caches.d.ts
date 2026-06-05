@@ -64,8 +64,10 @@ export interface CacheEntry {
   lastAccessed: Date;
 }
 
-export interface CacheOptions<K, V>
-  extends Omit<LRUCache.OptionsBase<K, V, unknown>, 'ttl'> {
+export interface CacheOptions<K, V> extends Omit<
+  LRUCache.OptionsBase<K, V, unknown>,
+  'ttl'
+> {
   /**
    * Default TTL (ms) for every entry unless overridden in `set()`.
    */

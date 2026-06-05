@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 // import { JwtAuthGuard } from '../guards/jwt-auth.guard';
-import { R2Service } from 'src/modules/files/services/cloudflare-r2.service';
+import { R2Service } from 'modules/files/services/cloudflare-r2.service';
 // import { TokenService } from 'src/commons/services/token.service';
 import { Readable } from 'stream';
 
@@ -41,7 +41,9 @@ export class FilesController {
         `Error getting file '${filename}':`,
         JSON.stringify(error),
       );
-      throw new Error(`Failed to retrieve file: ${filename}`);
+      throw new Error(`Failed to retrieve file: ${filename}`, {
+        cause: error,
+      });
     }
   }
 

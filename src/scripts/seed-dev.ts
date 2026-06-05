@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { SeedService } from '../modules/prisma/seeders/seed.service';
-import { AppModule } from 'src/app.module';
+import { AppModule } from 'app.module';
 
 async function seedDevelopment() {
   const app = await NestFactory.createApplicationContext(AppModule);
