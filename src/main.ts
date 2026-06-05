@@ -13,7 +13,9 @@ import { AppModule } from './app.module';
 declare const module: HotModule;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false, // Required for Better Auth
+  });
   // app.setGlobalPrefix('v1');
   // Set a global prefix for all routes (e.g., /api)
   app.setGlobalPrefix('api');

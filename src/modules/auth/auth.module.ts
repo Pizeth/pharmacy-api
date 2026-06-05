@@ -1,36 +1,56 @@
+// import { Module } from '@nestjs/common';
+// import { AuthService } from './services/auth.service';
+// import { AuthController } from './controllers/auth.controller';
+// import { UserModule } from '../users/user.module';
+// import { APP_GUARD } from '@nestjs/core';
+// import { RolesGuard } from 'guards/roles.guard';
+// import { PassportModule } from '@nestjs/passport';
+// import { OidcModule } from '../ocid/oidc.module';
+// import { JwtAuthGuard } from './guards/jwt.guard';
+// import { LocalStrategy } from './strategies/local.strategy';
+// import { JwtStrategy } from './strategies/jwt.strategy';
+
+// @Module({
+//   imports: [
+//     UserModule,
+//     PassportModule.register({ session: false }),
+//     OidcModule.registerAsync(),
+//   ],
+//   providers: [
+//     AuthService,
+//     LocalStrategy,
+//     JwtStrategy,
+//     {
+//       provide: APP_GUARD,
+//       useClass: JwtAuthGuard,
+//     },
+//     {
+//       provide: APP_GUARD,
+//       useClass: RolesGuard,
+//     },
+//   ],
+//   exports: [AuthService, UserModule, LocalStrategy, JwtStrategy, OidcModule],
+//   controllers: [AuthController],
+// })
+// export class AuthModule {}
+
 import { Module } from '@nestjs/common';
-import { AuthService } from './services/auth.service';
-import { AuthController } from './controllers/auth.controller';
-import { UserModule } from '../users/user.module';
-import { APP_GUARD } from '@nestjs/core';
-import { RolesGuard } from 'src/guards/roles.guard';
-import { PassportModule } from '@nestjs/passport';
-import { OidcModule } from '../ocid/oidc.module';
-import { JwtAuthGuard } from './guards/jwt.guard';
-import { LocalStrategy } from './strategies/local.strategy';
-import { JwtStrategy } from './strategies/jwt.strategy';
+import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
+import { createAuth } from 'lib/auth';
+import { PrismaModule } from 'modules/prisma/prisma.module';
+import { PrismaService } from 'modules/prisma/services/prisma.service';
 
 @Module({
   imports: [
-    UserModule,
-    PassportModule.register({ session: false }),
-    OidcModule.registerAsync(),
+    PrismaModule,
+    BetterAuthModule.forRootAsync({
+      imports: [PrismaModule],
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService) => ({
+        auth: createAuth(prisma),
+      }),
+    }),
   ],
-  providers: [
-    AuthService,
-    LocalStrategy,
-    JwtStrategy,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-  ],
-  exports: [AuthService, UserModule, LocalStrategy, JwtStrategy, OidcModule],
-  controllers: [AuthController],
 })
 export class AuthModule {}
 

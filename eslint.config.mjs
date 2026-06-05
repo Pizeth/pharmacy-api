@@ -49,6 +49,7 @@ export default defineConfig(
         'warn',
         { argsIgnorePattern: '^_' },
       ],
+      "prettier/prettier": ["error", { "singleQuote": true, "jsxSingleQuote": true }],
     },
   },
   // ==========================================

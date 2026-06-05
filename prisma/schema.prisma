@@ -22,9 +22,9 @@ datasource db {
 //   ipAddress       String            @map("ip_address")
 //   userId          Int               @map("user_id")
 //   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
- 
+
 //   description     String?
-  
+
 //   @@index([userId, timestamp])
 // }
 
@@ -71,31 +71,31 @@ enum AuditTargetType {
 // ENHANCED AUDIT TRAIL MODEL
 // -----------------------------------------------------------------
 model AuditTrail {
-  id              Int               @id @default(autoincrement())
-  timestamp       DateTime          @default(now())
-  
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+
   // WHO: Information about the actor
   // userId is now optional to allow for system-generated events (e.g., cron jobs)
-  userId          Int?              @map("user_id")
-  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ipAddress       String            @map("ip_address")
+  userId    Int?   @map("user_id")
+  user      User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress String @map("ip_address")
 
   // Core audit fields for action that was performed
-  action          AuditActionType                           // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
-  
+  action AuditActionType // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+
   // Enhanced object tracking fields
-  targetType      AuditTargetType?  @map("target_type")     // Table name or entity type
-  targetId        String?           @map("target_id")       // ID of the affected record (String to handle various ID types)
-  
+  targetType AuditTargetType? @map("target_type") // Table name or entity type
+  targetId   String?          @map("target_id") // ID of the affected record (String to handle various ID types)
+
   // DETAILS: Additional context for the event
-  description     String?                                   // High-level summary of the event
-  oldValues       Json?             @map("old_values")      // Optional: JSON field for storing previous values
-  newValues       Json?             @map("new_values")      // Optional: JSON field for storing new values
-  
+  description String? // High-level summary of the event
+  oldValues   Json?   @map("old_values") // Optional: JSON field for storing previous values
+  newValues   Json?   @map("new_values") // Optional: JSON field for storing new values
+
   // Additional context
-  userAgent       Json?           @map("user_agent")      // Browser/client information
-  sessionId       String?           @map("session_id")      // Session identifier
-  
+  userAgent Json?   @map("user_agent") // Browser/client information
+  sessionId String? @map("session_id") // Session identifier
+
   // You can create a multi-column index for efficient querying
   @@index([userId, timestamp])
   @@index([targetType, targetId])
@@ -107,119 +107,121 @@ model AuditTrail {
 
 // Multi-Factor Authentication Backup Codes
 model MFABackupCode {
-  id              Int               @id @default(autoincrement())
-  userId          Int               @map("user_id")
-  code            String            @unique
-  used            Boolean           @default(false)
-  expiresAt       DateTime          @map("expires_at")
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  code      String   @unique
+  used      Boolean  @default(false)
+  expiresAt DateTime @map("expires_at")
+
   @@map("mfa_backup_codes")
 }
 
 model LoginAttempt {
-  id              Int               @id @default(autoincrement())
-  userId          Int?              @map("user_id")
-  username        String
-  ipAddress       String            @map("ip_address")
-  timestamp       DateTime          @default(now())
-  status          LoginStatus
-  reason          String?           // Optional field to capture reason for failure
-  locale          String?           @map("locale")
-  referer         String?           @map("referer")
-  userAgent       Json?             @map("user_agent")
+  id        Int         @id @default(autoincrement())
+  userId    Int?        @map("user_id")
+  username  String
+  ipAddress String      @map("ip_address")
+  timestamp DateTime    @default(now())
+  status    LoginStatus
+  reason    String? // Optional field to capture reason for failure
+  locale    String?     @map("locale")
+  referer   String?     @map("referer")
+  userAgent Json?       @map("user_agent")
+
   @@map("login_attempts")
 }
 
 // Refresh Token Model
 model RefreshToken {
-  id              Int               @id @default(autoincrement())
-  token           String            @unique
-  userId          Int               @map("user_id")
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt       DateTime          @map("expires_at")
-  createdAt       DateTime          @map("created_at") @default(now())
-  
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
   @@index([userId])
   @@map("refresh_tokens")
 }
 
 model Role {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique @db.VarChar(50)
-  description     String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(50)
+  description String? @db.VarChar(255)
 
   // Tracking
-  isEnabled       Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  users           User[]            
-  
+  users User[]
+
   @@map("roles")
 }
 
 model IdentityProvider {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique // e.g., "google", "microsoft", etc.
-  displayName     String            @map("display_name") // "Google", "Microsoft", etc.
-  issuer          String            @map("issuer") // OIDC issuer URL
-  authorizationURL String           @map("authorization_url")
-  tokenURL        String            @map("token_url")
+  id               Int    @id @default(autoincrement())
+  name             String @unique // e.g., "google", "microsoft", etc.
+  displayName      String @map("display_name") // "Google", "Microsoft", etc.
+  issuer           String @map("issuer") // OIDC issuer URL
+  authorizationURL String @map("authorization_url")
+  tokenURL         String @map("token_url")
   // callbackURL     String            @map("callback_url")
-  userInfoURL     String            @map("user_info_url")
-  clientID        String            @map("client_id")
-  clientSecret    String            @map("client_secret")
+  userInfoURL      String @map("user_info_url")
+  clientID         String @map("client_id")
+  clientSecret     String @map("client_secret")
 
   // Optional fields
-  claims          Json?             @map("claims")
-  loginHint       String?           @map("login_hint")
-  maxAge          Int?              @map("max_age")
-  nonce           String?           @map("nonce")
-  responseMode    String?           @map("response_mode")
-  prompt          String?           @map("prompt")
+  claims       Json?   @map("claims")
+  loginHint    String? @map("login_hint")
+  maxAge       Int?    @map("max_age")
+  nonce        String? @map("nonce")
+  responseMode String? @map("response_mode")
+  prompt       String? @map("prompt")
   // jwksURL         String?           @map("jwks_url")
-  scope           String?   // Comma-separated scopes
-  uniLocale       String?            @map("uni_locale")
+  scope        String? // Comma-separated scopes
+  uniLocale    String? @map("uni_locale")
 
   // Security flags
-  isEnabled       Boolean           @default(true) @map("is_enabled")
-  
+  isEnabled Boolean @default(true) @map("is_enabled")
+
   // Audit and Tracking
-  deletedAt       DateTime?         @map("deleted_at")
-  createdBy       Int?              @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int?              @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  deletedAt       DateTime? @map("deleted_at")
+  createdBy       Int?      @map("created_by")
+  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int?      @map("last_updated_by")
+  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int       @default(1) @map("object_version_id")
 
   // users           User[]
-  UserIdentity    UserIdentity[]
+  UserIdentity UserIdentity[]
 
   @@map("identity_providers")
 }
 
 model UserIdentity {
-  id              Int               @id @default(autoincrement())
-  providerId      Int               @map("provider_id")
-  provider        IdentityProvider  @relation(fields: [providerId], references: [id])
-  userId          Int               @map("user_id")
-  user            User              @relation(fields: [userId], references: [id])
-  providerUserId  String            @map("provider_user_id") // User ID from provider
-  
-  // API Access Token
-  accessToken     String?           @map("access_token")
-  refreshToken    String?           @map("refresh_token")
-  expiresAt       DateTime?         @map("expires_at")
-  idToken         String?  // optional, can store raw id_token
+  id             Int              @id @default(autoincrement())
+  providerId     Int              @map("provider_id")
+  provider       IdentityProvider @relation(fields: [providerId], references: [id])
+  userId         Int              @map("user_id")
+  user           User             @relation(fields: [userId], references: [id])
+  providerUserId String           @map("provider_user_id") // User ID from provider
 
-    // Tracking")
-  isEnabled       Boolean           @default(true) @map("is_enabled")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  
+  // API Access Token
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at")
+  idToken      String? // optional, can store raw id_token
+
+  // Tracking")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+
   @@unique([providerId, providerUserId])
   @@unique([providerId, userId])
   @@unique([providerId, providerUserId, userId])
@@ -227,203 +229,209 @@ model UserIdentity {
 }
 
 model User {
-  id              Int               @id @default(autoincrement())
-  username        String            @unique @db.VarChar(50)
-  email           String            @unique @db.VarChar(50) 
-  password        String?        
-  avatar          String?           @db.VarChar(150)
-  profile         Profile?  
-  identities      UserIdentity[] 
-  roleId          Int               @map("role_id")
+  id         Int            @id @default(autoincrement())
+  username   String         @unique @db.VarChar(50)
+  email      String         @unique @db.VarChar(50)
+  password   String?
+  avatar     String?        @db.VarChar(150)
+  profile    Profile?
+  identities UserIdentity[]
+  roleId     Int            @map("role_id")
   // Relation field that links to the Role model.
-  role            Role              @relation(fields: [roleId], references: [id])
+  role       Role           @relation(fields: [roleId], references: [id])
 
   // Advanced Authentication Fields
-  authMethod      AuthMethod[]      @map("auth_method") @default([PASSWORD])
+  authMethod AuthMethod[] @default([PASSWORD]) @map("auth_method")
 
   // Multi-Factor Authentication
-  mfaSecret       String?           @map("mfa_secret")
-  mfaEnabled      Boolean           @map("mfa_enabled") @default(false)
+  mfaSecret  String? @map("mfa_secret")
+  mfaEnabled Boolean @default(false) @map("mfa_enabled")
 
   // Authentication tracking
-  loginAttempts   Int               @map("login_attemps") @default(0)
-  lastLogin       DateTime?         @map("last_login") @db.Timestamp(6)  
+  loginAttempts Int       @default(0) @map("login_attemps")
+  lastLogin     DateTime? @map("last_login") @db.Timestamp(6)
 
   // Token Management
-  refreshTokens   RefreshToken[]      
+  refreshTokens RefreshToken[]
 
   // Security Flags
-  isBan           Boolean           @default(false) @map("is_ban")
-  isEnabled       Boolean           @default(true) @map("is_enabled")
-  isLocked        Boolean           @default(false) @map("is_locked")
-  isVerified      Boolean           @default(false) @map("is_verified")
-  isActivated     Boolean           @default(false) @map("is_activated")  
+  isBan       Boolean @default(false) @map("is_ban")
+  isEnabled   Boolean @default(true) @map("is_enabled")
+  isLocked    Boolean @default(false) @map("is_locked")
+  isVerified  Boolean @default(false) @map("is_verified")
+  isActivated Boolean @default(false) @map("is_activated")
 
   // Audit and Tracking
-  deletedAt       DateTime?         @map("deleted_at")
-  createdBy       Int?              @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int?              @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  deletedAt       DateTime? @map("deleted_at")
+  createdBy       Int?      @map("created_by")
+  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int?      @map("last_updated_by")
+  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int       @default(1) @map("object_version_id")
 
-  auditTrail      AuditTrail[]
+  auditTrail AuditTrail[]
 
-// Relationships
+  // Relationships
   // Role Role[]     
 
-  @@index([username, email])
   @@unique([username, email])
+  @@index([username, email])
   @@map("users")
 }
 
 model Profile {
-  id              Int               @id @default(autoincrement())
-  firstName       String            @db.VarChar(50) @map("first_name")
-  lastName        String            @db.VarChar(50) @map("last_name")
-  sex             Sex       
-  dob             DateTime        
-  pob             String?           @db.VarChar(50)
-  address         String?           @db.VarChar(255)
-  phone           String?           @db.VarChar(255)
-  married         Boolean           @default(false)     
-  bio             String?       
-  userId          Int               @unique @map("user_id")
-  Cashier         Cashier?
+  id        Int      @id @default(autoincrement())
+  firstName String   @map("first_name") @db.VarChar(50)
+  lastName  String   @map("last_name") @db.VarChar(50)
+  sex       Sex
+  dob       DateTime
+  pob       String?  @db.VarChar(50)
+  address   String?  @db.VarChar(255)
+  phone     String?  @db.VarChar(255)
+  married   Boolean  @default(false)
+  bio       String?
+  userId    Int      @unique @map("user_id")
+  Cashier   Cashier?
 
   // Tracking
-  isEnabled       Boolean           @default(true) @map("is_enabled")
-  isHold          Boolean           @default(false) @map("hold_flag")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  isHold          Boolean  @default(false) @map("hold_flag")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  User            User              @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("profiles")
 }
 
 model Cashier {
-  id              Int               @id @default(autoincrement())
-  profileId       Int               @unique @map("profile_id")
-  cashierNumber   String            @unique @default(uuid()) @map("cashier_number")
-  cashierType     CashierType       @map("cashier_type")
-  description     String?           @db.VarChar(255)
+  id            Int         @id @default(autoincrement())
+  profileId     Int         @unique @map("profile_id")
+  cashierNumber String      @unique @default(uuid()) @map("cashier_number")
+  cashierType   CashierType @map("cashier_type")
+  description   String?     @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
-  startDate       DateTime          @map("start_date")
-  endDate         DateTime?         @map("end_date")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean   @default(true) @map("is_enabled")
+  holdFlag        String?   @map("hold_flag") @db.VarChar(1)
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime? @map("end_date")
+  createdBy       Int       @map("created_by")
+  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int       @map("last_updated_by")
+  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int       @default(1) @map("object_version_id")
 
   // Relationships
-  orders          Order[] 
-  profile         Profile           @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  @@map("cashiers")    
-} 
+  orders  Order[]
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("cashiers")
+}
 
 model Supplier {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique @db.VarChar(255)
-  email           String?           @unique @db.VarChar(255)
-  phone           String            @unique @db.VarChar(255)
-  address         String?           @db.VarChar(255)
-  description     String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(255)
+  email       String? @unique @db.VarChar(255)
+  phone       String  @unique @db.VarChar(255)
+  address     String? @db.VarChar(255)
+  description String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   @@map("suppliers")
 }
 
 model Category {
-  id              Int               @id @default(autoincrement()) @map("short_name")
-  shortName       String            @unique @db.VarChar(30)
-  name            String            @unique @db.VarChar(200)
-  description     String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement()) @map("short_name")
+  shortName   String  @unique @db.VarChar(30)
+  name        String  @unique @db.VarChar(200)
+  description String? @db.VarChar(255)
 
   // Tracking
-  image           String?           @db.VarChar(255)
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  image           String?  @db.VarChar(255)
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  subCategories   SubCategory[]  
+  subCategories SubCategory[]
+
   @@map("categories")
 }
 
 model SubCategory {
-  id              Int               @id @default(autoincrement())
-  categoryId      Int               @map("category_id")
-  shortName       String            @unique @db.VarChar(30) @map("short_name")
-  name            String            @unique @db.VarChar(255)
-  description     String?           @db.VarChar(255)
-  image           String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  categoryId  Int     @map("category_id")
+  shortName   String  @unique @map("short_name") @db.VarChar(30)
+  name        String  @unique @db.VarChar(255)
+  description String? @db.VarChar(255)
+  image       String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  category        Category          @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  products        Product[]
+  category Category  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products Product[]
+
   @@map("sub_categories")
 }
 
 model Manufacturer {
-  id              Int               @id @default(autoincrement())
-  name            String            @db.VarChar(255)
-  image           String?           @db.VarChar(255)
-  phone           String?           @db.VarChar(255)
+  id    Int     @id @default(autoincrement())
+  name  String  @db.VarChar(255)
+  image String? @db.VarChar(255)
+  phone String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
   products Product[]
+
   @@map("manufacturers")
 }
 
 model ProductType {
-  id              Int               @id @default(autoincrement())
-  name            String            @db.VarChar(255)
-  image           String?           @db.VarChar(255)
+  id    Int     @id @default(autoincrement())
+  name  String  @db.VarChar(255)
+  image String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  products Product[]   
+  products Product[]
+
   @@map("product_types")
 }
 
@@ -434,7 +442,7 @@ model ProductType {
 //   nameKh          String?           @unique @db.VarChar(50) @map("name_kh")
 //   code            String            @unique @db.VarChar(20)
 //   description     String?           @db.VarChar(255)
-  
+
 //   // Tracking fields
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
@@ -442,182 +450,183 @@ model ProductType {
 //   lastUpdatedBy   Int               @map("last_updated_by")
 //   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
 //   objectVersionId Int               @default(1) @map("object_version_id")
-  
+
 //   // Relationships
 //   productUnits    ProductUnit[]     
-  
+
 //   @@map("unit_types")
 // }
 
 // Product Unit of Measurement model to support hierarchical units
 model ProductUnit {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique @db.VarChar(50)
-  symbol          String?           @db.VarChar(10)
-  
+  id     Int     @id @default(autoincrement())
+  name   String  @unique @db.VarChar(50)
+  symbol String? @db.VarChar(10)
+
   // Hierarchical unit support
-  baseUnitId      Int?              @map("base_unit_id")
-  baseUnitRatio   Decimal?          @db.Decimal(10, 2) @map("base_unit_ratio")
-  
+  baseUnitId    Int?     @map("base_unit_id")
+  baseUnitRatio Decimal? @map("base_unit_ratio") @db.Decimal(10, 2)
+
   // Relationships
-  baseUnit        ProductUnit?      @relation("UnitHierarchy", fields: [baseUnitId], references: [id])
-  derivedUnits    ProductUnit[]     @relation("UnitHierarchy")
-  
+  baseUnit     ProductUnit?  @relation("UnitHierarchy", fields: [baseUnitId], references: [id])
+  derivedUnits ProductUnit[] @relation("UnitHierarchy")
+
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Inverse relations
-  products        Product[]
-  stocks          Stock[]
-  parentUnit      UnitHierarchy[]   @relation("ParentUnit")
-  childUnit       UnitHierarchy[]   @relation("ChildUnit")
-  
+  products   Product[]
+  stocks     Stock[]
+  parentUnit UnitHierarchy[] @relation("ParentUnit")
+  childUnit  UnitHierarchy[] @relation("ChildUnit")
+
   @@map("product_unit")
 }
 
 // New model to handle product-specific unit hierarchies
 model UnitHierarchy {
-  id              Int               @id @default(autoincrement())
-  productId       Int               @map("product_id")
-  parentUnitId    Int               @map("parent_unit_id")
-  childUnitId     Int               @map("child_unit_id")
-  quantity        Decimal           @db.Decimal(10, 2)
-  
+  id           Int     @id @default(autoincrement())
+  productId    Int     @map("product_id")
+  parentUnitId Int     @map("parent_unit_id")
+  childUnitId  Int     @map("child_unit_id")
+  quantity     Decimal @db.Decimal(10, 2)
+
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int 
-  
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int
+
   // Relations
-  product         Product           @relation(fields: [productId], references: [id])
-  parentUnit      ProductUnit       @relation("ParentUnit", fields: [parentUnitId], references: [id])
-  childUnit       ProductUnit       @relation("ChildUnit", fields: [childUnitId], references: [id])
-  
+  product    Product     @relation(fields: [productId], references: [id])
+  parentUnit ProductUnit @relation("ParentUnit", fields: [parentUnitId], references: [id])
+  childUnit  ProductUnit @relation("ChildUnit", fields: [childUnitId], references: [id])
+
   @@unique([productId, parentUnitId, childUnitId])
   @@map("product_specific_unit_hierarchies")
 }
 
 model Product {
-  id              Int               @id @default(autoincrement())
-  subCategoryId   Int               @map("sub_category_id")
-  manufacturerId  Int               @map("manufacturer_id")
-  productTypeId   Int               @map("product_type_id")
-  productCode     String?           @unique @db.VarChar(30) @map("product_code")
-  name            String            @unique @db.VarChar(200)
-  shortName       String            @unique @db.VarChar(200) @map("short_name")
-  description     String?           @db.VarChar(255) @map("description")
-  longDescription String?           @db.VarChar(500) @map("long_description")    
-  barcode         String?           @unique @db.VarChar(30)
-  referenceNumber String?           @unique @db.VarChar(30) @map("reference_number")
-  image           String?           @db.VarChar(255)
+  id              Int     @id @default(autoincrement())
+  subCategoryId   Int     @map("sub_category_id")
+  manufacturerId  Int     @map("manufacturer_id")
+  productTypeId   Int     @map("product_type_id")
+  productCode     String? @unique @map("product_code") @db.VarChar(30)
+  name            String  @unique @db.VarChar(200)
+  shortName       String  @unique @map("short_name") @db.VarChar(200)
+  description     String? @map("description") @db.VarChar(255)
+  longDescription String? @map("long_description") @db.VarChar(500)
+  barcode         String? @unique @db.VarChar(30)
+  referenceNumber String? @unique @map("reference_number") @db.VarChar(30)
+  image           String? @db.VarChar(255)
 
   // Base unit tracking
-  baseUnitId      Int               @map("base_unit_id")
-  baseUnitQty     Decimal           @default(0) @db.Decimal(10, 2) @map("base_unit_quantity")
+  baseUnitId  Int     @map("base_unit_id")
+  baseUnitQty Decimal @default(0) @map("base_unit_quantity") @db.Decimal(10, 2)
 
   // Additional tracking      
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
-  
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
+
   // Relationships
-  subCategory     SubCategory       @relation(fields: [subCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  manufacturer    Manufacturer      @relation(fields: [manufacturerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  productType     ProductType       @relation(fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  baseUnit        ProductUnit       @relation(fields: [baseUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  
+  subCategory  SubCategory  @relation(fields: [subCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productType  ProductType  @relation(fields: [productTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  baseUnit     ProductUnit  @relation(fields: [baseUnitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   // Inverse relations
-  unitHierarchy   UnitHierarchy[]   
-  promoDetails    PromoDetail[]
-  transactions    ProductTransaction[]
-  orderLines      OrderLine[]
-  stocks          Stock[]
+  unitHierarchy  UnitHierarchy[]
+  promoDetails   PromoDetail[]
+  transactions   ProductTransaction[]
+  orderLines     OrderLine[]
+  stocks         Stock[]
   CocktailDetail CocktailDetail[]
-  
+
   @@map("products")
 }
 
 model Cocktail {
-  id              Int               @id @default(autoincrement())
-  cocktailCode    String?           @unique @db.VarChar(30) @map("cocktail_code")
-  name            String            @unique @db.VarChar(200)
-  shortName       String            @unique @db.VarChar(200) @map("short_name")
-  description     String?           @db.VarChar(500) @map("description")   
-  image           String?           @db.VarChar(255)
+  id           Int     @id @default(autoincrement())
+  cocktailCode String? @unique @map("cocktail_code") @db.VarChar(30)
+  name         String  @unique @db.VarChar(200)
+  shortName    String  @unique @map("short_name") @db.VarChar(200)
+  description  String? @map("description") @db.VarChar(500)
+  image        String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Inverse relations
   CocktailDetail CocktailDetail[]
+
   @@map("cocktails")
 }
 
 model CocktailDetail {
-  id              Int               @id @default(autoincrement())
-  productId       Int
-  cocktailId      Int
+  id         Int @id @default(autoincrement())
+  productId  Int
+  cocktailId Int
 
   // Optional: to track the quantity of each product in the cocktail
-  quantity        Decimal? @db.Decimal(10, 2) 
+  quantity Decimal? @db.Decimal(10, 2)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
-  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cocktail        Cocktail          @relation(fields: [cocktailId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cocktail Cocktail @relation(fields: [cocktailId], references: [id], onDelete: Cascade)
 
   @@map("cocktail_details")
 }
 
 model Stock {
-  id              Int               @id @default(autoincrement())
-  productId       Int               @map("product_id")
-  unitId          Int               @map("unit_id")
-  
+  id        Int @id @default(autoincrement())
+  productId Int @map("product_id")
+  unitId    Int @map("unit_id")
+
   // Simplified stock tracking
-  baseUnitQty     Decimal           @db.Decimal(10, 2) @map("base_unit_quantity")
-  unitQuantity    Decimal           @db.Decimal(10, 2) @map("unit_quantity")
-  
-  price           Decimal           @db.Decimal(7, 3)
-  salePrice       Decimal?          @db.Decimal(7, 3) @map("sale_price")
-  importedDate    DateTime          @db.Timestamp(6) @map("imported_date")
-  expiredDate     DateTime?         @db.Timestamp(6) @map("expired_date")
-  qrCode          String            @db.VarChar(255) @map("qr_code")
+  baseUnitQty  Decimal @map("base_unit_quantity") @db.Decimal(10, 2)
+  unitQuantity Decimal @map("unit_quantity") @db.Decimal(10, 2)
+
+  price        Decimal   @db.Decimal(7, 3)
+  salePrice    Decimal?  @map("sale_price") @db.Decimal(7, 3)
+  importedDate DateTime  @map("imported_date") @db.Timestamp(6)
+  expiredDate  DateTime? @map("expired_date") @db.Timestamp(6)
+  qrCode       String    @map("qr_code") @db.VarChar(255)
 
   // Tracking 
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
-  
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
+
   // Relationships
-  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  unit            ProductUnit       @relation(fields: [unitId], references: [id])
-  
+  product Product     @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  unit    ProductUnit @relation(fields: [unitId], references: [id])
+
   @@map("stocks")
 }
 
@@ -626,16 +635,16 @@ model Stock {
 //   fromUnitId      Int               @map("from_unit_id")
 //   toUnitId        Int               @map("to_unit_id")
 //   convfactor      Decimal           @db.Decimal(10, 2) @map("conversion_factor")
-  
+
 //   fromUnit        ProductUnit       @relation("FromUnitConversions", fields: [fromUnitId], references: [id])
 //   toUnit          ProductUnit       @relation("ToUnitConversions", fields: [toUnitId], references: [id])
-  
+
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
 //   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
 //   lastUpdatedBy   Int               @map("last_updated_by")
 //   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  
+
 //   @@unique([fromUnitId, toUnitId])
 //   @@map("unit_conversions")
 // }
@@ -715,306 +724,316 @@ model Stock {
 // }
 
 model PromoDetail {
-  id              Int               @id @default(autoincrement())
-  productId       Int               @map("product_id")
-  promotionId     Int               @map("promotion_id")
+  id          Int @id @default(autoincrement())
+  productId   Int @map("product_id")
+  promotionId Int @map("promotion_id")
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  promotion       Promotion         @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("promotion_details")
 }
 
 model Promotion {
-  id              Int               @id @default(autoincrement())
-  promoCode       String            @db.VarChar(70) @map("promo_code")
-  name            String            @db.VarChar(255)
-  description     String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  promoCode   String  @map("promo_code") @db.VarChar(70)
+  name        String  @db.VarChar(255)
+  description String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  promoDetails    PromoDetail[]
-  invoices        Invoice[]
+  promoDetails PromoDetail[]
+  invoices     Invoice[]
+
   @@map("promotions")
 }
 
 model ProductTransaction {
-  id              Int               @id @default(autoincrement())
-  warehouseId     Int               @map("warehouse_id")
-  productId       Int               @map("product_id")
-  trxNumber       String            @unique @db.VarChar(100) @map("trx_number")
-  description     String?           @db.VarChar(255)
-  type            String            @db.VarChar(1)
-  quantity        Int?        
+  id          Int     @id @default(autoincrement())
+  warehouseId Int     @map("warehouse_id")
+  productId   Int     @map("product_id")
+  trxNumber   String  @unique @map("trx_number") @db.VarChar(100)
+  description String? @db.VarChar(255)
+  type        String  @db.VarChar(1)
+  quantity    Int?
 
   // Transaction Tracking
-  cancelFlag      String?           @db.VarChar(1) @map("cancel_flag")
-  canceledBy      Int?              @map("canceled_by")
-  cancelReason    String?           @db.VarChar(1000) @map("cancel_reason")
+  cancelFlag   String? @map("cancel_flag") @db.VarChar(1)
+  canceledBy   Int?    @map("canceled_by")
+  cancelReason String? @map("cancel_reason") @db.VarChar(1000)
 
   // Additional Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  warehouse       Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("product_transactions")
 }
 
 model Warehouse {
-  id              Int               @id @default(autoincrement())
-  branchId        Int               @map("branch_id")
-  parentId        Int?        
-  shortName       String            @unique @db.VarChar(30) @map("short_name")
-  name            String            @unique @db.VarChar(255)
+  id        Int    @id @default(autoincrement())
+  branchId  Int    @map("branch_id")
+  parentId  Int?
+  shortName String @unique @map("short_name") @db.VarChar(30)
+  name      String @unique @db.VarChar(255)
 
   // Tracking
-  description     String?           @db.VarChar(255)
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  description     String?  @db.VarChar(255)
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  branch          StoreBranch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  transactions    ProductTransaction[]
+  branch       StoreBranch          @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transactions ProductTransaction[]
+
   @@map("warehouses")
 }
 
 model Store {
-  id              Int               @id @default(autoincrement())
-  countryCode     String            @db.VarChar(3) @map("country_code")
-  shortName       String            @unique @db.VarChar(30) @map("short_name")
-  name            String            @unique @db.VarChar(200)
-  description     String?           @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  countryCode String  @map("country_code") @db.VarChar(3)
+  shortName   String  @unique @map("short_name") @db.VarChar(30)
+  name        String  @unique @db.VarChar(200)
+  description String? @db.VarChar(255)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
-  branches        StoreBranch[]
+  branches StoreBranch[]
+
   @@map("stores")
 }
 
-model StoreBranch {        
-  id              Int               @id @default(autoincrement())
-  storeId         Int               @unique @map("store_id")
-  shortName       String            @unique @db.VarChar(50) @map("short_name")
-  name            String            @unique @db.VarChar(100)
-  description     String?           @db.VarChar(255)
-  parentId        Int?              @map("parent_id")
-  managerId       Int?              @map("manager_id")
+model StoreBranch {
+  id          Int     @id @default(autoincrement())
+  storeId     Int     @unique @map("store_id")
+  shortName   String  @unique @map("short_name") @db.VarChar(50)
+  name        String  @unique @db.VarChar(100)
+  description String? @db.VarChar(255)
+  parentId    Int?    @map("parent_id")
+  managerId   Int?    @map("manager_id")
 
-   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  // Tracking
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships      
-  store           Store             @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   // storeBranch     StoreBranch       @relation(fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   // cashier         Cashier           @relation(fields: [managerId], references: [id])
-  warehouses      Warehouse[]
-  orders          Order[]
-  @@map("store_branches")
+  warehouses Warehouse[]
+  orders     Order[]
   // StoreBranch StoreBranch[]
+
+  @@map("store_branches")
 }
 
-model Order { 
-  id              Int               @id @default(autoincrement())
-  branchId        Int               @map("branch_id")
-  cashierId       Int               @map("cashier_id")
-  customerId      Int       
+model Order {
+  id         Int @id @default(autoincrement())
+  branchId   Int @map("branch_id")
+  cashierId  Int @map("cashier_id")
+  customerId Int
 
   // Order Tracking
-  orderType       String            @db.VarChar(1) @map("order_type")
-  orderNumber     String            @unique @db.VarChar(30) @map("order_number")
-  orderDate       DateTime          @map("order_date")
-  status          String            @db.VarChar(30)
-  description     String?           @db.VarChar(255)
-  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+  orderType   String   @map("order_type") @db.VarChar(1)
+  orderNumber String   @unique @map("order_number") @db.VarChar(30)
+  orderDate   DateTime @map("order_date")
+  status      String   @db.VarChar(30)
+  description String?  @db.VarChar(255)
+  holdFlag    String?  @map("hold_flag") @db.VarChar(1)
 
   // Additional Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime                  @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  branch          StoreBranch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cashier         Cashier           @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer        Customer          @relation(fields: [customerId], references: [id])
-  orderLines      OrderLine[]
-  invoices        Invoice[]
+  branch     StoreBranch @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashier    Cashier     @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  orderLines OrderLine[]
+  invoices   Invoice[]
+
   @@map("orders")
 }
 
 model OrderLine {
-  id              Int               @id @default(autoincrement())
-  orderId         Int               @map("order_id")
-  lineNum         Int               @map("line_num")
-  lineType        String            @db.VarChar(1)
-  productId       Int               @map("product_id")
-  serviceId       Int?              @map("service_id")
-  price           Decimal?          @db.Decimal(7, 3)
-  quantity        Int?              
-  amount          Decimal?          @db.Decimal(7, 3)
-  description     String?           @db.VarChar(255)
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  lineNum     Int      @map("line_num")
+  lineType    String   @db.VarChar(1)
+  productId   Int      @map("product_id")
+  serviceId   Int?     @map("service_id")
+  price       Decimal? @db.Decimal(7, 3)
+  quantity    Int?
+  amount      Decimal? @db.Decimal(7, 3)
+  description String?  @db.VarChar(255)
 
   //Cancel Tracking
-  cancelFlag      String?           @db.VarChar(1) @map("cancel_flag")
-  canceledBy      Int?              @map("canceled_by")
-  cancelReason    String?           @db.VarChar(1000) @map("cancel_reason") 
+  cancelFlag   String? @map("cancel_flag") @db.VarChar(1)
+  canceledBy   Int?    @map("canceled_by")
+  cancelReason String? @map("cancel_reason") @db.VarChar(1000)
 
   // Tracking     
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  order           Order             @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("order_lines")
 }
 
 model Payment {
-  id              Int               @id @default(autoincrement())
-  payMethodId     Int               @map("pay_method_id")
-  invoiceId       Int               @map("invoice_id")  
-  paymentType     String            @db.VarChar(1) @map("payment_type")
-  paymentNumber   String            @db.VarChar(30) @map("payment_number")
-  description     String?           @db.VarChar(255)
-  paymentDate     DateTime          @map("payment_date")
-  paymentCurrency String            @db.VarChar(3) @map("payment_currency")
-  amount          Decimal           @db.Decimal(7, 3)
-  status          String            @db.VarChar(1)
+  id              Int      @id @default(autoincrement())
+  payMethodId     Int      @map("pay_method_id")
+  invoiceId       Int      @map("invoice_id")
+  paymentType     String   @map("payment_type") @db.VarChar(1)
+  paymentNumber   String   @map("payment_number") @db.VarChar(30)
+  description     String?  @db.VarChar(255)
+  paymentDate     DateTime @map("payment_date")
+  paymentCurrency String   @map("payment_currency") @db.VarChar(3)
+  amount          Decimal  @db.Decimal(7, 3)
+  status          String   @db.VarChar(1)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  paymentMethod   PaymentMethod     @relation(fields: [payMethodId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  invoice         Invoice           @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paymentMethod PaymentMethod @relation(fields: [payMethodId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("payments")
 }
 
 model PaymentMethod {
-  id              Int               @id @default(autoincrement())
-  shortName       String?           @db.VarChar(30) @map("sjort_name")
-  methodName      String            @db.VarChar(100) @map("method_name")
-  methodType      String?           @db.VarChar(1) @map("method_type")
-  description     String?           @db.VarChar(255)
-  cashFlag        String?           @db.VarChar(1) @map("cash_flag")
-  defaultFlag     String?           @db.VarChar(1) @map("default_flag")
-  holdFlag        String?           @db.VarChar(1) @map("hold_flag")
+  id          Int     @id @default(autoincrement())
+  shortName   String? @map("sjort_name") @db.VarChar(30)
+  methodName  String  @map("method_name") @db.VarChar(100)
+  methodType  String? @map("method_type") @db.VarChar(1)
+  description String? @db.VarChar(255)
+  cashFlag    String? @map("cash_flag") @db.VarChar(1)
+  defaultFlag String? @map("default_flag") @db.VarChar(1)
+  holdFlag    String? @map("hold_flag") @db.VarChar(1)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  payments        Payment[]
+  payments Payment[]
+
   @@map("payment_methods")
 }
 
 model Invoice {
-  id              Int               @id @default(autoincrement())
-  orderId         Int               @map("order_id")
-  promotionId     Int?              @map("promotion_id")
-  invoiceNumber   String            @unique @db.VarChar(30) @map("invoice_number")
-  description     String?           @db.VarChar(255)
-  amount          Decimal           @db.Decimal(7, 3)
-  currencyCode    String            @db.VarChar(3) @map("currency_code")
+  id            Int     @id @default(autoincrement())
+  orderId       Int     @map("order_id")
+  promotionId   Int?    @map("promotion_id")
+  invoiceNumber String  @unique @map("invoice_number") @db.VarChar(30)
+  description   String? @db.VarChar(255)
+  amount        Decimal @db.Decimal(7, 3)
+  currencyCode  String  @map("currency_code") @db.VarChar(3)
 
   // Tracking
-  isEnabled     Boolean           @default(true) @map("is_enabled")
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  order           Order             @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  promotion       Promotion?        @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments        Payment[]
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments  Payment[]
+
   @@map("invoices")
 }
 
 model Customer {
-  id              Int               @id @default(autoincrement())
-  customerNumber  String            @unique @db.VarChar(30) @default(uuid())  
-  mobileNumber    String            @unique @db.VarChar(30)
-  gender          String?           @db.VarChar(1)
-  identifyType    String?           @db.VarChar(1)
-  identifyNumber  String?           @db.VarChar(100)
-  description     String?           @db.VarChar(255)
-  registeredDate  DateTime?
+  id             Int       @id @default(autoincrement())
+  customerNumber String    @unique @default(uuid()) @db.VarChar(30)
+  mobileNumber   String    @unique @db.VarChar(30)
+  gender         String?   @db.VarChar(1)
+  identifyType   String?   @db.VarChar(1)
+  identifyNumber String?   @db.VarChar(100)
+  description    String?   @db.VarChar(255)
+  registeredDate DateTime?
 
   // Tracking
-  isEnabled     String            @db.VarChar(1)
-  holdFlag        String?           @db.VarChar(1)
-  
-  
-  
-  phoneNumber     String?           @db.VarChar(30)
-  address         String?           @db.VarChar(200)
+  isEnabled String  @db.VarChar(1)
+  holdFlag  String? @db.VarChar(1)
+
+  phoneNumber String? @db.VarChar(30)
+  address     String? @db.VarChar(200)
   // creditLimit      Decimal?  @db.Decimal(13, 2)
   // childrenUnder18  String?   @db.VarChar(1)
   // loginUser        String?   @unique @db.VarChar(20)
   // loginPassword    String?   @db.VarChar(30)
 
-  createdBy       Int               @map("created_by")
-  createdDate     DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-  lastUpdatedBy   Int               @map("last_updated_by")
-  lastUpdatedDate DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
-  objectVersionId Int               @default(1) @map("object_version_id")
+  createdBy       Int      @map("created_by")
+  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  lastUpdatedBy   Int      @map("last_updated_by")
+  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  objectVersionId Int      @default(1) @map("object_version_id")
 
   // party            Party    @relation(fields: [partyId], references: [id])
-  orders          Order[]
+  orders Order[]
+
   @@map("customers")
 }
 
@@ -1022,6 +1041,7 @@ enum Sex {
   Male
   Female
   Bi
+
   @@map("sex_enum")
 }
 
@@ -1054,5 +1074,6 @@ enum CashierType {
   STAFF
   MANAGER
   OWNER
+
   @@map("cashier_type_enum")
 }
