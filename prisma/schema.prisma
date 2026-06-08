@@ -132,17 +132,17 @@ model LoginAttempt {
 }
 
 // Refresh Token Model
-model RefreshToken {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+// model RefreshToken {
+//   id        Int      @id @default(autoincrement())
+//   token     String   @unique
+//   userId    Int      @map("user_id")
+//   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   expiresAt DateTime @map("expires_at")
+//   createdAt DateTime @default(now()) @map("created_at")
 
-  @@index([userId])
-  @@map("refresh_tokens")
-}
+//   @@index([userId])
+//   @@map("refresh_tokens")
+// }
 
 model Role {
   id          Int     @id @default(autoincrement())
@@ -158,125 +158,311 @@ model Role {
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  users User[]
+  permissions RolePermission[]
+  users       User[]
 
   @@map("roles")
 }
 
-model IdentityProvider {
-  id               Int    @id @default(autoincrement())
-  name             String @unique // e.g., "google", "microsoft", etc.
-  displayName      String @map("display_name") // "Google", "Microsoft", etc.
-  issuer           String @map("issuer") // OIDC issuer URL
-  authorizationURL String @map("authorization_url")
-  tokenURL         String @map("token_url")
-  // callbackURL     String            @map("callback_url")
-  userInfoURL      String @map("user_info_url")
-  clientID         String @map("client_id")
-  clientSecret     String @map("client_secret")
+model Permission {
+  id      Int    @id @default(autoincrement())
+  action  String // "create", "read", "update", "delete"
+  subject String // "Order", "Product", "User", etc.
 
-  // Optional fields
-  claims       Json?   @map("claims")
-  loginHint    String? @map("login_hint")
-  maxAge       Int?    @map("max_age")
-  nonce        String? @map("nonce")
-  responseMode String? @map("response_mode")
-  prompt       String? @map("prompt")
-  // jwksURL         String?           @map("jwks_url")
-  scope        String? // Comma-separated scopes
-  uniLocale    String? @map("uni_locale")
+  roles RolePermission[]
 
-  // Security flags
-  isEnabled Boolean @default(true) @map("is_enabled")
-
-  // Audit and Tracking
-  deletedAt       DateTime? @map("deleted_at")
-  createdBy       Int?      @map("created_by")
-  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int?      @map("last_updated_by")
-  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
-  objectVersionId Int       @default(1) @map("object_version_id")
-
-  // users           User[]
-  UserIdentity UserIdentity[]
-
-  @@map("identity_providers")
+  @@unique([action, subject])
+  @@map("permissions")
 }
 
-model UserIdentity {
-  id             Int              @id @default(autoincrement())
-  providerId     Int              @map("provider_id")
-  provider       IdentityProvider @relation(fields: [providerId], references: [id])
-  userId         Int              @map("user_id")
-  user           User             @relation(fields: [userId], references: [id])
-  providerUserId String           @map("provider_user_id") // User ID from provider
+model RolePermission {
+  roleId       Int        @map("role_id")
+  permissionId Int        @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  // API Access Token
-  accessToken  String?   @map("access_token")
-  refreshToken String?   @map("refresh_token")
-  expiresAt    DateTime? @map("expires_at")
-  idToken      String? // optional, can store raw id_token
-
-  // Tracking")
-  isEnabled       Boolean  @default(true) @map("is_enabled")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
-
-  @@unique([providerId, providerUserId])
-  @@unique([providerId, userId])
-  @@unique([providerId, providerUserId, userId])
-  @@map("user_identities")
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
 }
+
+// model IdentityProvider {
+//   id               Int    @id @default(autoincrement())
+//   name             String @unique // e.g., "google", "microsoft", etc.
+//   displayName      String @map("display_name") // "Google", "Microsoft", etc.
+//   issuer           String @map("issuer") // OIDC issuer URL
+//   authorizationURL String @map("authorization_url")
+//   tokenURL         String @map("token_url")
+//   // callbackURL     String            @map("callback_url")
+//   userInfoURL      String @map("user_info_url")
+//   clientID         String @map("client_id")
+//   clientSecret     String @map("client_secret")
+
+//   // Optional fields
+//   claims       Json?   @map("claims")
+//   loginHint    String? @map("login_hint")
+//   maxAge       Int?    @map("max_age")
+//   nonce        String? @map("nonce")
+//   responseMode String? @map("response_mode")
+//   prompt       String? @map("prompt")
+//   // jwksURL         String?           @map("jwks_url")
+//   scope        String? // Comma-separated scopes
+//   uniLocale    String? @map("uni_locale")
+
+//   // Security flags
+//   isEnabled Boolean @default(true) @map("is_enabled")
+
+//   // Audit and Tracking
+//   deletedAt       DateTime? @map("deleted_at")
+//   createdBy       Int?      @map("created_by")
+//   createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+//   lastUpdatedBy   Int?      @map("last_updated_by")
+//   lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+//   objectVersionId Int       @default(1) @map("object_version_id")
+
+//   // users           User[]
+//   UserIdentity UserIdentity[]
+
+//   @@map("identity_providers")
+// }
+
+// model UserIdentity {
+//   id             Int              @id @default(autoincrement())
+//   providerId     Int              @map("provider_id")
+//   provider       IdentityProvider @relation(fields: [providerId], references: [id])
+//   userId         Int              @map("user_id")
+//   user           User             @relation(fields: [userId], references: [id])
+//   providerUserId String           @map("provider_user_id") // User ID from provider
+
+//   // API Access Token
+//   accessToken  String?   @map("access_token")
+//   refreshToken String?   @map("refresh_token")
+//   expiresAt    DateTime? @map("expires_at")
+//   idToken      String? // optional, can store raw id_token
+
+//   // Tracking")
+//   isEnabled       Boolean  @default(true) @map("is_enabled")
+//   createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+//   lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+
+//   @@unique([providerId, providerUserId])
+//   @@unique([providerId, userId])
+//   @@unique([providerId, providerUserId, userId])
+//   @@map("user_identities")
+// }
+
+// model User {
+//   id         Int            @id @default(autoincrement())
+//   username   String         @unique @db.VarChar(50)
+//   email      String         @unique @db.VarChar(50)
+//   password   String?
+//   avatar     String?        @db.VarChar(150)
+//   profile    Profile?
+//   identities UserIdentity[]
+//   roleId     Int            @map("role_id")
+//   // Relation field that links to the Role model.
+//   role       Role           @relation(fields: [roleId], references: [id])
+
+//   // Advanced Authentication Fields
+//   authMethod AuthMethod[] @default([PASSWORD]) @map("auth_method")
+
+//   // Multi-Factor Authentication
+//   mfaSecret  String? @map("mfa_secret")
+//   mfaEnabled Boolean @default(false) @map("mfa_enabled")
+
+//   // Authentication tracking
+//   loginAttempts Int       @default(0) @map("login_attemps")
+//   lastLogin     DateTime? @map("last_login") @db.Timestamp(6)
+
+//   // Token Management
+//   refreshTokens RefreshToken[]
+
+//   // Security Flags
+//   isBan       Boolean @default(false) @map("is_ban")
+//   isEnabled   Boolean @default(true) @map("is_enabled")
+//   isLocked    Boolean @default(false) @map("is_locked")
+//   isVerified  Boolean @default(false) @map("is_verified")
+//   isActivated Boolean @default(false) @map("is_activated")
+
+//   // Audit and Tracking
+//   deletedAt       DateTime? @map("deleted_at")
+//   createdBy       Int?      @map("created_by")
+//   createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
+//   lastUpdatedBy   Int?      @map("last_updated_by")
+//   lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+//   objectVersionId Int       @default(1) @map("object_version_id")
+
+//   auditTrail AuditTrail[]
+
+//   // Relationships
+//   // Role Role[]     
+
+//   @@unique([username, email])
+//   @@index([username, email])
+//   @@map("users")
+// }
 
 model User {
-  id         Int            @id @default(autoincrement())
-  username   String         @unique @db.VarChar(50)
-  email      String         @unique @db.VarChar(50)
-  password   String?
-  avatar     String?        @db.VarChar(150)
-  profile    Profile?
-  identities UserIdentity[]
-  roleId     Int            @map("role_id")
-  // Relation field that links to the Role model.
-  role       Role           @relation(fields: [roleId], references: [id])
-
-  // Advanced Authentication Fields
-  authMethod AuthMethod[] @default([PASSWORD]) @map("auth_method")
-
-  // Multi-Factor Authentication
-  mfaSecret  String? @map("mfa_secret")
-  mfaEnabled Boolean @default(false) @map("mfa_enabled")
-
-  // Authentication tracking
-  loginAttempts Int       @default(0) @map("login_attemps")
-  lastLogin     DateTime? @map("last_login") @db.Timestamp(6)
-
-  // Token Management
-  refreshTokens RefreshToken[]
-
-  // Security Flags
-  isBan       Boolean @default(false) @map("is_ban")
-  isEnabled   Boolean @default(true) @map("is_enabled")
-  isLocked    Boolean @default(false) @map("is_locked")
-  isVerified  Boolean @default(false) @map("is_verified")
-  isActivated Boolean @default(false) @map("is_activated")
+  id                  Int         @id @default(autoincrement())
+  name                String
+  email               String
+  emailVerified       Boolean     @default(false)
+  image               String?
+  profile             Profile?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  role                String?
+  banned              Boolean?    @default(false)
+  banReason           String?
+  banExpires          DateTime?
+  username            String?
+  displayUsername     String?
+  twoFactorEnabled    Boolean?    @default(false)
+  lastLoginMethod     String?
+  phoneNumber         String?
+  phoneNumberVerified Boolean?
+  roleId              Int?        @map("role_id")
+  // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
+  userRole            Role?       @relation(fields: [roleId], references: [id])
+  isEnabled           Boolean?    @default(true)
+  isLocked            Boolean?    @default(false)
+  isActivated         Boolean?    @default(false)
+  deletedAt           String?
+  createdBy           Int?
+  lastUpdatedBy       Int?
+  objectVersionId     Int?        @default(1)
+  sessions            Session[]
+  accounts            Account[]
+  twofactors          TwoFactor[]
+  passkeys            Passkey[]
 
   // Audit and Tracking
-  deletedAt       DateTime? @map("deleted_at")
-  createdBy       Int?      @map("created_by")
-  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int?      @map("last_updated_by")
-  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
-  objectVersionId Int       @default(1) @map("object_version_id")
-
   auditTrail AuditTrail[]
 
-  // Relationships
-  // Role Role[]     
+  @@unique([email])
+  @@unique([username])
+  @@unique([phoneNumber])
+  @@map("user")
+}
 
-  @@unique([username, email])
-  @@index([username, email])
-  @@map("users")
+model Session {
+  id             Int      @id @default(autoincrement())
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    Int       @id @default(autoincrement())
+  accountId             String
+  providerId            String
+  userId                Int
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         Int      @id @default(autoincrement())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Apikey {
+  id                  Int       @id @default(autoincrement())
+  configId            String    @default("default")
+  name                String?
+  start               String?
+  referenceId         String
+  prefix              String?
+  key                 String
+  refillInterval      Int?
+  refillAmount        Int?
+  lastRefillAt        DateTime?
+  enabled             Boolean?  @default(true)
+  rateLimitEnabled    Boolean?  @default(true)
+  rateLimitTimeWindow Int?      @default(86400000)
+  rateLimitMax        Int?      @default(10)
+  requestCount        Int?      @default(0)
+  remaining           Int?
+  lastRequest         DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime
+  updatedAt           DateTime
+  permissions         String?
+  metadata            String?
+
+  @@index([configId])
+  @@index([referenceId])
+  @@index([key])
+  @@map("apikey")
+}
+
+model TwoFactor {
+  id          Int      @id @default(autoincrement())
+  secret      String
+  backupCodes String
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified    Boolean? @default(true)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Passkey {
+  id           Int       @id @default(autoincrement())
+  name         String?
+  publicKey    String
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime?
+  aaguid       String?
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
+}
+
+model Jwks {
+  id         Int       @id @default(autoincrement())
+  publicKey  String
+  privateKey String
+  createdAt  DateTime
+  expiresAt  DateTime?
+
+  @@map("jwks")
 }
 
 model Profile {
