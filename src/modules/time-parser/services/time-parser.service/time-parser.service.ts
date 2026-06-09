@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 // -----------------------------------------------------------------
 // The Duration Parser Service
 // Location: src/modules/time-parser/services/time-parser.service.ts
@@ -694,9 +693,9 @@ export class TimeParserService implements OnModuleInit {
     }
 
     let h = 0,
-      m = 0,
-      sec = 0,
-      ms = 0;
+      m: number,
+      sec: number,
+      ms: number;
 
     if (parts.length === 3) {
       h = Number(parts[0]);
@@ -878,7 +877,7 @@ export class TimeParserService implements OnModuleInit {
 
     // 3) Figure out the plural category for this value
     const pluralRules = this.getPluralRules(localization.locale);
-    const pluralCategory = pluralRules.select(value) as PluralCategory;
+    const pluralCategory = pluralRules.select(value);
 
     // 4) Pick the right localized unit name, falling back to `other`
     const localeUnit =

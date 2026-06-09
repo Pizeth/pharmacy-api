@@ -5,7 +5,7 @@
 // This decorator makes your controller super clean.
 
 import { UploadedFile } from '@nestjs/common';
-import { FileValidationPipe } from '../pipes/file-validation.pipe'; // Adjust path
+import { FileValidationPipe } from 'pipes/file-validation.pipe';
 import { FileValidationOptions } from 'types/file';
 
 export const ValidateFile = (
