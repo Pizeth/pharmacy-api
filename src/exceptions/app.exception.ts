@@ -31,7 +31,7 @@ export class AppError extends HttpException {
   // You can add any custom properties you need
   public readonly context?: string;
   // public readonly errorData?: unknown;
-  // public readonly statusCode: number;
+  public readonly statusCode: number;
   //   private isOperational: boolean;
   //   private error: unknown;
   constructor(
@@ -45,6 +45,6 @@ export class AppError extends HttpException {
     super({ message, errorData }, statusCode);
     this.context = context;
     // this.errorData = errorData;
-    // this.statusCode = statusCode;
+    this.statusCode = statusCode;
   }
 }

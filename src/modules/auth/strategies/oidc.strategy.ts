@@ -51,7 +51,7 @@
 import { Profile, Strategy, VerifyCallback } from 'passport-openidconnect';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, Logger } from '@nestjs/common';
-import { AuthService } from 'modules/auth/services/auth.service';
+import { AuthService } from 'modules/auth/services/authOld.service';
 // import { OidcConfigService } from '../services/oidc-config.service';
 import { NormalizedProfile } from '../../ocid/interfaces/oidc.interface';
 import { IdentityProvider } from '@prisma/client';

@@ -2,10 +2,11 @@
 
 // import { TokenPayload } from './token';
 import {
-  OidcUser,
+  // OidcUser,
   StateData,
   // TrustProxyFn,
 } from '../modules/ocid/interfaces/oidc.interface';
+import { User as UserSession } from 'generated/prisma/client';
 import 'express-session';
 // declare module 'express' {
 // declare module 'express' {
@@ -24,7 +25,8 @@ declare global {
     //   get(name: 'trust proxy fn'): TrustProxyFn;
     // }
     export interface Request {
-      user?: OidcUser;
+      // user?: OidcUser;
+      user?: UserSession;
       correlationId?: string;
       oidcProvider?: string;
     }

@@ -139,22 +139,22 @@ export function createAuth(prisma: PrismaClient) {
           // send email to user
         },
       }),
-      emailOTP({
-        async sendVerificationOTP({ email, otp, type }) {
-          if (type === 'sign-in') {
-            // Send the OTP for sign in
-          } else if (type === 'email-verification') {
-            // Send the OTP for email verification
-          } else {
-            // Send the OTP for password reset
-          }
-        },
-      }),
-      phoneNumber({
-        sendOTP: ({ phoneNumber, code }, ctx) => {
-          // Implement sending OTP code via SMS
-        },
-      }),
+      // emailOTP({
+      //   async sendVerificationOTP({ email, otp, type }) {
+      //     if (type === 'sign-in') {
+      //       // Send the OTP for sign in
+      //     } else if (type === 'email-verification') {
+      //       // Send the OTP for email verification
+      //     } else {
+      //       // Send the OTP for password reset
+      //     }
+      //   },
+      // }),
+      // phoneNumber({
+      //   sendOTP: ({ phoneNumber, code }, ctx) => {
+      //     // Implement sending OTP code via SMS
+      //   },
+      // }),
       genericOAuth({
         config: [
           {

@@ -5,9 +5,22 @@ import {
   MongoAbility,
 } from '@casl/ability';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
+import { Prisma } from 'generated/prisma/browser';
 // import { PrismaService } from '../prisma/prisma.service';
 
 export type AppAbility = MongoAbility;
+
+type UserWithRole = Prisma.UserGetPayload<{
+  include: {
+    userRole: {
+      include: {
+        permissions: {
+          include: { permission: true };
+        };
+      };
+    };
+  };
+}>;
 
 @Injectable()
 export class CaslAbilityFactory {

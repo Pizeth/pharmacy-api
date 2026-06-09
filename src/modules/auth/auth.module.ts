@@ -39,6 +39,8 @@ import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
 import { createAuth } from 'lib/auth';
 import { PrismaModule } from 'modules/prisma/prisma.module';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
+import { AuthHooks } from './hooks/auth.hook';
+import { AuthService } from './services/auth.service';
 
 @Module({
   imports: [
@@ -51,6 +53,7 @@ import { PrismaService } from 'modules/prisma/services/prisma.service';
       }),
     }),
   ],
+  providers: [AuthHooks, AuthService],
 })
 export class AuthModule {}
 

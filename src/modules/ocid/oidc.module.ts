@@ -44,7 +44,7 @@
 // }
 
 import { DynamicModule, Module, Provider, Scope } from '@nestjs/common';
-import { AuthService } from '../auth/services/auth.service';
+import { AuthService } from '../auth/services/authOld.service';
 import { OidcStrategyFactory } from './factories/oidc-strategy.factory';
 import { OidcProviderService } from './services/oidc-provider.service';
 import passport, { PassportStatic } from 'passport';
