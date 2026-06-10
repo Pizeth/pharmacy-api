@@ -15,7 +15,7 @@ import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
 import { FileModule } from './modules/files/file.module';
 import { ClsModule } from 'nestjs-cls';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import { Request } from 'express';
 import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
@@ -79,7 +79,7 @@ import { ProfileModule } from './modules/profiles/profile.module';
         setup: (cls, req: Request) => {
           cls.set('ip', req.ip);
           cls.set('userId', req.headers['x-user-id']);
-          cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
+          cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv7());
           cls.set('userAgent', req.headers['user-agent']);
           cls.set('acceptLanguage', req.headers['accept-language']);
           cls.set('referer', req.headers['referer']);

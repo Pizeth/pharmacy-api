@@ -377,6 +377,7 @@ model Account {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+@@unique([providerId, accountId]) // ✅ Add this to fix the upscale upsert and lookups
   @@index([userId])
   @@map("account")
 }

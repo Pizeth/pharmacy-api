@@ -1,29 +1,30 @@
 import {
   AuditTrail,
   Profile,
-  RefreshToken,
+  // RefreshToken,
   Role,
   User,
-  UserIdentity,
-  IdentityProvider,
+  // UserIdentity,
+  // IdentityProvider,
 } from 'generated/prisma/client';
 
-export interface UserIdentityDetail extends UserIdentity {
-  provider: IdentityProvider;
-  user: SanitizedUser;
-}
+// export interface UserIdentityDetail extends UserIdentity {
+//   provider: IdentityProvider;
+//   user: SanitizedUser;
+// }
 
 export interface UserDetail extends User {
   role: Role;
-  identities: UserIdentityDetail[];
+  // identities: UserIdentityDetail[];
   profile: Profile | null;
-  refreshTokens: RefreshToken;
+  // refreshTokens: RefreshToken;
   auditTrail: AuditTrail;
 }
 
 export type SanitizedUser = Omit<
   UserDetail,
-  'password' | 'mfaSecret' | 'identities' | 'refreshTokens' | 'auditTrail'
+  'password' | 'auditTrail'
+  // 'password' | 'mfaSecret' | 'identities' | 'refreshTokens' | 'auditTrail'
 >;
 
 export interface SignedUser {

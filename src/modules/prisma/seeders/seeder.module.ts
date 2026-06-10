@@ -2,19 +2,19 @@ import { Module } from '@nestjs/common';
 import { Seeder } from './seeder';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtService } from '@nestjs/jwt';
-import { TokenService } from 'src/commons/services/token.service';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
+// import { TokenService } from 'src/commons/services/token.service';
+// import { PasswordUtils } from 'src/commons/services/password-utils.service';
 import { PrismaService } from '../services/prisma.service';
 import { PrismaModule } from '../prisma.module';
-import { logger } from 'nestjs-i18n';
-import { configurationSchema } from 'src/validation/configuration.schema';
+import { logger } from 'nestjs-i18n/dist/utils';
+import { configurationSchema } from 'validation/configuration.schema';
 import z, { ZodError } from 'zod';
 import { ClsModule, ClsService } from 'nestjs-cls';
-import { TimeParserService } from 'src/modules/time-parser/services/time-parser.service/time-parser.service';
-import { ValidationError } from 'src/exceptions/zod-validatoin.exception';
-import { TimeParserModule } from 'src/modules/time-parser/time-parser.module';
-import { CacheModule } from 'src/modules/cache/cache.module';
-import { CryptoService } from 'src/commons/services/crypto.service';
+import { TimeParserService } from 'modules/time-parser/services/time-parser.service/time-parser.service';
+import { ValidationError } from 'exceptions/zod-validatoin.exception';
+import { TimeParserModule } from 'modules/time-parser/time-parser.module';
+import { CacheModule } from 'modules/cache/cache.module';
+import { CryptoService } from 'commons/services/crypto.service';
 
 @Module({
   imports: [
@@ -98,40 +98,40 @@ import { CryptoService } from 'src/commons/services/crypto.service';
     },
     // CryptoService,
     // // We define a custom factory for our main Seeder class.
-    {
-      provide: TokenService,
-      useFactory: (
-        // The factory function receives the fully resolved dependencies as arguments.
-        prisma: PrismaService,
-        config: ConfigService,
-        jwt: JwtService,
-        parser: TimeParserService,
-        cls: ClsService,
-      ) => {
-        // 1. Manually create the main TokenService instance, passing in the helper instances.
-        return new TokenService(config, prisma, jwt, parser, cls);
-      },
-      // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
-      inject: [
-        PrismaService,
-        ConfigService,
-        JwtService,
-        TimeParserService,
-        ClsService,
-      ],
-    },
-    {
-      provide: PasswordUtils,
-      useFactory: (
-        // The factory function receives the fully resolved dependencies as arguments.
-        config: ConfigService,
-      ) => {
-        // 1. Manually create the main PasswordUtils instance, passing in the helper instances.
-        return new PasswordUtils(config);
-      },
-      // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
-      inject: [ConfigService],
-    },
+    // {
+    //   provide: TokenService,
+    //   useFactory: (
+    //     // The factory function receives the fully resolved dependencies as arguments.
+    //     prisma: PrismaService,
+    //     config: ConfigService,
+    //     jwt: JwtService,
+    //     parser: TimeParserService,
+    //     cls: ClsService,
+    //   ) => {
+    //     // 1. Manually create the main TokenService instance, passing in the helper instances.
+    //     return new TokenService(config, prisma, jwt, parser, cls);
+    //   },
+    //   // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
+    //   inject: [
+    //     PrismaService,
+    //     ConfigService,
+    //     JwtService,
+    //     TimeParserService,
+    //     ClsService,
+    //   ],
+    // },
+    // {
+    //   provide: PasswordUtils,
+    //   useFactory: (
+    //     // The factory function receives the fully resolved dependencies as arguments.
+    //     config: ConfigService,
+    //   ) => {
+    //     // 1. Manually create the main PasswordUtils instance, passing in the helper instances.
+    //     return new PasswordUtils(config);
+    //   },
+    //   // 2. List all the dependencies that the factory needs. NestJS will resolve these first.
+    //   inject: [ConfigService],
+    // },
     // {
     //   provide: PasswordUtils,
     //   useFactory: (config: ConfigService) => {
@@ -163,8 +163,8 @@ import { CryptoService } from 'src/commons/services/crypto.service';
         // The factory function receives the fully resolved dependencies as arguments.
         prisma: PrismaService,
         config: ConfigService,
-        tokenService: TokenService,
-        passwordUtils: PasswordUtils,
+        // tokenService: TokenService,
+        // passwordUtils: PasswordUtils,
         cryptoService: CryptoService,
       ) => {
         // 1. Manually create the main Seeder instance, passing in the helper instances.
@@ -180,8 +180,8 @@ import { CryptoService } from 'src/commons/services/crypto.service';
       inject: [
         PrismaService,
         ConfigService,
-        TokenService,
-        PasswordUtils,
+        // TokenService,
+        // PasswordUtils,
         CryptoService,
       ],
     },

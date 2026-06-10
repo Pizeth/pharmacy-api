@@ -4,16 +4,16 @@ import { UsersService } from './services/users.service';
 import { DBHelperModule } from '../helpers/helper.module';
 import { CommonModule } from 'commons/common.module';
 import { PasswordUtils } from 'commons/services/password-utils.service';
-import { TokenService } from 'commons/services/token.service';
+// import { TokenService } from 'commons/services/token.service';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [DBHelperModule, CommonModule, ConfigModule],
-  providers: [UsersService, PasswordUtils, TokenService],
+  providers: [UsersService, PasswordUtils /*, TokenService*/],
   exports: [
     UsersService,
     PasswordUtils,
-    TokenService,
+    /* TokenService, */
     CommonModule,
     DBHelperModule,
   ],

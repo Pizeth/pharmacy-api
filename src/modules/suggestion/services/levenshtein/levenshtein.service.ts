@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CacheService } from 'src/modules/cache/services/cache.service';
-import { LEVENSHTEIN_CACHE } from 'src/modules/cache/tokens/cache.tokens';
+import { CacheService } from 'modules/cache/services/cache.service';
+import { LEVENSHTEIN_CACHE } from 'modules/cache/tokens/cache.tokens';
 
 // @Injectable()
 // export class LevenshteinService {

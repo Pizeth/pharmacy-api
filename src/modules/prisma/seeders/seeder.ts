@@ -143,11 +143,11 @@ import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
 import { ConfigService } from '@nestjs/config';
-import { TokenService } from 'src/commons/services/token.service';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
-import { OidcSeeder } from './oidc.seeder';
-import { Prisma } from '@prisma/client';
-import { CryptoService } from 'src/commons/services/crypto.service';
+// import { TokenService } from 'commons/services/token.service';
+// import { PasswordUtils } from 'commons/services/password-utils.service';
+// import { OidcSeeder } from './oidc.seeder';
+import { Prisma } from 'generated/prisma/client';
+import { CryptoService } from 'commons/services/crypto.service';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -157,20 +157,25 @@ export class Seeder implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly tokenService: TokenService,
-    private readonly passwordUtils: PasswordUtils,
+    // private readonly tokenService: TokenService,
+    // private readonly passwordUtils: PasswordUtils,
     private readonly cryptoService: CryptoService,
+    private readonly userSeeder: UserSeeder,
+    private readonly roleSeeder: RoleSeeder,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
-    this.logger.debug(`TokenService injected: ${!!this.tokenService}`);
-    this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+    // this.logger.debug(`TokenService injected: ${!!this.tokenService}`);
+    // this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
   }
   onModuleInit() {
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
+    this.logger.debug(`CryptoService injected: ${!!this.cryptoService}`);
+    this.logger.debug(`UserSeeder injected: ${!!this.userSeeder}`);
+    this.logger.debug(`RoleSeeder injected: ${!!this.roleSeeder}`);
     // throw new Error('Method not implemented.');
   }
 
@@ -221,32 +226,32 @@ export class Seeder implements OnModuleInit {
 
     this.logger.log('Beginning Database seeding process...🌱');
 
-    // Manually instantiate seeders with dependencies
-    const roleSeeder = new RoleSeeder(this.prisma);
-    const userSeeder = new UserSeeder(
-      this.prisma,
-      this.config,
-      this.tokenService,
-      this.passwordUtils,
-    );
-    const oidcSeeder = new OidcSeeder(
-      this.prisma,
-      this.config,
-      this.cryptoService,
-    );
+    // // Manually instantiate seeders with dependencies
+    // const roleSeeder = new RoleSeeder(this.prisma);
+    // const userSeeder = new UserSeeder(
+    //   this.prisma,
+    //   this.config,
+    //   // this.tokenService,
+    //   // this.passwordUtils,
+    // );
+    // // const oidcSeeder = new OidcSeeder(
+    // //   this.prisma,
+    // //   this.config,
+    // //   this.cryptoService,
+    // // );
 
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         this.logger.log('🔧 Seeding roles...');
-        const roles = await roleSeeder.seed(tx);
+        const roles = await this.roleSeeder.seed(tx);
 
         this.logger.log('👤 Seeding users...');
-        const user = await userSeeder.seed(roles, tx);
+        const user = await this.userSeeder.seed(roles, tx);
 
-        this.logger.log('🔐 Seeding OIDC Providers...');
-        const providers = await oidcSeeder.seed(user, tx);
+        // this.logger.log('🔐 Seeding OIDC Providers...');
+        // const providers = await oidcSeeder.seed(user, tx);
 
-        return { roles, user, providers };
+        return { roles, user };
       },
       {
         maxWait: 5000, // default: 2000
@@ -263,8 +268,9 @@ export class Seeder implements OnModuleInit {
 
     await this.prisma.$transaction([
       // Clear in reverse order of dependencies
-      this.prisma.identityProvider.deleteMany(),
-      this.prisma.refreshToken.deleteMany(),
+      // this.prisma.identityProvider.deleteMany(),
+      // this.prisma.refreshToken.deleteMany(),
+      this.prisma.auditTrail.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
       this.prisma.role.deleteMany(),

@@ -1,15 +1,21 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import type { SuperAdminData } from 'src/types/seed';
-import { AuditTrail, Prisma, RefreshToken, Role } from '@prisma/client';
-import { TokenService } from 'src/commons/services/token.service';
-import { PasswordUtils } from 'src/commons/services/password-utils.service';
-import { RoleToken } from 'src/types/token';
-import { AuditActionType, AuditTargetType, Sex } from 'src/types/commons.enum';
+import type { SuperAdminData } from 'types/seed';
+import {
+  AuditTrail,
+  Prisma,
+  // RefreshToken,
+  Role,
+} from 'generated/prisma/client';
+// import { TokenService } from 'src/commons/services/token.service';
+// import { PasswordUtils } from 'src/commons/services/password-utils.service';
+import { RoleToken } from 'types/token';
+import { AuditActionType, AuditTargetType, Sex } from 'types/commons.enum';
 import { nanoid } from 'nanoid';
-import { UserDetail } from 'src/types/dto';
-import { AppError } from 'src/exceptions/app.exception';
+import { UserDetail } from 'types/dto';
+import { AppError } from 'exceptions/app.exception';
+import { hashPassword } from 'better-auth/crypto';
 
 @Injectable()
 export class UserSeeder {
@@ -19,214 +25,62 @@ export class UserSeeder {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly token: TokenService,
-    private readonly passwordUtils: PasswordUtils,
+    // private readonly token: TokenService,
+    // private readonly passwordUtils: PasswordUtils,
   ) {
     this.logger.debug('UserSeeder constructor called');
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
-    this.logger.debug(`TokenService injected: ${!!this.token}`);
-    this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+    // this.logger.debug(`TokenService injected: ${!!this.token}`);
+    // this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
+    // Pass your running NestJS Prisma driver instance right into the auth layer
   }
 
   async seed(
     roles: Role[],
     tx?: Prisma.TransactionClient,
   ): Promise<UserDetail> {
-    this.logger.log('🌱 Seeding super admin user...');
+    this.logger.log('🌱 Executing system administration data seeding...');
+
+    // 1. Generate hash strictly aligned with Better Auth's scrypt config rules
+    // ✅ Clean, independent, and error-free password hashing
+    const adminRawPassword = 'SecureAdminPassword123!';
+    const hashedAdminPassword = await hashPassword(adminRawPassword);
+
     this.logger.debug(`PrismaService resolved: ${!!this.prisma}`);
     this.logger.debug(`ConfigService resolved: ${!!this.config}`);
-    this.logger.debug(`TokenService resolved: ${!!this.token}`);
-    this.logger.debug(`PasswordUtils resolved: ${!!this.passwordUtils}`);
+    // this.logger.debug(`TokenService resolved: ${!!this.token}`);
+    // this.logger.debug(`PasswordUtils resolved: ${!!this.passwordUtils}`);
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const superAdminData = this.getSuperAdminData(roles);
     try {
-      // Wrap the operations in an atomic transaction.
-      // const result = await this.prisma.$transaction(async (tx) => {
-      //   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days.
-      //   // Step 1: Upsert the super admin.
-      //   const superAdmin = await tx.user.upsert({
-      //     where: { email: superAdminData.email },
-      //     update: {
-      //       // Update fields as needed if the user already exists.
-      //       roleId: superAdminData.roleId,
-      //       lastUpdatedBy: 0, // Placeholder (will be replaced).
-      //     },
-      //     create: {
-      //       username: superAdminData.username,
-      //       email: superAdminData.email,
-      //       password: await this.passwordUtils.hash(superAdminData.password),
-      //       avatar: superAdminData.avatar,
-      //       roleId: superAdminData.roleId,
-      //       isVerified: true, // Assuming the super admin is always verified.
-      //       // Using nested writes for related data.
-      //       profile: {
-      //         create: {
-      //           firstName: superAdminData.profile.firstName,
-      //           lastName: superAdminData.profile.lastName,
-      //           sex: superAdminData.profile.sex,
-      //           dob: new Date(superAdminData.profile.dob),
-      //           pob: superAdminData.profile.pob,
-      //           address: superAdminData.profile.address,
-      //           phone: superAdminData.profile.phone,
-      //           married: superAdminData.profile.married,
-      //           bio: superAdminData.profile.bio || '',
-      //           createdBy: 0, // Placeholder for audit field.
-      //           lastUpdatedBy: 0, // Placeholder (will be replaced).
-      //         },
-      //       },
-      //       refreshTokens: {
-      //         create: {
-      //           token: await this.token.generateToken(
-      //             {
-      //               sub: 0, // Placeholder.
-      //               username: superAdminData.username,
-      //               email: superAdminData.email,
-      //               role: this.getRoleToken(superAdminData.role),
-      //               avatar: superAdminData.avatar,
-      //               authMethod: superAdminData.authMethod,
-      //               ip: 'LOCALHOST',
-      //             },
-      //             '7d',
-      //           ),
-      //           expiresAt: expiresAt,
-      //         },
-      //       },
-      //       createdBy: 0, // Placeholder.
-      //       lastUpdatedBy: 0, // Placeholder.
-      //       auditTrail: {
-      //         create: {
-      //           action: AuditActionType.CREATE,
-      //           targetType: AuditTargetType.User,
-      //           targetId: '0', // Placeholder.
-      //           userAgent: 'SYSTEM',
-      //           timestamp: new Date(),
-      //           ipAddress: 'LOCALHOST',
-      //           description: 'DEFAULT_ADMIN_SEEDED',
-      //         },
-      //       },
-      //     },
-      //     include: {
-      //       profile: true,
-      //       role: true,
-      //       refreshTokens: true,
-      //       auditTrail: true,
-      //     },
-      //   });
-
-      //   // Step 2: Update the just created user with its own id for audit fields.
-      //   const userId = superAdmin.id;
-
-      //   const { auditTrail, refreshTokens, ...user } = superAdmin;
-
-      //   const updatedRoles = await tx.role.updateManyAndReturn({
-      //     where: { createdBy: 0, lastUpdatedBy: 0 }, //Roles that was created using Placeholder
-      //     data: { createdBy: userId, lastUpdatedBy: userId },
-      //   });
-
-      //   // this.logger.debug('Super Admin data', superAdmin);
-      //   this.logger.debug('current id', superAdmin.id);
-
-      //   const updatedSuperAdmin = await tx.user.update({
-      //     where: { id: userId },
-      //     data: {
-      //       createdBy: userId,
-      //       lastUpdatedBy: userId,
-      //       profile: {
-      //         update: {
-      //           createdBy: userId,
-      //           lastUpdatedBy: userId,
-      //         },
-      //       },
-      //       // (Optionally) update refreshTokens if they need to reference the user's id.
-      //       refreshTokens: {
-      //         update: {
-      //           where: {
-      //             id: this.getSeedToken(refreshTokens, userId, expiresAt),
-      //           },
-      //           data: {
-      //             token: await this.token.generateToken(
-      //               {
-      //                 sub: userId,
-      //                 username: superAdmin.username,
-      //                 email: superAdmin.email,
-      //                 role: this.getRoleToken(superAdmin.role),
-      //                 avatar: superAdmin.avatar,
-      //                 authMethod: superAdmin.authMethod,
-      //                 ip: 'LOCALHOST',
-      //               },
-      //               '7d',
-      //             ),
-      //           },
-      //         },
-      //       },
-      //       auditTrail: {
-      //         update: {
-      //           where: {
-      //             id: this.getSeedAudit(
-      //               auditTrail,
-      //               userId,
-      //               '0', // Matched the Initialize place holder
-      //             ),
-      //           },
-      //           data: {
-      //             targetId: String(userId),
-      //             oldValues: user,
-      //             sessionId: nanoid(),
-      //           },
-      //         },
-      //       },
-      //     },
-      //     include: {
-      //       role: true,
-      //       profile: true,
-      //       identities: {
-      //         include: {
-      //           provider: true,
-      //         },
-      //       },
-      //       refreshTokens: true,
-      //       auditTrail: true,
-      //     },
-      //   });
-
-      //   // If you need the actual userId for the token after creation and it's not 1
-      //   if (
-      //     updatedRoles.every(
-      //       (role) =>
-      //         role.createdBy !== userId || role.lastUpdatedBy !== userId,
-      //     ) ||
-      //     (updatedSuperAdmin.refreshTokens.length > 0 &&
-      //       updatedSuperAdmin.refreshTokens.find(
-      //         (token) => token.userId !== userId,
-      //       ))
-      //   ) {
-      //     this.logger.log(
-      //       `Admin user created/found with ID: ${userId}. Initial token was for placeholder ID.`,
-      //     );
-      //     // Optionally, you could update the token here if userId is crucial for its payload
-      //     // and different from a hardcoded one. For simplicity, this step is often skipped in basic seeds.
-      //   }
-
-      //   return updatedSuperAdmin;
-      // });
-
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days.
       // Step 1: Upsert the super admin.
       const superAdmin = await prismaClient.user.upsert({
         where: { email: superAdminData.email },
         update: {
           // Update fields as needed if the user already exists.
-          roleId: superAdminData.roleId,
+          // roleId: superAdminData.roleId,
           // lastUpdatedBy: 0, // Placeholder (will be replaced).
         },
         create: {
-          username: superAdminData.username,
+          name: superAdminData.username,
           email: superAdminData.email,
-          password: await this.passwordUtils.hash(superAdminData.password),
-          avatar: superAdminData.avatar,
+          // password: await this.passwordUtils.hash(superAdminData.password),
+          // avatar: superAdminData.avatar,
           roleId: superAdminData.roleId,
-          isVerified: true, // Assuming the super admin is always verified.
+          // isVerified: true, // Assuming the super admin is always verified.
+          emailVerified: true,
+          isActivated: true,
+          role: 'sys-admin', // Kept for default admin() plugin compliance
+          accounts: {
+            create: {
+              userId: 0,
+              accountId: `local-${superAdminData.email}`,
+              password: hashedAdminPassword,
+              providerId: 'credential',
+            },
+          },
           // Using nested writes for related data.
           profile: {
             create: {
@@ -243,23 +97,23 @@ export class UserSeeder {
               lastUpdatedBy: 0, // Placeholder (will be replaced).
             },
           },
-          refreshTokens: {
-            create: {
-              token: await this.token.generateToken(
-                {
-                  sub: 0, // Placeholder.
-                  username: superAdminData.username,
-                  email: superAdminData.email,
-                  role: this.getRoleToken(superAdminData.role),
-                  avatar: superAdminData.avatar,
-                  authMethod: superAdminData.authMethod,
-                  ip: 'LOCALHOST',
-                },
-                '7d',
-              ),
-              expiresAt: expiresAt,
-            },
-          },
+          // refreshTokens: {
+          //   create: {
+          //     token: await this.token.generateToken(
+          //       {
+          //         sub: 0, // Placeholder.
+          //         username: superAdminData.username,
+          //         email: superAdminData.email,
+          //         role: this.getRoleToken(superAdminData.role),
+          //         avatar: superAdminData.avatar,
+          //         authMethod: superAdminData.authMethod,
+          //         ip: 'LOCALHOST',
+          //       },
+          //       '7d',
+          //     ),
+          //     expiresAt: expiresAt,
+          //   },
+          // },
           createdBy: 0, // Placeholder.
           lastUpdatedBy: 0, // Placeholder.
           auditTrail: {
@@ -275,14 +129,14 @@ export class UserSeeder {
           },
         },
         include: {
-          role: true,
+          userRole: true,
           profile: true,
-          identities: {
-            include: {
-              provider: true,
-            },
-          },
-          refreshTokens: true,
+          // identities: {
+          //   include: {
+          //     provider: true,
+          //   },
+          // },
+          // refreshTokens: true,
           auditTrail: true,
         },
       });
@@ -290,7 +144,7 @@ export class UserSeeder {
       // Step 2: Update the just created user with its own id for audit fields.
       const userId = superAdmin.id;
 
-      const { auditTrail, refreshTokens, ...user } = superAdmin;
+      const { auditTrail, /*refreshTokens,*/ ...user } = superAdmin;
 
       // this.logger.debug('Super Admin data', superAdmin);
       // this.logger.debug('current id', userId);
@@ -304,18 +158,17 @@ export class UserSeeder {
       //   ),
       // );
 
-      const refreshTokenId = this.getSeedToken(
-        refreshTokens,
-        userId,
-        expiresAt,
-      );
-      this.logger.debug('Refresh token ID', refreshTokenId);
+      // const refreshTokenId = this.getSeedToken(
+      //   refreshTokens,
+      //   userId,
+      //   expiresAt,
+      // );
+      // this.logger.debug('Refresh token ID', refreshTokenId);
 
       const auditTrailId = this.getSeedAudit(auditTrail, userId, '0');
       this.logger.debug('Audit trail ID', auditTrailId);
 
-      if (!refreshTokenId || !auditTrailId)
-        return superAdmin as unknown as UserDetail;
+      // if (!refreshTokenId || !auditTrailId) return superAdmin;
 
       const updatedRoles = await prismaClient.role.updateManyAndReturn({
         where: { createdBy: 0, lastUpdatedBy: 0 }, //Roles that was created using Placeholder
@@ -334,27 +187,27 @@ export class UserSeeder {
             },
           },
           // (Optionally) update refreshTokens if they need to reference the user's id.
-          refreshTokens: {
-            update: {
-              where: {
-                id: refreshTokenId,
-              },
-              data: {
-                token: await this.token.generateToken(
-                  {
-                    sub: userId,
-                    username: superAdmin.username,
-                    email: superAdmin.email,
-                    role: this.getRoleToken(superAdmin.role),
-                    avatar: superAdmin.avatar,
-                    authMethod: superAdmin.authMethod,
-                    ip: 'LOCALHOST',
-                  },
-                  '7d',
-                ),
-              },
-            },
-          },
+          // refreshTokens: {
+          //   update: {
+          //     where: {
+          //       id: refreshTokenId,
+          //     },
+          //     data: {
+          //       token: await this.token.generateToken(
+          //         {
+          //           sub: userId,
+          //           username: superAdmin.username,
+          //           email: superAdmin.email,
+          //           role: this.getRoleToken(superAdmin.role),
+          //           avatar: superAdmin.avatar,
+          //           authMethod: superAdmin.authMethod,
+          //           ip: 'LOCALHOST',
+          //         },
+          //         '7d',
+          //       ),
+          //     },
+          //   },
+          // },
           auditTrail: {
             update: {
               where: {
@@ -417,7 +270,7 @@ export class UserSeeder {
       this.logger.log(
         `✅ Super admin created/verified: ${updatedSuperAdmin.email}`,
       );
-      return updatedSuperAdmin as unknown as UserDetail;
+      return updatedSuperAdmin;
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         // The `error.code` is a known error code
@@ -495,7 +348,7 @@ export class UserSeeder {
       roles.find((role) => role.name === roleName) ||
       (roles.length > 0
         ? roles[0]
-        : ({
+        : {
             id: 1,
             name: 'SUPER_ADMIN',
             description: 'Super Administrator Role',
@@ -505,7 +358,7 @@ export class UserSeeder {
             lastUpdatedBy: 0,
             lastUpdatedDate: new Date(),
             objectVersionId: 1,
-          } as Role))
+          })
     );
   }
 

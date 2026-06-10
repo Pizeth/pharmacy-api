@@ -1,17 +1,17 @@
 // src/utils/levenshtein/suggestion.engine.ts
 import { Injectable, OnModuleInit, Logger, Inject } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
-import { CacheService } from 'src/modules/cache/services/cache.service';
+import { CacheService } from 'modules/cache/services/cache.service';
 import {
   LEVENSHTEIN_CACHE,
   SUGGESTION_CACHE,
-} from 'src/modules/cache/tokens/cache.tokens';
+} from 'modules/cache/tokens/cache.tokens';
 import suggestionConfig from '../configs/suggestion.config';
 import { BKTreeService } from './bk-tree/bk-tree.service';
 import { LevenshteinService } from './levenshtein/levenshtein.service';
 import { TrieService } from './trie/trie.service';
 import { TrigramIndexService } from './trigram/trigram-index.service';
-import { CacheStats } from 'src/modules/cache/interfaces/caches';
+import { CacheStats } from 'modules/cache/interfaces/caches';
 import {
   AdvancedBenchmarkResult,
   AutoTuneOptions,

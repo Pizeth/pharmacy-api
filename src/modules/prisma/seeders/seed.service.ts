@@ -76,7 +76,7 @@ export class SeedService {
     await this.prisma.$transaction([
       // Clear in reverse order of dependencies
       this.prisma.auditTrail.deleteMany(),
-      this.prisma.refreshToken.deleteMany(),
+      // this.prisma.refreshToken.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
       // Add other cleanup as needed
