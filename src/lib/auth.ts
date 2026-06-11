@@ -20,6 +20,8 @@ import { passkey } from '@better-auth/passkey';
 import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
 import { PrismaClient } from 'generated/prisma/client';
+import { GENERIC_PROVIDERS_CONFIG, SOCIAL_PROVIDERS_CONFIG } from 'types/auth';
+
 // Factory function so we can inject our existing PrismaService
 export function createAuth(prisma: PrismaClient) {
   return betterAuth({
@@ -50,20 +52,7 @@ export function createAuth(prisma: PrismaClient) {
       //   });
       // },
     },
-    socialProviders: {
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      },
-      facebook: {
-        clientId: process.env.FACEBOOK_CLIENT_ID!,
-        clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-      },
-      // apple: {
-      //   clientId: process.env.APPLE_CLIENT_ID!,
-      //   clientSecret: process.env.APPLE_CLIENT_SECRET!,
-      // },
-    },
+    socialProviders: SOCIAL_PROVIDERS_CONFIG,
     user: {
       additionalFields: {
         // Role relation — CASL reads this to load permissions
@@ -156,16 +145,17 @@ export function createAuth(prisma: PrismaClient) {
       //   },
       // }),
       genericOAuth({
-        config: [
-          {
-            providerId: 'telegram',
-            clientId: process.env.TELEGRAM_CLIENT_ID!,
-            clientSecret: process.env.TELEGRAM_CLIENT_SECRET!,
-            discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL!,
-            // ... other config options
-          },
-          // Add more providers as needed
-        ],
+        config: GENERIC_PROVIDERS_CONFIG,
+        // [
+        //   {
+        //     providerId: 'telegram',
+        //     clientId: process.env.TELEGRAM_CLIENT_ID!,
+        //     clientSecret: process.env.TELEGRAM_CLIENT_SECRET!,
+        //     discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL!,
+        //     // ... other config options
+        //   },
+        //   // Add more providers as needed
+        // ],
       }),
       i18n({
         translations: {
@@ -200,6 +190,3 @@ export function createAuth(prisma: PrismaClient) {
     },
   });
 }
-
-// Type export for convenience
-export type Auth = ReturnType<typeof createAuth>;

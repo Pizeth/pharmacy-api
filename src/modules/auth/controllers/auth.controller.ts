@@ -1,6 +1,11 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
-import { Auth } from 'lib/auth';
+import {
+  Auth,
+  ACTIVE_SOCIAL_PROVIDERS,
+  ACTIVE_GENERIC_PROVIDERS,
+} from 'types/auth';
+// import { Auth } from 'lib/auth';
 // import { Auth } from '../auth';
 
 @Controller('auth')
@@ -21,5 +26,15 @@ export class AuthController {
   @Get('me')
   getMe(@Session() session: UserSession<Auth>) {
     return session.user;
+  }
+
+  @Get('providers')
+  getEnabledProviders() {
+    return {
+      // Direct list of what you initialized in your createAuth() factory
+      // Send active OAuth targets so Next.js can map buttons dynamically
+      social: ACTIVE_SOCIAL_PROVIDERS,
+      generic: ACTIVE_GENERIC_PROVIDERS,
+    };
   }
 }

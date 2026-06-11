@@ -1,10 +1,10 @@
-import { HttpStatus, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import data from '../data/roles.json';
-import { Prisma, Role } from '@prisma/client';
-import { AppError } from 'src/exceptions/app.exception';
+import { Prisma, Role } from 'generated/prisma/client';
+import { AppError } from 'exceptions/app.exception';
 
-// @Injectable()
+@Injectable()
 export class RoleSeeder {
   private readonly context = RoleSeeder.name;
   private readonly logger = new Logger(this.context);
@@ -15,7 +15,9 @@ export class RoleSeeder {
   }
 
   async seed(tx?: Prisma.TransactionClient): Promise<Role[]> {
-    this.logger.log('🌱 Seeding roles from roles.json...');
+    this.logger.log(
+      '🌱 Seeding database structures from internal matrix roles configuration JSON payload...',
+    );
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const roles = this.getRolesFromData();
     try {
@@ -27,10 +29,15 @@ export class RoleSeeder {
         });
       }
 
-      this.logger.log(`✅ Seeded ${roles.length} roles`);
+      this.logger.log(
+        `✅ Structural initialization verification finished: mapped ${roles.length} core roles.`,
+      );
       return await prismaClient.role.findMany({ where: { isEnabled: true } });
     } catch (error) {
-      this.logger.error('Failed to seed roles:', error);
+      this.logger.error(
+        'CRITICAL: Role structural initialization operation broken',
+        error,
+      );
       throw new AppError(
         'Failed to seed roles',
         HttpStatus.INTERNAL_SERVER_ERROR,
