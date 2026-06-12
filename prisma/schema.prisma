@@ -322,6 +322,7 @@ model User {
   phoneNumberVerified Boolean?
   roleId              Int?        @map("role_id")
   // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
+  mustChangePassword  Boolean?    @default(false)
   userRole            Role?       @relation(fields: [roleId], references: [id])
   isEnabled           Boolean?    @default(true)
   isLocked            Boolean?    @default(false)

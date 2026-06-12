@@ -66,7 +66,7 @@ export class UserSeeder {
               married: superAdminData.profile.married,
               bio: superAdminData.profile.bio || '',
               createdBy: 0, // Placeholder for audit field.
-              lastUpdatedBy: 0, // Placeholder (will be replaced).
+              updatedBy: 0, // Placeholder (will be replaced).
             },
           },
           createdBy: 0, // Placeholder.

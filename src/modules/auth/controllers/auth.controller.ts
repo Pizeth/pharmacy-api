@@ -1,10 +1,7 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
-import {
-  Auth,
-  ACTIVE_SOCIAL_PROVIDERS,
-  ACTIVE_GENERIC_PROVIDERS,
-} from 'types/auth';
+import { Auth } from 'lib/auth';
+import { ACTIVE_SOCIAL_PROVIDERS, ACTIVE_GENERIC_PROVIDERS } from 'types/auth';
 // import { Auth } from 'lib/auth';
 // import { Auth } from '../auth';
 

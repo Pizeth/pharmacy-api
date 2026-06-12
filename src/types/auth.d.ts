@@ -1,7 +1,8 @@
-import { createAuth } from 'lib/auth';
+// import { createAuth } from 'lib/auth';
+// import { BetterAuthOptions } from 'better-auth';
 
 // Type export for convenience
-export type Auth = ReturnType<typeof createAuth>;
+// export type Auth = ReturnType<typeof createAuth>;
 
 // 💡 Define exact provider strings here using a standard string literal union
 const GENERIC_PROVIDER_IDS = ['telegram'] as const;
@@ -81,3 +82,10 @@ export type ConfiguredProviderId =
   | ActiveBaseProviders
   | ActiveSocials
   | ActiveGenerics;
+
+// // 1. Explicitly type options-factory function
+// export declare const options: (prisma: PrismaClient) => BetterAuthOptions;
+
+// // 2. Infer the exact schema type returned by the function
+// // (This ensures plugins, additional fields, and configurations carry over cleanly)
+// export type AuthOptions = ReturnType<typeof options>;
