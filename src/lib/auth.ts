@@ -62,6 +62,12 @@ export function createAuth(prisma: PrismaClient) {
           input: false, // never set by the client
         },
         // Security flags not covered by admin() plugin
+        mustChangePassword: {
+          type: 'boolean',
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
         isEnabled: {
           type: 'boolean',
           required: false,

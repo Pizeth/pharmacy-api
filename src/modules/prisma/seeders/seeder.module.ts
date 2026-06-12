@@ -1,20 +1,10 @@
-import { Module, Logger } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-// import { JwtModule, JwtService } from '@nestjs/jwt';
-// import { TokenService } from 'src/commons/services/token.service';
-// import { PasswordUtils } from 'src/commons/services/password-utils.service';
-import { PrismaService } from '../services/prisma.service';
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma.module';
-// import { logger } from 'nestjs-i18n/dist/utils';
+import { logger } from 'nestjs-i18n/dist/utils';
 import { configurationSchema } from 'validation/configuration.schema';
 import z, { ZodError } from 'zod';
-import { ClsModule, ClsService } from 'nestjs-cls';
-// import { TimeParserService } from 'modules/time-parser/services/time-parser.service/time-parser.service';
 import { ValidationError } from 'exceptions/zod-validatoin.exception';
-import { TimeParserModule } from 'modules/time-parser/time-parser.module';
-import { CacheModule } from 'modules/cache/cache.module';
-import { CryptoService } from 'commons/services/crypto.service';
-
 // Seed Engine Framework Components
 import { Seeder } from './seeder';
 import { UserSeeder } from './user.seeder';
@@ -29,7 +19,7 @@ import { RoleSeeder } from './role.seeder';
       validate: (config: Record<string, any>) => {
         try {
           const validatedConfig = configurationSchema.parse(config);
-          Logger.log('✅ Configuration validation successful', 'SeederModule');
+          logger.log('✅ Configuration validation successful', 'SeederModule');
           return validatedConfig;
         } catch (error: unknown) {
           if (error instanceof ZodError) {
@@ -52,7 +42,7 @@ import { RoleSeeder } from './role.seeder';
           //   '❌ Unexpected error during configuration validation:',
           //   error,
           // );
-          Logger.error(
+          logger.error(
             '❌ Unexpected fatal error encountered during configuration validation:',
             error,
             'SeederModule',
@@ -61,43 +51,8 @@ import { RoleSeeder } from './role.seeder';
         }
       },
     }),
-    // Configure JwtModule here as well, since TokenService depends on it.
-    // JwtModule.registerAsync({
-    //   imports: [ConfigModule],
-    //   inject: [ConfigService],
-    //   useFactory: (config: ConfigService) => ({
-    //     secret: config.get('SECRET_KEY'), // Or a default for seeding
-    //     signOptions: { expiresIn: config.get('EXPIRES_IN') }, // Or a default
-    //   }),
-    // }),
-    // Setup ClsModule globally.
-    // ClsModule.forRoot({
-    //   global: true, // Make the ClsService available everywhere
-    //   middleware: {
-    //     // Mount the middleware automatically for all routes
-    //     mount: true,
-    //     // This function runs for every request
-    //     // Here, we can extract data from the request and store it in the context
-    //     // setup: (cls, req: { ip?: string; headers: Record<string, any> }) => {
-    //     setup: (cls, req: Request) => {
-    //       cls.set('ip', req.ip);
-    //       cls.set('userId', req.headers['x-user-id']);
-    //       cls.set('correlationId', req.headers['x-correlation-id'] ?? uuidv4());
-    //       cls.set('userAgent', req.headers['user-agent']);
-    //       cls.set('url', req.url);
-    //       cls.set('method', req.method);
-    //       // If you use an auth guard that sets `req.user`, you can set it here too
-    //       // cls.set('user', req.user);
-    //     },
-    //   },
-    // }),
-    // UserModule,
-    // JwtModule,
-    // ClsModule,
-    // CacheModule,
-    // TimeParserModule,
   ],
-  providers: [CryptoService, RoleSeeder, UserSeeder, Seeder],
+  providers: [RoleSeeder, UserSeeder, Seeder],
   exports: [Seeder],
 })
 export class SeederModule {}

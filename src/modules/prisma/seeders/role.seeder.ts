@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import data from '../data/roles.json';
 import { Prisma, Role } from 'generated/prisma/client';
@@ -9,7 +9,7 @@ export class RoleSeeder {
   private readonly context = RoleSeeder.name;
   private readonly logger = new Logger(this.context);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {
     this.logger.debug(`${this.constructor.name} initialized`);
     this.logger.debug(`PrismaService injected: ${!!prisma}`);
   }
@@ -52,7 +52,7 @@ export class RoleSeeder {
       name: role.name,
       description: role.description,
       createdBy: Number(role.createdBy) || 1,
-      lastUpdatedBy: Number(role.lastUpdatedBy) || 1,
+      updatedBy: Number(role.updatedBy) || 1,
     }));
   }
 }

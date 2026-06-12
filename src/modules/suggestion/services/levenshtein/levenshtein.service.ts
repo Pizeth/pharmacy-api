@@ -238,7 +238,7 @@ export class LevenshteinService implements OnModuleInit {
    * - Results are cached locally and in a distributed cache for performance.
    * - Local cache is periodically pruned to maintain a maximum size.
    */
-  calculateDistance(a: string, b: string, threshold: number): number {
+  calculateDistance(a: string, b: string, threshold = 3): number {
     // Quick equality check
     if (a === b) return 0;
 

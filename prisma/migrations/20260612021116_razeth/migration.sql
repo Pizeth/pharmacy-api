@@ -1,11 +1,14 @@
 -- CreateEnum
+CREATE TYPE "AuditActionType" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'LOGIN_SUCCESS', 'LOGIN_FAILURE', 'LOCKED', 'BANNED', 'DISABLED', 'PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_SUCCESS', 'MFA_ENABLED', 'MFA_DISABLED');
+
+-- CreateEnum
+CREATE TYPE "AuditTargetType" AS ENUM ('User', 'Role', 'Profile', 'Product', 'Category', 'SubCategory', 'Order', 'OrderLine', 'Invoice', 'Customer', 'Supplier');
+
+-- CreateEnum
 CREATE TYPE "sex_enum" AS ENUM ('Male', 'Female', 'Bi');
 
 -- CreateEnum
-CREATE TYPE "role_enum" AS ENUM ('USER', 'CASHIER', 'MANAGER', 'ADMIN', 'SUPER_ADMIN');
-
--- CreateEnum
-CREATE TYPE "AuthMethod" AS ENUM ('PASSWORD', 'GOOGLE', 'MICROSOFT', 'APPLE', 'FACEBOOK', 'TWITTER', 'GITHUB');
+CREATE TYPE "AuthMethod" AS ENUM ('PASSWORD', 'OIDC', 'TOKEN', 'BIO_METRIC', 'MFA', 'CBA', 'QR');
 
 -- CreateEnum
 CREATE TYPE "LoginStatus" AS ENUM ('SUCCESS', 'FAILED', 'LOCKED');
@@ -14,76 +17,224 @@ CREATE TYPE "LoginStatus" AS ENUM ('SUCCESS', 'FAILED', 'LOCKED');
 CREATE TYPE "cashier_type_enum" AS ENUM ('STAFF', 'MANAGER', 'OWNER');
 
 -- CreateTable
-CREATE TABLE "AuditTrail" (
+CREATE TABLE "audit_trails" (
     "id" SERIAL NOT NULL,
-    "action" TEXT NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "user_id" INTEGER,
     "ip_address" TEXT NOT NULL,
-    "user_id" INTEGER NOT NULL,
+    "action" "AuditActionType" NOT NULL,
+    "target_type" "AuditTargetType",
+    "target_id" TEXT,
     "description" TEXT,
+    "old_values" JSONB,
+    "new_values" JSONB,
+    "user_agent" JSONB,
+    "session_id" TEXT,
 
-    CONSTRAINT "AuditTrail_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "audit_trails_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "MFABackupCode" (
+CREATE TABLE "mfa_backup_codes" (
     "id" SERIAL NOT NULL,
     "user_id" INTEGER NOT NULL,
     "code" TEXT NOT NULL,
     "used" BOOLEAN NOT NULL DEFAULT false,
     "expires_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "MFABackupCode_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "mfa_backup_codes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "LoginAttempt" (
+CREATE TABLE "login_attempts" (
     "id" SERIAL NOT NULL,
     "user_id" INTEGER,
     "username" TEXT NOT NULL,
     "ip_address" TEXT NOT NULL,
     "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" "LoginStatus" NOT NULL,
-    "user_agent" TEXT,
+    "reason" TEXT,
+    "locale" TEXT,
+    "referer" TEXT,
+    "user_agent" JSONB,
 
-    CONSTRAINT "LoginAttempt_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "login_attempts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "RefreshToken" (
+CREATE TABLE "roles" (
     "id" SERIAL NOT NULL,
-    "token" TEXT NOT NULL,
-    "user_id" INTEGER NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "users" (
-    "id" SERIAL NOT NULL,
-    "username" VARCHAR(50) NOT NULL,
-    "email" VARCHAR(50) NOT NULL,
-    "password" TEXT NOT NULL,
-    "avatar" VARCHAR(255),
-    "role" "role_enum" NOT NULL DEFAULT 'USER',
-    "auth_method" "AuthMethod" DEFAULT 'PASSWORD',
-    "mfa_secret" TEXT,
-    "mfa_enabled" BOOLEAN NOT NULL DEFAULT false,
-    "login_attemps" INTEGER NOT NULL DEFAULT 0,
-    "last_login" TIMESTAMP(6),
-    "is_ban" BOOLEAN NOT NULL DEFAULT false,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
-    "is_locked" BOOLEAN NOT NULL DEFAULT false,
-    "deleted_at" TIMESTAMP(3),
+    "name" VARCHAR(50) NOT NULL,
+    "description" VARCHAR(255),
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
     "last_updated_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "object_version_id" INTEGER NOT NULL DEFAULT 1,
 
-    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "permissions" (
+    "id" SERIAL NOT NULL,
+    "action" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
+
+    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "role_permissions" (
+    "role_id" INTEGER NOT NULL,
+    "permission_id" INTEGER NOT NULL,
+
+    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("role_id","permission_id")
+);
+
+-- CreateTable
+CREATE TABLE "user" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "image" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "role" TEXT,
+    "banned" BOOLEAN DEFAULT false,
+    "banReason" TEXT,
+    "banExpires" TIMESTAMP(3),
+    "username" TEXT,
+    "displayUsername" TEXT,
+    "twoFactorEnabled" BOOLEAN DEFAULT false,
+    "lastLoginMethod" TEXT,
+    "phoneNumber" TEXT,
+    "phoneNumberVerified" BOOLEAN,
+    "role_id" INTEGER,
+    "isEnabled" BOOLEAN DEFAULT true,
+    "isLocked" BOOLEAN DEFAULT false,
+    "isActivated" BOOLEAN DEFAULT false,
+    "deletedAt" TEXT,
+    "createdBy" INTEGER,
+    "lastUpdatedBy" INTEGER,
+    "objectVersionId" INTEGER DEFAULT 1,
+
+    CONSTRAINT "user_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session" (
+    "id" SERIAL NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "token" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "userId" INTEGER NOT NULL,
+    "impersonatedBy" TEXT,
+
+    CONSTRAINT "session_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "account" (
+    "id" SERIAL NOT NULL,
+    "accountId" TEXT NOT NULL,
+    "providerId" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "accessToken" TEXT,
+    "refreshToken" TEXT,
+    "idToken" TEXT,
+    "accessTokenExpiresAt" TIMESTAMP(3),
+    "refreshTokenExpiresAt" TIMESTAMP(3),
+    "scope" TEXT,
+    "password" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "account_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verification" (
+    "id" SERIAL NOT NULL,
+    "identifier" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "verification_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "apikey" (
+    "id" SERIAL NOT NULL,
+    "configId" TEXT NOT NULL DEFAULT 'default',
+    "name" TEXT,
+    "start" TEXT,
+    "referenceId" TEXT NOT NULL,
+    "prefix" TEXT,
+    "key" TEXT NOT NULL,
+    "refillInterval" INTEGER,
+    "refillAmount" INTEGER,
+    "lastRefillAt" TIMESTAMP(3),
+    "enabled" BOOLEAN DEFAULT true,
+    "rateLimitEnabled" BOOLEAN DEFAULT true,
+    "rateLimitTimeWindow" INTEGER DEFAULT 86400000,
+    "rateLimitMax" INTEGER DEFAULT 10,
+    "requestCount" INTEGER DEFAULT 0,
+    "remaining" INTEGER,
+    "lastRequest" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "permissions" TEXT,
+    "metadata" TEXT,
+
+    CONSTRAINT "apikey_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "twoFactor" (
+    "id" SERIAL NOT NULL,
+    "secret" TEXT NOT NULL,
+    "backupCodes" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "verified" BOOLEAN DEFAULT true,
+
+    CONSTRAINT "twoFactor_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "passkey" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT,
+    "publicKey" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "credentialID" TEXT NOT NULL,
+    "counter" INTEGER NOT NULL,
+    "deviceType" TEXT NOT NULL,
+    "backedUp" BOOLEAN NOT NULL,
+    "transports" TEXT,
+    "createdAt" TIMESTAMP(3),
+    "aaguid" TEXT,
+
+    CONSTRAINT "passkey_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "jwks" (
+    "id" SERIAL NOT NULL,
+    "publicKey" TEXT NOT NULL,
+    "privateKey" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL,
+    "expiresAt" TIMESTAMP(3),
+
+    CONSTRAINT "jwks_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -96,11 +247,11 @@ CREATE TABLE "profiles" (
     "pob" VARCHAR(50),
     "address" VARCHAR(255),
     "phone" VARCHAR(255),
-    "married" BOOLEAN NOT NULL,
+    "married" BOOLEAN NOT NULL DEFAULT false,
     "bio" TEXT,
     "user_id" INTEGER NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
-    "hold_flag" VARCHAR(1),
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "hold_flag" BOOLEAN NOT NULL DEFAULT false,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -117,7 +268,7 @@ CREATE TABLE "cashiers" (
     "cashier_number" TEXT NOT NULL,
     "cashier_type" "cashier_type_enum" NOT NULL,
     "description" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "hold_flag" VARCHAR(1),
     "start_date" TIMESTAMP(3) NOT NULL,
     "end_date" TIMESTAMP(3),
@@ -138,7 +289,7 @@ CREATE TABLE "suppliers" (
     "phone" VARCHAR(255) NOT NULL,
     "address" VARCHAR(255),
     "description" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -155,7 +306,7 @@ CREATE TABLE "categories" (
     "name" VARCHAR(200) NOT NULL,
     "description" VARCHAR(255),
     "image" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -173,7 +324,7 @@ CREATE TABLE "sub_categories" (
     "name" VARCHAR(255) NOT NULL,
     "description" VARCHAR(255),
     "image" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -189,7 +340,7 @@ CREATE TABLE "manufacturers" (
     "name" VARCHAR(255) NOT NULL,
     "image" VARCHAR(255),
     "phone" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -204,7 +355,7 @@ CREATE TABLE "product_types" (
     "id" SERIAL NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "image" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -221,7 +372,7 @@ CREATE TABLE "product_unit" (
     "symbol" VARCHAR(10),
     "base_unit_id" INTEGER,
     "base_unit_ratio" DECIMAL(10,2),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -238,7 +389,7 @@ CREATE TABLE "product_specific_unit_hierarchies" (
     "parent_unit_id" INTEGER NOT NULL,
     "child_unit_id" INTEGER NOT NULL,
     "quantity" DECIMAL(10,2) NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -264,7 +415,7 @@ CREATE TABLE "products" (
     "image" VARCHAR(255),
     "base_unit_id" INTEGER NOT NULL,
     "base_unit_quantity" DECIMAL(10,2) NOT NULL DEFAULT 0,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -275,21 +426,21 @@ CREATE TABLE "products" (
 );
 
 -- CreateTable
-CREATE TABLE "Cocktail" (
+CREATE TABLE "cocktails" (
     "id" SERIAL NOT NULL,
     "cocktail_code" VARCHAR(30),
     "name" VARCHAR(200) NOT NULL,
     "short_name" VARCHAR(200) NOT NULL,
     "description" VARCHAR(500),
     "image" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
     "last_updated_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "object_version_id" INTEGER NOT NULL DEFAULT 1,
 
-    CONSTRAINT "Cocktail_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "cocktails_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -298,7 +449,7 @@ CREATE TABLE "cocktail_details" (
     "productId" INTEGER NOT NULL,
     "cocktailId" INTEGER NOT NULL,
     "quantity" DECIMAL(10,2),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -320,7 +471,7 @@ CREATE TABLE "stocks" (
     "imported_date" TIMESTAMP(6) NOT NULL,
     "expired_date" TIMESTAMP(6),
     "qr_code" VARCHAR(255) NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -335,7 +486,7 @@ CREATE TABLE "promotion_details" (
     "id" SERIAL NOT NULL,
     "product_id" INTEGER NOT NULL,
     "promotion_id" INTEGER NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -351,7 +502,7 @@ CREATE TABLE "promotions" (
     "promo_code" VARCHAR(70) NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "description" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -373,7 +524,7 @@ CREATE TABLE "product_transactions" (
     "cancel_flag" VARCHAR(1),
     "canceled_by" INTEGER,
     "cancel_reason" VARCHAR(1000),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -391,7 +542,7 @@ CREATE TABLE "warehouses" (
     "short_name" VARCHAR(30) NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "description" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -408,7 +559,7 @@ CREATE TABLE "stores" (
     "short_name" VARCHAR(30) NOT NULL,
     "name" VARCHAR(200) NOT NULL,
     "description" VARCHAR(255),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -427,7 +578,7 @@ CREATE TABLE "store_branches" (
     "description" VARCHAR(255),
     "parent_id" INTEGER,
     "manager_id" INTEGER,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -449,7 +600,7 @@ CREATE TABLE "orders" (
     "status" VARCHAR(30) NOT NULL,
     "description" VARCHAR(255),
     "hold_flag" VARCHAR(1),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -474,7 +625,7 @@ CREATE TABLE "order_lines" (
     "cancel_flag" VARCHAR(1),
     "canceled_by" INTEGER,
     "cancel_reason" VARCHAR(1000),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -496,7 +647,7 @@ CREATE TABLE "payments" (
     "payment_currency" VARCHAR(3) NOT NULL,
     "amount" DECIMAL(7,3) NOT NULL,
     "status" VARCHAR(1) NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -516,7 +667,7 @@ CREATE TABLE "payment_methods" (
     "cash_flag" VARCHAR(1),
     "default_flag" VARCHAR(1),
     "hold_flag" VARCHAR(1),
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -535,7 +686,7 @@ CREATE TABLE "invoices" (
     "description" VARCHAR(255),
     "amount" DECIMAL(7,3) NOT NULL,
     "currency_code" VARCHAR(3) NOT NULL,
-    "enabled_flag" BOOLEAN NOT NULL DEFAULT true,
+    "is_enabled" BOOLEAN NOT NULL DEFAULT true,
     "created_by" INTEGER NOT NULL,
     "created_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by" INTEGER NOT NULL,
@@ -546,7 +697,7 @@ CREATE TABLE "invoices" (
 );
 
 -- CreateTable
-CREATE TABLE "Customer" (
+CREATE TABLE "customers" (
     "id" SERIAL NOT NULL,
     "customerNumber" VARCHAR(30) NOT NULL,
     "mobileNumber" VARCHAR(30) NOT NULL,
@@ -555,7 +706,7 @@ CREATE TABLE "Customer" (
     "identifyNumber" VARCHAR(100),
     "description" VARCHAR(255),
     "registeredDate" TIMESTAMP(3),
-    "enabledFlag" VARCHAR(1) NOT NULL,
+    "isEnabled" VARCHAR(1) NOT NULL,
     "holdFlag" VARCHAR(1),
     "phoneNumber" VARCHAR(30),
     "address" VARCHAR(200),
@@ -565,32 +716,77 @@ CREATE TABLE "Customer" (
     "last_updated_date" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "object_version_id" INTEGER NOT NULL DEFAULT 1,
 
-    CONSTRAINT "Customer_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "AuditTrail_user_id_timestamp_idx" ON "AuditTrail"("user_id", "timestamp");
+CREATE INDEX "audit_trails_user_id_timestamp_idx" ON "audit_trails"("user_id", "timestamp");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MFABackupCode_code_key" ON "MFABackupCode"("code");
+CREATE INDEX "audit_trails_target_type_target_id_idx" ON "audit_trails"("target_type", "target_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RefreshToken_token_key" ON "RefreshToken"("token");
+CREATE INDEX "audit_trails_target_type_target_id_timestamp_idx" ON "audit_trails"("target_type", "target_id", "timestamp");
 
 -- CreateIndex
-CREATE INDEX "RefreshToken_user_id_idx" ON "RefreshToken"("user_id");
+CREATE INDEX "audit_trails_action_timestamp_idx" ON "audit_trails"("action", "timestamp");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
+CREATE INDEX "audit_trails_timestamp_idx" ON "audit_trails"("timestamp");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX "mfa_backup_codes_code_key" ON "mfa_backup_codes"("code");
 
 -- CreateIndex
-CREATE INDEX "users_username_email_idx" ON "users"("username", "email");
+CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_username_email_key" ON "users"("username", "email");
+CREATE UNIQUE INDEX "permissions_action_subject_key" ON "permissions"("action", "subject");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_email_key" ON "user"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_username_key" ON "user"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_phoneNumber_key" ON "user"("phoneNumber");
+
+-- CreateIndex
+CREATE INDEX "session_userId_idx" ON "session"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_token_key" ON "session"("token");
+
+-- CreateIndex
+CREATE INDEX "account_userId_idx" ON "account"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "account_providerId_accountId_key" ON "account"("providerId", "accountId");
+
+-- CreateIndex
+CREATE INDEX "verification_identifier_idx" ON "verification"("identifier");
+
+-- CreateIndex
+CREATE INDEX "apikey_configId_idx" ON "apikey"("configId");
+
+-- CreateIndex
+CREATE INDEX "apikey_referenceId_idx" ON "apikey"("referenceId");
+
+-- CreateIndex
+CREATE INDEX "apikey_key_idx" ON "apikey"("key");
+
+-- CreateIndex
+CREATE INDEX "twoFactor_secret_idx" ON "twoFactor"("secret");
+
+-- CreateIndex
+CREATE INDEX "twoFactor_userId_idx" ON "twoFactor"("userId");
+
+-- CreateIndex
+CREATE INDEX "passkey_userId_idx" ON "passkey"("userId");
+
+-- CreateIndex
+CREATE INDEX "passkey_credentialID_idx" ON "passkey"("credentialID");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "profiles_user_id_key" ON "profiles"("user_id");
@@ -644,13 +840,13 @@ CREATE UNIQUE INDEX "products_barcode_key" ON "products"("barcode");
 CREATE UNIQUE INDEX "products_reference_number_key" ON "products"("reference_number");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cocktail_cocktail_code_key" ON "Cocktail"("cocktail_code");
+CREATE UNIQUE INDEX "cocktails_cocktail_code_key" ON "cocktails"("cocktail_code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cocktail_name_key" ON "Cocktail"("name");
+CREATE UNIQUE INDEX "cocktails_name_key" ON "cocktails"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Cocktail_short_name_key" ON "Cocktail"("short_name");
+CREATE UNIQUE INDEX "cocktails_short_name_key" ON "cocktails"("short_name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "product_transactions_trx_number_key" ON "product_transactions"("trx_number");
@@ -683,19 +879,37 @@ CREATE UNIQUE INDEX "orders_order_number_key" ON "orders"("order_number");
 CREATE UNIQUE INDEX "invoices_invoice_number_key" ON "invoices"("invoice_number");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Customer_customerNumber_key" ON "Customer"("customerNumber");
+CREATE UNIQUE INDEX "customers_customerNumber_key" ON "customers"("customerNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Customer_mobileNumber_key" ON "Customer"("mobileNumber");
+CREATE UNIQUE INDEX "customers_mobileNumber_key" ON "customers"("mobileNumber");
 
 -- AddForeignKey
-ALTER TABLE "AuditTrail" ADD CONSTRAINT "AuditTrail_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "audit_trails" ADD CONSTRAINT "audit_trails_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RefreshToken" ADD CONSTRAINT "RefreshToken_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "profiles" ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user" ADD CONSTRAINT "user_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session" ADD CONSTRAINT "session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "account" ADD CONSTRAINT "account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "twoFactor" ADD CONSTRAINT "twoFactor_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "passkey" ADD CONSTRAINT "passkey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "cashiers" ADD CONSTRAINT "cashiers_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
@@ -731,7 +945,7 @@ ALTER TABLE "products" ADD CONSTRAINT "products_base_unit_id_fkey" FOREIGN KEY (
 ALTER TABLE "cocktail_details" ADD CONSTRAINT "cocktail_details_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "cocktail_details" ADD CONSTRAINT "cocktail_details_cocktailId_fkey" FOREIGN KEY ("cocktailId") REFERENCES "Cocktail"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cocktail_details" ADD CONSTRAINT "cocktail_details_cocktailId_fkey" FOREIGN KEY ("cocktailId") REFERENCES "cocktails"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "stocks" ADD CONSTRAINT "stocks_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
@@ -764,7 +978,7 @@ ALTER TABLE "orders" ADD CONSTRAINT "orders_branch_id_fkey" FOREIGN KEY ("branch
 ALTER TABLE "orders" ADD CONSTRAINT "orders_cashier_id_fkey" FOREIGN KEY ("cashier_id") REFERENCES "cashiers"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "orders" ADD CONSTRAINT "orders_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "orders" ADD CONSTRAINT "orders_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;

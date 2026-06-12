@@ -3,7 +3,7 @@
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
 import { createZodDto } from 'nestjs-zod';
-import { Sex } from 'src/types/commons.enum';
+import { Sex } from 'types/commons.enum';
 import { z } from 'zod';
 
 // Define Zod schema the validation schema
@@ -81,7 +81,7 @@ export const createProfileSchema = z.object({
   isEnabled: z.boolean().default(true),
   isHold: z.boolean().default(false),
   createdBy: z.coerce.number().int(),
-  lastUpdatedBy: z.coerce.number().int(),
+  updatedBy: z.coerce.number().int(),
   objectVersionId: z.coerce.number().int().default(1),
 });
 

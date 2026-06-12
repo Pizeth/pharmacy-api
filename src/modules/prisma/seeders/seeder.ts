@@ -138,7 +138,7 @@
 //   }
 // }
 
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { UserSeeder } from './user.seeder';
@@ -147,7 +147,7 @@ import { ConfigService } from '@nestjs/config';
 // import { PasswordUtils } from 'commons/services/password-utils.service';
 // import { OidcSeeder } from './oidc.seeder';
 import { Prisma } from 'generated/prisma/client';
-import { CryptoService } from 'commons/services/crypto.service';
+// import { CryptoService } from 'commons/services/crypto.service';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -155,28 +155,19 @@ export class Seeder implements OnModuleInit {
 
   // With a clean DI graph, we can go back to simple constructor injection.
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-    // private readonly tokenService: TokenService,
-    // private readonly passwordUtils: PasswordUtils,
-    private readonly cryptoService: CryptoService,
-    private readonly userSeeder: UserSeeder,
-    private readonly roleSeeder: RoleSeeder,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(UserSeeder) private readonly userSeeder: UserSeeder,
+    @Inject(RoleSeeder) private readonly roleSeeder: RoleSeeder,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
-    this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
-    this.logger.debug(`ConfigService injected: ${!!this.config}`);
-    // this.logger.debug(`TokenService injected: ${!!this.tokenService}`);
-    // this.logger.debug(`PasswordUtils injected: ${!!this.passwordUtils}`);
   }
   onModuleInit() {
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
-    this.logger.debug(`CryptoService injected: ${!!this.cryptoService}`);
     this.logger.debug(`UserSeeder injected: ${!!this.userSeeder}`);
     this.logger.debug(`RoleSeeder injected: ${!!this.roleSeeder}`);
-    // throw new Error('Method not implemented.');
   }
 
   async run(command: 'seed' | 'clear') {
@@ -210,7 +201,7 @@ export class Seeder implements OnModuleInit {
       'false',
     );
     this.logger.log(`allowProdSeeding is ${allowProdSeeding}`);
-    // .toLowerCase() === 'true';
+
     // Check if we're in production and have safety checks;
     if (
       nodeEnv === 'production' &&
@@ -226,20 +217,6 @@ export class Seeder implements OnModuleInit {
 
     this.logger.log('Beginning Database seeding process...🌱');
 
-    // // Manually instantiate seeders with dependencies
-    // const roleSeeder = new RoleSeeder(this.prisma);
-    // const userSeeder = new UserSeeder(
-    //   this.prisma,
-    //   this.config,
-    //   // this.tokenService,
-    //   // this.passwordUtils,
-    // );
-    // // const oidcSeeder = new OidcSeeder(
-    // //   this.prisma,
-    // //   this.config,
-    // //   this.cryptoService,
-    // // );
-
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         this.logger.log('🔧 Seeding roles...');
@@ -247,9 +224,6 @@ export class Seeder implements OnModuleInit {
 
         this.logger.log('👤 Seeding users...');
         const user = await this.userSeeder.seed(roles, tx);
-
-        // this.logger.log('🔐 Seeding OIDC Providers...');
-        // const providers = await oidcSeeder.seed(user, tx);
 
         return { roles, user };
       },
@@ -268,10 +242,9 @@ export class Seeder implements OnModuleInit {
 
     await this.prisma.$transaction([
       // Clear in reverse order of dependencies
-      // this.prisma.identityProvider.deleteMany(),
-      // this.prisma.refreshToken.deleteMany(),
       this.prisma.auditTrail.deleteMany(),
       this.prisma.profile.deleteMany(),
+      this.prisma.account.deleteMany(),
       this.prisma.user.deleteMany(),
       this.prisma.role.deleteMany(),
       // Add other cleanup as needed

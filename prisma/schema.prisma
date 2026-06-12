@@ -152,9 +152,9 @@ model Role {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -214,9 +214,9 @@ model RolePermission {
 //   // Audit and Tracking
 //   deletedAt       DateTime? @map("deleted_at")
 //   createdBy       Int?      @map("created_by")
-//   createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
-//   lastUpdatedBy   Int?      @map("last_updated_by")
-//   lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+//   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+//   updatedBy   Int?      @map("updated_by")
+//   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 //   objectVersionId Int       @default(1) @map("object_version_id")
 
 //   // users           User[]
@@ -241,8 +241,8 @@ model RolePermission {
 
 //   // Tracking")
 //   isEnabled       Boolean  @default(true) @map("is_enabled")
-//   createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-//   lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+//   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+//   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 
 //   @@unique([providerId, providerUserId])
 //   @@unique([providerId, userId])
@@ -286,9 +286,9 @@ model RolePermission {
 //   // Audit and Tracking
 //   deletedAt       DateTime? @map("deleted_at")
 //   createdBy       Int?      @map("created_by")
-//   createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
-//   lastUpdatedBy   Int?      @map("last_updated_by")
-//   lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+//   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+//   updatedBy   Int?      @map("updated_by")
+//   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 //   objectVersionId Int       @default(1) @map("object_version_id")
 
 //   auditTrail AuditTrail[]
@@ -328,7 +328,7 @@ model User {
   isActivated         Boolean?    @default(false)
   deletedAt           String?
   createdBy           Int?
-  lastUpdatedBy       Int?
+  updatedBy           Int?
   objectVersionId     Int?        @default(1)
   sessions            Session[]
   accounts            Account[]
@@ -377,7 +377,7 @@ model Account {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-@@unique([providerId, accountId]) // ✅ Add this to fix the upscale upsert and lookups
+  @@unique([providerId, accountId]) // ✅ Add this to fix the upscale upsert and lookups
   @@index([userId])
   @@map("account")
 }
@@ -484,9 +484,9 @@ model Profile {
   isEnabled       Boolean  @default(true) @map("is_enabled")
   isHold          Boolean  @default(false) @map("hold_flag")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -508,9 +508,9 @@ model Cashier {
   startDate       DateTime  @map("start_date")
   endDate         DateTime? @map("end_date")
   createdBy       Int       @map("created_by")
-  createdDate     DateTime  @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int       @map("last_updated_by")
-  lastUpdatedDate DateTime  @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int       @map("updated_by")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int       @default(1) @map("object_version_id")
 
   // Relationships
@@ -531,9 +531,9 @@ model Supplier {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   @@map("suppliers")
@@ -549,9 +549,9 @@ model Category {
   image           String?  @db.VarChar(255)
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -571,9 +571,9 @@ model SubCategory {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -592,9 +592,9 @@ model Manufacturer {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -611,9 +611,9 @@ model ProductType {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -633,9 +633,9 @@ model ProductType {
 //   // Tracking fields
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
-//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-//   lastUpdatedBy   Int               @map("last_updated_by")
-//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   createdAt    DateTime          @default(now()) @db.Timestamp(6) @map("created_at")         
+//   updatedBy   Int               @map("updated_by")
+//   updatedAt  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("updated_at")
 //   objectVersionId Int               @default(1) @map("object_version_id")
 
 //   // Relationships
@@ -661,9 +661,9 @@ model ProductUnit {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Inverse relations
@@ -686,9 +686,9 @@ model UnitHierarchy {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int
 
   // Relations
@@ -721,9 +721,9 @@ model Product {
   // Additional tracking      
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -754,9 +754,9 @@ model Cocktail {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Inverse relations
@@ -776,9 +776,9 @@ model CocktailDetail {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -805,9 +805,9 @@ model Stock {
   // Tracking 
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -828,9 +828,9 @@ model Stock {
 
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
-//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-//   lastUpdatedBy   Int               @map("last_updated_by")
-//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   createdAt    DateTime          @default(now()) @db.Timestamp(6) @map("created_at")         
+//   updatedBy   Int               @map("updated_by")
+//   updatedAt  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("updated_at")
 
 //   @@unique([fromUnitId, toUnitId])
 //   @@map("unit_conversions")
@@ -846,9 +846,9 @@ model Stock {
 //   // Additional tracking 
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
-//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-//   lastUpdatedBy   Int               @map("last_updated_by")
-//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   createdAt    DateTime          @default(now()) @db.Timestamp(6) @map("created_at")         
+//   updatedBy   Int               @map("updated_by")
+//   updatedAt  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("updated_at")
 //   objectVersionId Int               @default(1) @map("object_version_id")
 
 //   // Relationships 
@@ -874,9 +874,9 @@ model Stock {
 //   image           String?            @db.VarChar(255)      
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
-//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-//   lastUpdatedBy   Int               @map("last_updated_by")
-//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   createdAt    DateTime          @default(now()) @db.Timestamp(6) @map("created_at")         
+//   updatedBy   Int               @map("updated_by")
+//   updatedAt  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("updated_at")
 //   objectVersionId Int               @default(1) @map("object_version_id")
 
 //   // Relationships
@@ -901,9 +901,9 @@ model Stock {
 //   qrCode          String            @db.VarChar(255) @map("qr_code")
 //   isEnabled     Boolean           @default(true) @map("is_enabled")
 //   createdBy       Int               @map("created_by")
-//   createdDate    DateTime          @default(now()) @db.Timestamp(6) @map("created_date")         
-//   lastUpdatedBy   Int               @map("last_updated_by")
-//   lastUpdatedDate  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("last_updated_date")
+//   createdAt    DateTime          @default(now()) @db.Timestamp(6) @map("created_at")         
+//   updatedBy   Int               @map("updated_by")
+//   updatedAt  DateTime          @default(now()) @db.Timestamp(6) @updatedAt @map("updated_at")
 //   objectVersionId Int               @default(1) @map("object_version_id")
 
 //   product         Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -918,9 +918,9 @@ model PromoDetail {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -939,9 +939,9 @@ model Promotion {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -968,9 +968,9 @@ model ProductTransaction {
   // Additional Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -991,9 +991,9 @@ model Warehouse {
   description     String?  @db.VarChar(255)
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1013,9 +1013,9 @@ model Store {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   branches StoreBranch[]
@@ -1035,9 +1035,9 @@ model StoreBranch {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships      
@@ -1068,9 +1068,9 @@ model Order {
   // Additional Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1103,9 +1103,9 @@ model OrderLine {
   // Tracking     
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1130,9 +1130,9 @@ model Payment {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1155,9 +1155,9 @@ model PaymentMethod {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1178,9 +1178,9 @@ model Invoice {
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
@@ -1213,9 +1213,9 @@ model Customer {
   // loginPassword    String?   @db.VarChar(30)
 
   createdBy       Int      @map("created_by")
-  createdDate     DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  lastUpdatedBy   Int      @map("last_updated_by")
-  lastUpdatedDate DateTime @default(now()) @updatedAt @map("last_updated_date") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedBy       Int      @map("updated_by")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // party            Party    @relation(fields: [partyId], references: [id])

@@ -3,8 +3,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CacheService } from 'src/modules/cache/services/cache.service';
-import { LOCALIZATION_CACHE } from 'src/modules/cache/tokens/cache.tokens';
+import { CacheService } from 'modules/cache/services/cache.service';
+import { LOCALIZATION_CACHE } from 'modules/cache/tokens/cache.tokens';
 import { LocalizationConfig } from '../../interfaces/time.interface';
 
 @Injectable()

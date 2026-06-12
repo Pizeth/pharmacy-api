@@ -1,6 +1,11 @@
 import * as path from 'path';
 import * as fs from 'fs';
+// import { fileURLToPath } from 'url'; // 👈 Added for ESM support
 import { ConfigValidationMessages } from 'types/i18n';
+
+// 🚀 Recreate __dirname for ES Modules
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
 export class ConfigI18nLoader {
   private static messages: ConfigValidationMessages;
@@ -13,12 +18,30 @@ export class ConfigI18nLoader {
 
     try {
       // Try multiple possible paths for flexibility
+      // const possiblePaths = [
+      //   path.join(__dirname, 'i18n', locale, 'validation.json'),
+      //   path.join(__dirname, '..', 'i18n', locale, 'validation.json'),
+      //   path.join(__dirname, '..', 'src', 'i18n', locale, 'validation.json'),
+      //   path.join(process.cwd(), 'src', 'i18n', locale, 'validation.json'),
+      //   path.join(process.cwd(), 'i18n', locale, 'validation.json'),
+      // ];
+
+      // No __dirname or import.meta needed at all!
+      const root = process.cwd();
+
       const possiblePaths = [
-        path.join(__dirname, 'i18n', locale, 'validation.json'),
-        path.join(__dirname, '..', 'i18n', locale, 'validation.json'),
-        path.join(__dirname, '..', 'src', 'i18n', locale, 'validation.json'),
-        path.join(process.cwd(), 'src', 'i18n', locale, 'validation.json'),
-        path.join(process.cwd(), 'i18n', locale, 'validation.json'),
+        path.join(
+          root,
+          'src',
+          'commons',
+          'configs',
+          'i18n',
+          locale,
+          'validation.json',
+        ), // Adjust if this is where the file lives relative to root
+        path.join(root, 'src', 'i18n', locale, 'validation.json'),
+        path.join(root, 'dist', 'i18n', locale, 'validation.json'), // If running compiled code
+        path.join(root, 'i18n', locale, 'validation.json'),
       ];
 
       let loadedMessages: Partial<ConfigValidationMessages> | null = null;

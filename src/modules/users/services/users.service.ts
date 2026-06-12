@@ -53,12 +53,12 @@ export class UsersService {
   // }
 
   /**
-   * Retrieves a user by email or username.
+   * Retrieves a user by email or name.
    *
-   * Searches for a user in the database whose email (case-insensitive) or username matches the provided input.
+   * Searches for a user in the database whose email (case-insensitive) or name matches the provided input.
    * Includes related profile, role, refresh tokens, and audit trail information in the result.
    *
-   * @param input - The email or username to search for.
+   * @param input - The email or name to search for.
    * @returns A promise that resolves to the found {@link User} object or `null` if no user is found.
    * @throws {AppError} If an error occurs during the database query.
    */
@@ -68,7 +68,7 @@ export class UsersService {
         where: {
           OR: [
             { email: { equals: input, mode: 'insensitive' } },
-            { username: input },
+            { name: input },
           ],
         },
         include: {
@@ -102,14 +102,14 @@ export class UsersService {
         model,
         where,
         include: {
-          role: true,
+          userRole: true,
           profile: true,
-          identities: {
-            include: {
-              provider: true,
-            },
-          },
-          refreshTokens: true,
+          // identities: {
+          //   include: {
+          //     provider: true,
+          //   },
+          // },
+          // refreshTokens: true,
           auditTrail: true,
         },
       });
@@ -172,7 +172,7 @@ export class UsersService {
    *
    * This function handles the creation of a new user with the provided data,
    * including optional file handling for avatar uploads. It ensures that the
-   * username and email are unique before proceeding with the user creation
+   * name and email are unique before proceeding with the user creation
    * transaction. If a file is provided, it attempts to upload it as the user's
    * avatar. The password is securely hashed before being stored.
    *
@@ -181,7 +181,7 @@ export class UsersService {
    *
    * @returns A promise that resolves to the created user object, excluding the password.
    *
-   * @throws {AppError} If the username or email already exists, or if an error
+   * @throws {AppError} If the name or email already exists, or if an error
    * occurs during user creation.
    */
   async create(
@@ -190,27 +190,27 @@ export class UsersService {
     tx?: Prisma.TransactionClient,
   ): Promise<SanitizedUser> {
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
-    const fileName = FileUtil.generateFileName(createUserDto.username, file);
+    const fileName = FileUtil.generateFileName(createUserDto.name, file);
     try {
       // return prismaClient.$transaction(
       // async (currentx) => {
       // Check unique constraints within transaction
-      const [existingUsername, existingEmail] = await Promise.all([
-        this.getOne({ username: createUserDto.username }),
+      const [existingname, existingEmail] = await Promise.all([
+        this.getOne({ name: createUserDto.name }),
         this.getOne({ email: createUserDto.email }),
       ]);
 
-      if (existingUsername) {
+      if (existingname) {
         throw new AppError(
-          `Username ${createUserDto.username} already exists!`,
+          `name ${createUserDto.name} already exists!`,
           HttpStatus.CONFLICT,
           UsersService.name,
           {
             ACTION: 'Register New User',
             ROOT: 'Duplicate Data!',
-            FIELD: 'username',
-            CODE: 'DUPLICATE_USERNAME',
-            VALUE: createUserDto.username,
+            FIELD: 'name',
+            CODE: 'DUPLICATE_name',
+            VALUE: createUserDto.name,
           },
         );
       }
@@ -246,7 +246,7 @@ export class UsersService {
 
       const placeholderImage = this.imageService.getUrl(
         DiceBearStyle.Initials,
-        createUserDto.username,
+        createUserDto.name,
       );
 
       createUserDto.avatar = file
@@ -277,7 +277,7 @@ export class UsersService {
       const result = await prismaClient.user.create({
         data: {
           ...userData,
-          password: hashedPassword, // Use the hashed password
+          // password: hashedPassword, // Use the hashed password
 
           // Add audit trail information
           auditTrail: {
@@ -293,14 +293,14 @@ export class UsersService {
           },
         },
         include: {
-          role: true,
+          userRole: true,
           profile: true,
-          identities: {
-            include: {
-              provider: true,
-            },
-          },
-          refreshTokens: true,
+          // identities: {
+          //   include: {
+          //     provider: true,
+          //   },
+          // },
+          // refreshTokens: true,
           auditTrail: true,
         },
       });
@@ -322,20 +322,20 @@ export class UsersService {
       // return await prisma.$transaction(
       //   async (tx) => {
       //     // Check unique constraints within transaction
-      //     const [existingUsername, existingEmail] = await Promise.all([
-      //       UserRepo.findByUsername(data.username),
+      //     const [existingname, existingEmail] = await Promise.all([
+      //       UserRepo.findByname(data.name),
       //       UserRepo.findByEmail(data.email),
       //     ]);
 
-      //     if (existingUsername) {
-      //       throw new Error('Username already exists');
+      //     if (existingname) {
+      //       throw new Error('name already exists');
       //     }
 
       //     if (existingEmail) {
       //       throw new Error('Email already exists');
       //     }
 
-      //     const avatar = await upload.uploadFile(req, res, user.username);
+      //     const avatar = await upload.uploadFile(req, res, user.name);
       //     if (avatar && avatar.status === 200) {
       //       fileName = avatar.fileName;
       //       user.update({
@@ -421,7 +421,7 @@ export class UsersService {
   async getActiveUsers(
     page: number = 1,
     pageSize: number = 10,
-    orderBy: Prisma.UserOrderByWithRelationInput = { createdDate: 'desc' },
+    orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' },
   ): Promise<PaginatedDataResult<User>> {
     // Type assertion for model name
     const modelName = 'user';
@@ -439,7 +439,7 @@ export class UsersService {
       orderBy,
       select: {
         id: true,
-        username: true,
+        name: true,
         email: true,
         roleId: true,
         avatar: true,
@@ -453,7 +453,7 @@ export class UsersService {
   }
 
   /**
-   * Find users by a search term (username or email).
+   * Find users by a search term (name or email).
    * Demonstrates filtering with 'OR' and 'contains'.
    */
   async findByTerms(
@@ -470,14 +470,14 @@ export class UsersService {
         isEnabled: true,
         deletedAt: null,
         OR: [
-          { username: { contains: searchTerm, mode: 'insensitive' } },
+          { name: { contains: searchTerm, mode: 'insensitive' } },
           { email: { contains: searchTerm, mode: 'insensitive' } },
         ],
       },
-      orderBy: { username: 'asc' },
+      orderBy: { name: 'asc' },
       select: {
         id: true,
-        username: true,
+        name: true,
         email: true,
         roleId: true,
       },
@@ -487,7 +487,7 @@ export class UsersService {
   /**
    * Get users with advanced filtering and complex ordering.
    * For example, find 'ADMIN' users who haven't logged in for a while,
-   * ordered by their last login date and then by username.
+   * ordered by their last login date and then by name.
    */
   async getAdminsToReview(
     lastLoginThreshold: Date,
@@ -511,11 +511,11 @@ export class UsersService {
       },
       orderBy: [
         { lastLogin: 'asc' }, // Admins who logged in longest ago first
-        { username: 'asc' },
+        { name: 'asc' },
       ],
       select: {
         id: true,
-        username: true,
+        name: true,
         email: true,
         lastLogin: true,
         roleId: true,
@@ -550,7 +550,7 @@ export class UsersService {
       orderBy: { id: 'asc' }, // Cursor pagination requires a stable, unique order
       select: {
         id: true,
-        username: true,
+        name: true,
         email: true,
         roleId: true,
       },
@@ -576,7 +576,7 @@ export class UsersService {
         select: {
           // Or use 'include' if you have a 'profile' relation defined
           id: true,
-          username: true,
+          name: true,
           email: true,
           roleId: true,
           avatar: true,
@@ -643,7 +643,7 @@ export class UsersService {
     });
   }
 
-  getImagePlaceholder(username: string): string {
-    return this.imageService.getUrl(DiceBearStyle.Initials, username);
+  getImagePlaceholder(name: string): string {
+    return this.imageService.getUrl(DiceBearStyle.Initials, name);
   }
 }

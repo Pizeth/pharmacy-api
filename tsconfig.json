@@ -4,6 +4,9 @@
     "strict": true,
     "allowJs": true,
     "module": "commonjs",
+    // "module": "NodeNext", // 👈 Allows import.meta
+    // "moduleResolution": "NodeNext", // 👈 Helps resolve modern ESM paths
+    "target": "ES2022", // 👈 Ensures modern JS output
     "types": ["node", "express", "express-session", "jest", "multer"],
     // "module": "ESNext",
     // "moduleResolution": "node16",
@@ -15,7 +18,6 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,

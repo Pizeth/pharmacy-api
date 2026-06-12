@@ -14,7 +14,7 @@ const passwordRegex =
 // You can add .openapi() to provide Swagger-specific metadata.
 export const createUserSchema = z
   .object({
-    username: z
+    name: z
       .string()
       .trim()
       .min(5, { error: 'Username must be at least 5 characters' })
