@@ -128,7 +128,7 @@ export class CentralizedCacheManager {
 
     // Store cache entry with metadata
     const cacheEntry: CacheEntry = {
-      cache: cache as AdvancedCacheWrapper<unknown, unknown>,
+      cache: cache,
       config: mergedConfig as CacheOptions<unknown, unknown>,
       createdAt: new Date(),
       lastAccessed: new Date(),

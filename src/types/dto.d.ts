@@ -14,7 +14,7 @@ import {
 // }
 
 export interface UserDetail extends User {
-  role: Role;
+  userRole: Role;
   // identities: UserIdentityDetail[];
   profile: Profile | null;
   // refreshTokens: RefreshToken;

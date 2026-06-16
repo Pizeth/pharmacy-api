@@ -32,12 +32,7 @@ export class CacheService {
       config?: Partial<CacheOptions<string, T>>;
     },
   ): Promise<T> {
-    return this.cacheManager.getOrSet(
-      cacheName,
-      key,
-      fn,
-      options,
-    ) as Promise<T>;
+    return this.cacheManager.getOrSet(cacheName, key, fn, options);
   }
 
   // Synchronous function caching

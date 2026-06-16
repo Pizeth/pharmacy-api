@@ -70,7 +70,7 @@ export class UserSeeder {
             },
           },
           createdBy: 0, // Placeholder.
-          lastUpdatedBy: 0, // Placeholder.
+          updatedBy: 0, // Placeholder.
           auditTrail: {
             create: {
               action: AuditActionType.CREATE,
@@ -111,11 +111,11 @@ export class UserSeeder {
         where: { id: userId },
         data: {
           createdBy: userId,
-          lastUpdatedBy: userId,
+          updatedBy: userId,
           profile: {
             update: {
               createdBy: userId,
-              lastUpdatedBy: userId,
+              updatedBy: userId,
             },
           },
           // ✅ CREATE THE ACCOUNT HERE NATIVELY
@@ -149,8 +149,8 @@ export class UserSeeder {
 
       // Step 4: Self-correct any roles generated before the master administrator existed
       await prismaClient.role.updateMany({
-        where: { createdBy: 1, lastUpdatedBy: 1 },
-        data: { createdBy: userId, lastUpdatedBy: userId },
+        where: { createdBy: 1, updatedBy: 1 },
+        data: { createdBy: userId, updatedBy: userId },
       });
 
       this.logger.log('🌱 Super Admin user seeded successfully:', {

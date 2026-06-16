@@ -8,7 +8,7 @@ import {
 } from 'generated/prisma/client';
 import { DBHelper } from '../../helpers/services/db-helper';
 import { PaginatedDataResult } from '../../../types/types';
-import { PasswordUtils } from 'commons/services/password-utils.service';
+// import { PasswordUtils } from 'commons/services/password-utils.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { R2Service } from 'modules/files/services/cloudflare-r2.service';
 import { AppError } from 'exceptions/app.exception';
@@ -19,6 +19,7 @@ import { DiceBearStyle, type } from 'types/commons.enum';
 import { ImagesService } from 'modules/images/services/images.service';
 import { SanitizedUser, UserDetail } from 'types/dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { USER_DETAIL_INCLUDE } from '../consts/user.const';
 
 @Injectable()
 export class UsersService {
@@ -27,30 +28,11 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dbHelper: DBHelper,
-    private readonly passwordUtils: PasswordUtils, // Inject your service here
+    // private readonly passwordUtils: PasswordUtils, // Inject your service here
     private readonly fileService: R2Service, // Assuming you have a file service for handling files
     private readonly imageService: ImagesService,
     private readonly cls: ClsService,
   ) {}
-
-  // async user(
-  //   userWhereUniqueInput: Prisma.UserWhereUniqueInput,
-  // ): Promise<User | null> {
-  //   try {
-  //     return await this.prisma.user.findUnique({
-  //       where: userWhereUniqueInput,
-  //       include: {
-  //         profile: true,
-  //       },
-  //     });
-  //   } catch (error) {
-  //     console.error(
-  //       `Error finding user with ${JSON.stringify(userWhereUniqueInput)}:`,
-  //       error,
-  //     );
-  //     throw error;
-  //   }
-  // }
 
   /**
    * Retrieves a user by email or name.
@@ -68,21 +50,24 @@ export class UsersService {
         where: {
           OR: [
             { email: { equals: input, mode: 'insensitive' } },
+            { username: { equals: input, mode: 'insensitive' } },
             { name: input },
           ],
         },
-        include: {
-          role: true,
-          profile: true,
-          identities: {
-            include: {
-              provider: true,
-            },
-          },
-          refreshTokens: true,
-          auditTrail: true,
-        },
+        include: USER_DETAIL_INCLUDE,
+        // {
+        //   role: true,
+        //   profile: true,
+        //   identities: {
+        //     include: {
+        //       provider: true,
+        //     },
+        //   },
+        //   refreshTokens: true,
+        //   auditTrail: true,
+        // },
       });
+
       return result as UserDetail | null;
     } catch (error) {
       this.logger.error(`Error finding user ${input}:`, error);
@@ -101,17 +86,7 @@ export class UsersService {
       const result = await this.dbHelper.findOne<typeof model, User>({
         model,
         where,
-        include: {
-          userRole: true,
-          profile: true,
-          // identities: {
-          //   include: {
-          //     provider: true,
-          //   },
-          // },
-          // refreshTokens: true,
-          auditTrail: true,
-        },
+        include: USER_DETAIL_INCLUDE,
       });
 
       return result as UserDetail | null;
@@ -128,24 +103,6 @@ export class UsersService {
       );
     }
   }
-
-  // async users(params: {
-  //   model: 'user';
-  //   skip?: number;
-  //   take?: number;
-  //   cursor?: Prisma.UserWhereUniqueInput;
-  //   where?: Prisma.UserWhereInput;
-  //   orderBy?: Prisma.UserOrderByWithRelationInput;
-  // }): Promise<User[]> {
-  //   const { skip, take, cursor, where, orderBy } = params;
-  //   return this.prisma.user.findMany({
-  //     skip,
-  //     take,
-  //     cursor,
-  //     where,
-  //     orderBy,
-  //   });
-  // }
 
   async getAll(
     page: number = 1,
@@ -168,7 +125,80 @@ export class UsersService {
   }
 
   /**
-   * Creates a new user in the system.
+   * Get a paginated list of users with basic information.
+   * Demonstrates simple pagination and ordering.
+   */
+  async getActiveUsers(
+    page: number = 1,
+    pageSize: number = 10,
+    orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' },
+  ): Promise<PaginatedDataResult<User>> {
+    // Type assertion for model name
+    const modelName = 'user';
+    // const modelName = 'user' as Prisma.ModelName;
+
+    return await this.dbHelper.getPaginatedData<typeof modelName, User>({
+      model: modelName,
+      page,
+      pageSize,
+      where: {
+        isEnabled: true, // Only active users
+        banned: false, // Not banned
+        deletedAt: null, // Not soft-deleted
+      },
+      orderBy,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        roleId: true,
+        image: true,
+      },
+      include: {
+        profile: true, // Include profile information if needed
+        userRole: true, // Include role information if needed
+      },
+    });
+  }
+
+  /**
+   * Find users by a search term (name or email).
+   * Demonstrates filtering with 'OR' and 'contains'.
+   */
+  async findByTerms(
+    searchTerm: string,
+    page: number = 1,
+    pageSize: number = 5,
+  ): Promise<PaginatedDataResult<User>> {
+    const modelName = 'user';
+    return await this.dbHelper.getPaginatedData<typeof modelName, User>({
+      model: modelName,
+      page,
+      pageSize,
+      where: {
+        isEnabled: true,
+        deletedAt: null,
+        OR: [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { email: { contains: searchTerm, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        roleId: true,
+      },
+    });
+  }
+
+  /**
+   * Creates a user directly in the database.
+   * NOTE: This is for admin/seeding use only.
+   * Regular user sign-up goes through Better Auth's /api/auth/sign-up/email endpoint.
    *
    * This function handles the creation of a new user with the provided data,
    * including optional file handling for avatar uploads. It ensures that the
@@ -188,29 +218,41 @@ export class UsersService {
     createUserDto: CreateUserDto,
     file?: Express.Multer.File,
     tx?: Prisma.TransactionClient,
-  ): Promise<SanitizedUser> {
+  ) {
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
-    const fileName = FileUtil.generateFileName(createUserDto.name, file);
+    const fileName = FileUtil.generateFileName(
+      createUserDto.username ?? createUserDto.name,
+      file,
+    );
+
     try {
-      // return prismaClient.$transaction(
-      // async (currentx) => {
       // Check unique constraints within transaction
-      const [existingname, existingEmail] = await Promise.all([
-        this.getOne({ name: createUserDto.name }),
-        this.getOne({ email: createUserDto.email }),
+      // const [existingname, existingEmail] = await Promise.all([
+      //   this.getOne({ username: createUserDto.username }),
+      //   this.getOne({ email: createUserDto.email }),
+      // ]);
+
+      // Check uniqueness
+      const [existingUsername, existingEmail] = await Promise.all([
+        createUserDto.username
+          ? this.prisma.user.findUnique({
+              where: { username: createUserDto.username },
+            })
+          : null,
+        this.prisma.user.findUnique({ where: { email: createUserDto.email } }),
       ]);
 
-      if (existingname) {
+      if (existingUsername) {
         throw new AppError(
-          `name ${createUserDto.name} already exists!`,
+          `Username  ${createUserDto.username} already exists!`,
           HttpStatus.CONFLICT,
-          UsersService.name,
+          this.context,
           {
             ACTION: 'Register New User',
             ROOT: 'Duplicate Data!',
             FIELD: 'name',
-            CODE: 'DUPLICATE_name',
-            VALUE: createUserDto.name,
+            CODE: 'DUPLICATE_USERNAME',
+            VALUE: createUserDto.username,
           },
         );
       }
@@ -219,7 +261,7 @@ export class UsersService {
         throw new AppError(
           `Email ${createUserDto.email} already exists!`,
           HttpStatus.CONFLICT,
-          UsersService.name,
+          this.context,
           {
             ACTION: 'Register New User',
             ROOT: 'Duplicate Data!',
@@ -246,10 +288,10 @@ export class UsersService {
 
       const placeholderImage = this.imageService.getUrl(
         DiceBearStyle.Initials,
-        createUserDto.name,
+        createUserDto.username ?? createUserDto.name,
       );
 
-      createUserDto.avatar = file
+      createUserDto.image = file
         ? await this.fileService
             .uploadFile(file, fileName)
             .then((avatar) =>
@@ -264,19 +306,21 @@ export class UsersService {
       // After validation succeeds, transform the object by creating a mutable copy of the validated data.
       const userData = createUserDto;
       // Explicitly delete the 'repassword' property. This is clean and avoids all linting warnings.
-      delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
+      // delete (userData as { repassword?: string }).repassword; // Cleanly remove the repassword field
 
       // Use injected PasswordUtils service to hash the password.
-      const hashedPassword = userData.password
-        ? await this.passwordUtils.hash(userData.password)
-        : '';
+      // const hashedPassword = userData.password
+      //   ? await this.passwordUtils.hash(userData.password)
+      //   : '';
 
-      this.logger.debug('User data:', userData);
+      // this.logger.debug('User data:', userData);
 
       // Create user with more detailed error tracking
       const result = await prismaClient.user.create({
         data: {
           ...userData,
+          // image,
+          emailVerified: false, // Better Auth field — email not verified on direct create
           // password: hashedPassword, // Use the hashed password
 
           // Add audit trail information
@@ -292,17 +336,7 @@ export class UsersService {
             },
           },
         },
-        include: {
-          userRole: true,
-          profile: true,
-          // identities: {
-          //   include: {
-          //     provider: true,
-          //   },
-          // },
-          // refreshTokens: true,
-          auditTrail: true,
-        },
+        include: USER_DETAIL_INCLUDE,
       });
 
       return result;
@@ -414,114 +448,72 @@ export class UsersService {
     });
   }
 
-  /**
-   * Get a paginated list of users with basic information.
-   * Demonstrates simple pagination and ordering.
-   */
-  async getActiveUsers(
-    page: number = 1,
-    pageSize: number = 10,
-    orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' },
-  ): Promise<PaginatedDataResult<User>> {
-    // Type assertion for model name
-    const modelName = 'user';
-    // const modelName = 'user' as Prisma.ModelName;
+  // async updateUser(params: {
+  //   where: Prisma.UserWhereUniqueInput;
+  //   data: Prisma.UserUpdateInput;
+  // }): Promise<User> {
+  //   const { where, data } = params;
+  //   return this.prisma.user.update({
+  //     data,
+  //     where,
+  //   });
+  // }
 
-    return await this.dbHelper.getPaginatedData<typeof modelName, User>({
-      model: modelName,
-      page,
-      pageSize,
-      where: {
-        isEnabled: true, // Only active users
-        isBan: false, // Not banned
-        deletedAt: null, // Not soft-deleted
-      },
-      orderBy,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        roleId: true,
-        avatar: true,
-        lastLogin: true,
-      },
-      include: {
-        profile: true, // Include profile information if needed
-        role: true, // Include role information if needed
-      },
-    });
+  async updateUser(params: {
+    where: Prisma.UserWhereUniqueInput;
+    data: Prisma.UserUpdateInput;
+  }): Promise<User> {
+    return this.prisma.user.update(params);
   }
 
-  /**
-   * Find users by a search term (name or email).
-   * Demonstrates filtering with 'OR' and 'contains'.
-   */
-  async findByTerms(
-    searchTerm: string,
-    page: number = 1,
-    pageSize: number = 5,
-  ): Promise<PaginatedDataResult<User>> {
-    const modelName = 'user';
-    return await this.dbHelper.getPaginatedData<typeof modelName, User>({
-      model: modelName,
-      page,
-      pageSize,
-      where: {
-        isEnabled: true,
-        deletedAt: null,
-        OR: [
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          { email: { contains: searchTerm, mode: 'insensitive' } },
-        ],
-      },
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        roleId: true,
-      },
-    });
+  async deleteUser(where: Prisma.UserWhereUniqueInput): Promise<User> {
+    return this.prisma.user.delete({ where });
   }
+
+  // async deleteUser(where: Prisma.UserWhereUniqueInput): Promise<User> {
+  //   return this.prisma.user.delete({
+  //     where,
+  //   });
+  // }
 
   /**
    * Get users with advanced filtering and complex ordering.
    * For example, find 'ADMIN' users who haven't logged in for a while,
    * ordered by their last login date and then by name.
    */
-  async getAdminsToReview(
-    lastLoginThreshold: Date,
-    page: number = 1,
-    pageSize: number = 10,
-  ): Promise<PaginatedDataResult<User>> {
-    const modelName = 'user';
+  // async getAdminsToReview(
+  //   lastLoginThreshold: Date,
+  //   page: number = 1,
+  //   pageSize: number = 10,
+  // ): Promise<PaginatedDataResult<User>> {
+  //   const modelName = 'user';
 
-    return await this.dbHelper.getPaginatedData<typeof modelName, User>({
-      model: modelName,
-      page,
-      pageSize,
-      where: {
-        // role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
-        isEnabled: true,
-        isBan: false,
-        OR: [
-          { lastLogin: { lt: lastLoginThreshold } },
-          { lastLogin: null }, // Also include those who never logged in
-        ],
-      },
-      orderBy: [
-        { lastLogin: 'asc' }, // Admins who logged in longest ago first
-        { name: 'asc' },
-      ],
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        lastLogin: true,
-        roleId: true,
-      },
-    });
-  }
+  //   return await this.dbHelper.getPaginatedData<typeof modelName, User>({
+  //     model: modelName,
+  //     page,
+  //     pageSize,
+  //     where: {
+  //       // role: 'ADMIN', // Assuming 'ADMIN' is a value in your Role enum
+  //       isEnabled: true,
+  //       isBan: false,
+  //       OR: [
+  //         { lastLogin: { lt: lastLoginThreshold } },
+  //         { lastLogin: null }, // Also include those who never logged in
+  //       ],
+  //     },
+  //     orderBy: [
+  //       { lastLogin: 'asc' }, // Admins who logged in longest ago first
+  //       { name: 'asc' },
+  //     ],
+  //     select: {
+  //       id: true,
+  //       name: true,
+  //       email: true,
+  //       // lastLogin: true,
+  //       roleId: true,
+  //     },
+  //   });
+  // }
 
   /**
    * Get users using cursor-based pagination.
@@ -579,8 +571,8 @@ export class UsersService {
           name: true,
           email: true,
           roleId: true,
-          avatar: true,
-          lastLogin: true,
+          image: true,
+          // lastLogin: true,
           // profile: true, // If 'profile' is a relation and you want to include it
         },
         // include: { profile: true } // Alternative if 'profile' is a relation
@@ -623,23 +615,6 @@ export class UsersService {
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({
       data,
-    });
-  }
-
-  async updateUser(params: {
-    where: Prisma.UserWhereUniqueInput;
-    data: Prisma.UserUpdateInput;
-  }): Promise<User> {
-    const { where, data } = params;
-    return this.prisma.user.update({
-      data,
-      where,
-    });
-  }
-
-  async deleteUser(where: Prisma.UserWhereUniqueInput): Promise<User> {
-    return this.prisma.user.delete({
-      where,
     });
   }
 

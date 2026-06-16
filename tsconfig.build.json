@@ -1,4 +1,14 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "compilerOptions": {
+    "rootDir": "./src", // 👈 Explicitly locks down the source root layout
+    "outDir": "./dist" // 👈 Tells it exactly where to drop compiled files
+  },
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    "src/lib/auth.cli.ts" // 👈 Exclude your CLI standalone tool from the production build
+  ]
 }

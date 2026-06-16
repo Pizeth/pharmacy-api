@@ -32,7 +32,10 @@ export class RoleSeeder {
       this.logger.log(
         `✅ Structural initialization verification finished: mapped ${roles.length} core roles.`,
       );
-      return await prismaClient.role.findMany({ where: { isEnabled: true } });
+
+      return await prismaClient.role.findMany({
+        where: { isEnabled: true },
+      });
     } catch (error) {
       this.logger.error(
         'CRITICAL: Role structural initialization operation broken',
