@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "prisma/**/*.ts",
+    "scripts/**/*.ts",
+    "src/modules/prisma/seeders/**/*.ts"
+  ]
+}

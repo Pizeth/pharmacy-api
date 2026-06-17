@@ -17,7 +17,7 @@ import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
 import { DiceBearStyle, type } from 'types/commons.enum';
 import { ImagesService } from 'modules/images/services/images.service';
-import { SanitizedUser, UserDetail } from 'types/dto';
+import { UserDetail } from 'types/dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { USER_DETAIL_INCLUDE } from '../consts/user.const';
 

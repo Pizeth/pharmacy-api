@@ -28,20 +28,23 @@
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
+      // "*": ["./src/*"],
       "*": ["./src/*"]
-    }
+    },
+    "moduleResolution": "bundler"
   },
   "include": [
     "src/**/*",
     "src/types/**/*",
     "webpack-hmr.config.cjs",
-    "generate-styles.ts",
+    // "generate-styles.ts",
     "dicebear-styles.map.ts",
-    "prisma.config.ts",
+    // "prisma.config.ts",
     // "webpack-hmr.config.ts",
     "env.d.ts",
-    "prisma/seed.ts",
-    "src/modules/prisma/services/prisma.service.ts"
+    // "prisma/seed.ts",
+    "src/modules/prisma/services/prisma.service.ts",
+    "scripts/generate-dicebear.ts"
   ],
   // CRUCIAL FIX: Excludes the generated Prisma files from the TypeScript Project compiler
   "exclude": [

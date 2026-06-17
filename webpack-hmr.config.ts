@@ -4,8 +4,10 @@ import * as webpack from 'webpack';
 
 interface WebpackOptions {
   entry: string | string[];
-  output: { filename: string };
+  output: { filename: string; format?: string };
   plugins: webpack.WebpackPluginInstance[];
+  // experiments?: { outputModule?: boolean };
+  // externalsType?: string;
   // Allow additional properties
   [key: string]: any;
 }
@@ -27,11 +29,19 @@ export default function configureWebpack(
   return {
     ...options,
     entry: newEntry,
+    // 1. Tell Webpack to import node_modules natively via ESM syntax
+    // externalsType: 'module-import',
     externals: [
       nodeExternals({
-        allowlist: ['webpack/hot/poll?100'],
+        allowlist: ['webpack/hot/poll?100', /^@dicebear/],
+        importType: 'module', // Ensures externals are imported as ES modules
       }),
     ],
+    // Change the bundle file extension to .cjs so Node treats it as CommonJS
+    output: {
+      ...options.output,
+      filename: 'main.cjs',
+    },
     plugins: [
       ...options.plugins,
       new webpackInstance.HotModuleReplacementPlugin(),
@@ -39,7 +49,9 @@ export default function configureWebpack(
         paths: [/\.js$/, /\.d\.ts$/],
       }),
       new RunScriptWebpackPlugin({
-        name: options.output.filename,
+        // name: options.output.filename,
+        // Sync the runner script name with the new .cjs output
+        name: 'main.cjs',
         autoRestart: false,
       }),
     ],

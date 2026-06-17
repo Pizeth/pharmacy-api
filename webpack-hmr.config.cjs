@@ -12,11 +12,21 @@ module.exports = function (options, webpack) {
   return {
     ...options,
     entry: ['webpack/hot/poll?100', options.entry],
+    // 1. Force external packages to rely on modern ESM import statements
+    // externalsType: 'module-import',
     externals: [
       nodeExternals({
         allowlist: ['webpack/hot/poll?100', /^@dicebear/],
+        importType: 'module',
       }),
     ],
+    // Change the bundle file extension to .cjs so Node treats it as CommonJS
+    output: {
+      ...options.output,
+      filename: 'main.cjs',
+      libraryTarget: 'commonjs2',
+    },
+    target: 'node',
     plugins: [
       ...options.plugins,
       new webpack.HotModuleReplacementPlugin(),
@@ -24,7 +34,9 @@ module.exports = function (options, webpack) {
         paths: [/\.js$/, /\.d\.ts$/],
       }),
       new RunScriptWebpackPlugin({
-        name: options.output.filename,
+        // name: options.output.filename,
+        // Sync the runner script name with the new .cjs output
+        name: 'main.cjs',
         autoRestart: false,
       }),
     ],

@@ -20,6 +20,8 @@ export default defineConfig(
     'dist/**/*',
     'coverage/**/*',
     '**/src/generated/prisma/client/**/*',
+    'prisma/**/*',
+    'scripts/**/*',
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -30,13 +32,13 @@ export default defineConfig(
         ...globals.node,
         ...globals.jest,
       },
-      sourceType: 'module',
+      // sourceType: 'commonjs',
       parserOptions: {
         // projectService: true,
         projectService: {
           allowDefaultProject: [],
         },
-        tsconfigRootDir: import.meta.dirname,
+        // tsconfigRootDir: import.meta.dirname,
       },
     },
   },
@@ -49,7 +51,10 @@ export default defineConfig(
         'warn',
         { argsIgnorePattern: '^_' },
       ],
-      "prettier/prettier": ["error", { "singleQuote": true, "jsxSingleQuote": true }],
+      'prettier/prettier': [
+        'error',
+        { singleQuote: true, jsxSingleQuote: true },
+      ],
     },
   },
   // ==========================================
