@@ -81,6 +81,7 @@ export const imageOptionsSchema = z
     translateY: z.coerce.number().int().optional(),
     clip: z.coerce.boolean().optional(),
     randomizeIds: z.coerce.boolean().optional(),
+
     // Handle arrays correctly using z.preprocess()
     backgroundColor: z.preprocess(
       preprocessStringOrArray,
@@ -108,6 +109,9 @@ export const imageOptionsSchema = z
     // Metadata options
     includeExif: z.coerce.boolean().optional(),
   })
+  // FIX: Preprocess directly to a structural clean type array using z.unknown()
+  // to avoid type nesting issues
+  // .catchall(z.preprocess(preprocessStringOrArray, z.array(z.string())));
   // The catchall handles any other style-specific options
   .catchall(
     z.preprocess(preprocessStringOrArray, z.array(z.string()).optional()),

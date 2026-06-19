@@ -38,7 +38,8 @@ export default defineConfig(
         projectService: {
           allowDefaultProject: [],
         },
-        // tsconfigRootDir: import.meta.dirname,
+        // project: ['./tsconfig.json', './tsconfig.scripts.json'],
+        tsconfigRootDir: import.meta.dirname,
       },
     },
   },

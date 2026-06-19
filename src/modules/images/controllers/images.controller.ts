@@ -19,11 +19,20 @@ import { ImagesService } from '../services/images.service';
 import { ImageOptionsDto } from '../dto/image-options.dto';
 import {
   // AvailableFonts,
-  DiceBearStyle,
+  // DiceBearStyle,
   ImageFormat,
 } from 'types/commons.enum';
 import { Public } from 'decorators/public.decorator';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+// 1. Import your dynamic types and arrays
+import {
+  availableStyleNames,
+  DiceBearStyle,
+  DiceBearStyleType,
+} from 'dicebear-styles.map';
+import { ParseDiceBearStylePipe } from '../pipes/parse-style.pipe';
 
+@AllowAnonymous()
 @ApiTags('Images')
 @Controller('images')
 export class ImagesController {
@@ -101,11 +110,14 @@ export class ImagesController {
   // This matches the official DiceBear API structure: /:style/:format like /initials/png?seed=...
   @Get(':style/:format')
   @Public()
-  @ApiParam({ name: 'style', enum: DiceBearStyle })
+  // 2. Feed the dynamic array straight to Swagger so the dropdown list stays fresh!
+  @ApiParam({ name: 'style', enum: availableStyleNames })
   @ApiParam({ name: 'format', enum: ImageFormat })
   @ApiQuery({ name: 'seed', type: 'string', required: false })
   async getAvatarWithFormat(
-    @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    // @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    // 3. Swap ParseEnumPipe with your custom dynamic array tracking pipe
+    @Param('style', ParseDiceBearStylePipe) style: DiceBearStyleType,
     @Param('format', new ParseEnumPipe(ImageFormat)) format: ImageFormat,
     @Query() options: ImageOptionsDto,
     @Res() res: Response,
@@ -119,10 +131,11 @@ export class ImagesController {
   // NOTE: This route MUST be defined *after* the more specific :style/:format route.
   @Get(':style')
   @Public()
-  @ApiParam({ name: 'style', enum: DiceBearStyle })
+  @ApiParam({ name: 'style', enum: availableStyleNames })
   @ApiQuery({ name: 'seed', type: 'string', required: false })
   async getAvatarWithoutFormat(
-    @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    // @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
+    @Param('style', ParseDiceBearStylePipe) style: DiceBearStyleType,
     @Query() options: ImageOptionsDto,
     @Res() res: Response,
   ) {
@@ -155,7 +168,7 @@ export class ImagesController {
 
   // **NEW**: Private helper method to handle the response generation.
   private async sendAvatarResponse(
-    style: DiceBearStyle,
+    style: DiceBearStyleType,
     format: ImageFormat,
     options: ImageOptionsDto,
     res: Response,
@@ -166,10 +179,10 @@ export class ImagesController {
       format,
     );
 
-    this.logger.log(
-      `Generated avatar for style: ${style}, format: ${format}, options: ${JSON.stringify(options)}, Content-Type: ${contentType}, body:`,
-      body,
-    );
+    // this.logger.log(
+    //   `Generated avatar for style: ${style}, format: ${format}, options: ${JSON.stringify(options)}, Content-Type: ${contentType}, body:`,
+    //   body,
+    // );
 
     // Setting Last-Modified header
     res.setHeader('Content-Type', contentType);

@@ -22,6 +22,8 @@ import { TimeParserModule } from './modules/time-parser/time-parser.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidationError } from './exceptions/zod-validatoin.exception';
 import { ProfileModule } from './modules/profiles/profile.module';
+import { AppController } from 'app.controller';
+import { AppService } from 'app.service';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 @Module({
@@ -129,9 +131,10 @@ import { ProfileModule } from './modules/profiles/profile.module';
       provide: APP_PIPE,
       useClass: ZodValidationPipe,
     },
+    AppService,
   ],
   exports: [], // Export if other modules need it
-  // controllers: [UserController],
+  controllers: [AppController],
 })
 export class AppModule {}
 

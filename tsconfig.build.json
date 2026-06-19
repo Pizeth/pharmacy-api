@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "rootDir": "./src", // 👈 Explicitly locks down the source root layout
     "outDir": "./dist" // 👈 Tells it exactly where to drop compiled files

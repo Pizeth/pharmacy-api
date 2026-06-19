@@ -15,11 +15,12 @@ import { AppError } from 'exceptions/app.exception';
 import { FileUtil } from 'utils/file.util';
 import { ClsService } from 'nestjs-cls';
 // import { ImagePlaceHolderService } from 'src/modules/images/services/images.service';
-import { DiceBearStyle, type } from 'types/commons.enum';
+import { type } from 'types/commons.enum';
 import { ImagesService } from 'modules/images/services/images.service';
 import { UserDetail } from 'types/dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { USER_DETAIL_INCLUDE } from '../consts/user.const';
+import { DiceBearStyle } from 'dicebear-styles.map';
 
 @Injectable()
 export class UsersService {

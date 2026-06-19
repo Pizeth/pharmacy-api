@@ -1,8 +1,8 @@
 {
-  "extends": "./tsconfig.json",
-  "include": [
-    "prisma/**/*.ts",
-    "scripts/**/*.ts",
-    "src/modules/prisma/seeders/**/*.ts"
-  ]
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "outDir": "./dist-scripts"
+    // "composite": true
+  },
+  "include": ["prisma/**/*.ts", "scripts/**/*.ts", "prisma.config.ts"]
 }

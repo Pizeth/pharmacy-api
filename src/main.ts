@@ -1,6 +1,7 @@
 // **CRITICAL STEP**: The import of the patch file MUST be the very first line.
 // import './zod-patch'; // <-- This executes the patch immediately.
-
+import * as dotenv from 'dotenv';
+dotenv.config(); // 👈 MUST be line 1 before importing any services/auth modules!
 import { NestFactory } from '@nestjs/core';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';

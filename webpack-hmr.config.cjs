@@ -17,7 +17,8 @@ module.exports = function (options, webpack) {
     externals: [
       nodeExternals({
         allowlist: ['webpack/hot/poll?100', /^@dicebear/],
-        importType: 'module',
+        // importType: 'module',
+        importType: 'commonjs',
       }),
     ],
     // Change the bundle file extension to .cjs so Node treats it as CommonJS

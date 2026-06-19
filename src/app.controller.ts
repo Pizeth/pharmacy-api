@@ -20,14 +20,18 @@ import {
   Put,
   Delete,
 } from '@nestjs/common';
-import { UsersService } from './modules/users/services/users.service';
+// import { UsersService } from './modules/users/services/users.service';
 import { Prisma, User, User as UserModel } from 'generated/prisma/client';
-import { get } from 'http';
 import { PaginatedDataResult } from './types/types';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { AppService } from 'app.service';
 
 @Controller({ version: '1' })
 export class AppController {
-  constructor(private readonly userService: UsersService) {}
+  constructor(
+    // private readonly userService: UsersService,
+    private readonly service: AppService,
+  ) {}
 
   // @Get('post/:id')
   // async getPostById(@Param('id') id: string): Promise<PostModel> {
@@ -85,18 +89,23 @@ export class AppController {
   //   return this.userService.getOne(params);
   // }
 
-  @Get('users')
-  async getAllUsers(): Promise<PaginatedDataResult<User>> {
-    return this.userService.getAll();
-  }
+  // @Get('users')
+  // async getAllUsers(): Promise<PaginatedDataResult<User>> {
+  //   return this.userService.getAll();
+  // }
 
-  @Post('user')
-  async signupUser(
-    @Body() userData: Prisma.UserCreateInput,
-  ): Promise<UserModel> {
-    return this.userService.createUser(userData);
-  }
+  // @Post('user')
+  // async signupUser(
+  //   @Body() userData: Prisma.UserCreateInput,
+  // ): Promise<UserModel> {
+  //   return this.userService.createUser(userData);
+  // }
 
+  @AllowAnonymous()
+  @Get(['', '/']) // 👈 FIX: Matches both /api/v1 AND /api/v1/ perfectly
+  getHello() {
+    return this.service.getInfo();
+  }
   // @Put('publish/:id')
   // async publishPost(@Param('id') id: string): Promise<PostModel> {
   //   return this.postService.updatePost({

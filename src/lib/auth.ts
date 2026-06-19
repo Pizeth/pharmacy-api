@@ -23,15 +23,18 @@ import { passkey } from '@better-auth/passkey';
 import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
 import {
-  GENERIC_PROVIDERS_CONFIG,
-  SOCIAL_PROVIDERS_CONFIG,
+  getSocialProvidersConfig,
+  getGenericProvidersConfig,
 } from './auth.provider';
 
 export const options = (prisma: PrismaClient) => ({
   appName: 'Razeth',
+  baseURL: 'http://localhost:3000',
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
+  // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
+  hooks: {},
   advanced: {
     database: {
       generateId: 'serial' as const, // 👈 Prevent string-widening
@@ -55,7 +58,7 @@ export const options = (prisma: PrismaClient) => ({
     //   });
     // },
   },
-  socialProviders: SOCIAL_PROVIDERS_CONFIG,
+  socialProviders: getSocialProvidersConfig(),
   user: {
     additionalFields: {
       // Role relation — CASL reads this to load permissions
@@ -154,7 +157,7 @@ export const options = (prisma: PrismaClient) => ({
     //   },
     // }),
     genericOAuth({
-      config: GENERIC_PROVIDERS_CONFIG,
+      config: getGenericProvidersConfig(),
       // [
       //   {
       //     providerId: 'telegram',

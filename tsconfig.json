@@ -1,56 +1,11 @@
 {
-  // "$schema": "https://json.schemastore.org/tsconfig",
-  "compilerOptions": {
-    "strict": true,
-    "allowJs": true,
-    "module": "commonjs",
-    // "module": "NodeNext", // 👈 Allows import.meta
-    // "moduleResolution": "NodeNext", // 👈 Helps resolve modern ESM paths
-    "target": "ES2022", // 👈 Ensures modern JS output
-    "types": ["node", "express", "express-session", "jest", "multer"],
-    // "module": "ESNext",
-    // "moduleResolution": "node16",
-    // "module": "es2022",
-    "declaration": true,
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "incremental": true,
-    "skipLibCheck": true,
-    "strictNullChecks": true,
-    "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": true,
-    "strictBindCallApply": true,
-    "noFallthroughCasesInSwitch": true,
-    "paths": {
-      // "*": ["./src/*"],
-      "*": ["./src/*"]
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
     },
-    "moduleResolution": "bundler"
-  },
-  "include": [
-    "src/**/*",
-    "src/types/**/*",
-    "webpack-hmr.config.cjs",
-    // "generate-styles.ts",
-    "dicebear-styles.map.ts",
-    // "prisma.config.ts",
-    // "webpack-hmr.config.ts",
-    "env.d.ts",
-    // "prisma/seed.ts",
-    "src/modules/prisma/services/prisma.service.ts",
-    "scripts/generate-dicebear.ts"
-  ],
-  // CRUCIAL FIX: Excludes the generated Prisma files from the TypeScript Project compiler
-  "exclude": [
-    "node_modules",
-    "dist",
-    "coverage",
-    "src/generated/prisma/client/**/*"
+    {
+      "path": "./tsconfig.scripts.json"
+    }
   ]
 }

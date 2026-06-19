@@ -160,9 +160,10 @@ import {
   Avatar as createAvatar,
   Style,
   OptionsDescriptor,
+  StyleOptions,
 } from '@dicebear/core';
 import { ImageOptionsDto } from '../dto/image-options.dto';
-import { AvailableFonts, DiceBearStyle, ImageFormat } from 'types/commons.enum';
+import { AvailableFonts, ImageFormat } from 'types/commons.enum';
 import type { AvatarResult } from 'types/file';
 import {
   Avatar,
@@ -175,13 +176,17 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
-import { allStyles } from 'dicebear-styles.map';
+import { allStyles, DiceBearStyleType } from 'dicebear-styles.map';
 
 @Injectable()
 export class ImagesService implements OnModuleInit {
   private readonly logger = new Logger(ImagesService.name);
   // This property will hold all available style collections except the default export.
-  private readonly availableStyles: Record<string, Style<any>> = {};
+  // private readonly availableStyles: Record<string, Style<any>> = {};
+  // ✅ FIX: Strict typing instead of Record<string, Style<any>>
+  private readonly availableStyles: Partial<
+    Record<DiceBearStyleType, Style<Record<string, unknown>>>
+  > = {};
   private readonly loadedFontPaths = new Map<AvailableFonts, string>(); // <-- Cache for loaded fonts
   private defaultAvatarOptions: Partial<ImageOptionsDto> = {}; // <-- Will hold parsed defaults
 
@@ -233,9 +238,17 @@ export class ImagesService implements OnModuleInit {
   private loadAllDiceBearStyles() {
     try {
       // Loop over every style schema present in your generated map
+      // for (const [styleName, styleSchema] of Object.entries(allStyles) as Array<
+      //   [DiceBearStyle, Record<string, unknown>]
+      // >) {
       for (const [styleName, styleSchema] of Object.entries(allStyles)) {
+        // Safe type-guarding check to ensure the key matches your dynamic style list
+        const typedStyleName = styleName as DiceBearStyleType;
+
+        // Pass the structural layout content configuration cleanly
+        this.availableStyles[typedStyleName] = new Style(styleSchema);
         // Instantiate the Style engine with the static JSON schema definition
-        this.availableStyles[styleName] = new Style(styleSchema);
+        // this.availableStyles[styleName] = new Style(styleSchema);
       }
 
       this.logger.log(
@@ -259,7 +272,7 @@ export class ImagesService implements OnModuleInit {
    * @returns The fully constructed URL as a string, including all path segments and query parameters.
    */
   getUrl(
-    style: DiceBearStyle,
+    style: DiceBearStyleType,
     seed: string,
     options?: Omit<Partial<ImageOptionsDto>, 'seed'>, // Options don't need to include seed
     format: ImageFormat = ImageFormat.SVG,
@@ -302,20 +315,12 @@ export class ImagesService implements OnModuleInit {
    * @throws Will log and return a default SVG placeholder if avatar generation fails.
    */
   async generateAvatar(
-    style: DiceBearStyle,
+    style: DiceBearStyleType,
     options: ImageOptionsDto,
     format: ImageFormat = ImageFormat.SVG, // Default to SVG format
   ): Promise<AvatarResult> {
     // const { seed, ...styleOptions } = options; // Separate seed from other options
     try {
-      // if (format === ImageFormat.JSON) {
-      //   const selectedCollection = this.selectCollection(style);
-      //   return {
-      //     contentType: 'application/json',
-      //     body: JSON.stringify(selectedCollection.schema?.properties ?? {}),
-      //   };
-      // }
-
       if (format === ImageFormat.JSON) {
         const selectedCollection = this.selectCollection(style);
 
@@ -498,7 +503,10 @@ export class ImagesService implements OnModuleInit {
    * @param options A key-value object of DiceBear options.
    * @returns A string containing the full SVG markup for the avatar.
    */
-  private createAvatarObject(style: DiceBearStyle, options: ImageOptionsDto) {
+  private createAvatarObject(
+    style: DiceBearStyleType,
+    options: ImageOptionsDto,
+  ) {
     const selectedCollection = this.selectCollection(style);
 
     // if (
@@ -533,15 +541,77 @@ export class ImagesService implements OnModuleInit {
     // Safely delete the 'fontFamily' and includeExif key from our copy,
     // so it's not passed directly to createAvatar,
     // as it's a converter option, not a style option.
+
+    // 1. Separate options meant strictly for the converters/app logic
     delete (styleOptions as { fontFamily?: unknown }).fontFamily;
-    // delete (styleOptions as { includeExif?: unknown }).includeExif;
+    delete (styleOptions as { includeExif?: unknown }).includeExif;
+    // delete (styleOptions as { seed?: unknown }).seed;
+
+    // 2. Extract the officially supported property schemas for the chosen style
+    // const schemaProperties = selectedCollection.schema?.properties ?? {};
+    const descriptor = new OptionsDescriptor(selectedCollection);
+    const selectedSchema = descriptor.toJSON() as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    const schemaProperties = selectedSchema?.properties ?? {};
+
+    // 3. Dynamically build a filtered configuration object containing ONLY keys this style supports
+    const filteredOptions: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(styleOptions)) {
+      if (value !== undefined && key in schemaProperties) {
+        filteredOptions[key] = value;
+      }
+    }
+
+    // 4. CRITICAL: Manually re-attach seed if it exists, bypassing the schema properties check
+    if (styleOptions.seed !== undefined) {
+      filteredOptions.seed = styleOptions.seed;
+    }
+
     this.logger.debug(
       `Creating avatar with style: ${style}, options: ${JSON.stringify(styleOptions)}`,
     );
+
+    // 4. Safely type assert to bypass open dictionary warnings cleanly without 'any'
+    const dicebearOptions = filteredOptions as unknown as StyleOptions<
+      Record<string, unknown>
+    >;
+
     return new createAvatar(selectedCollection, {
-      ...styleOptions,
+      ...dicebearOptions,
     });
   }
+
+  // private createAvatarObject(style: DiceBearStyle, options: ImageOptionsDto) {
+  //   const selectedCollection = this.selectCollection(style);
+
+  //   // 1. Separate options meant strictly for the converters/app logic
+  //   const { fontFamily, includeExif, ...styleOptions } = options;
+
+  //   // 2. Extract the officially supported property schemas for the chosen style
+  //   const schemaProperties = selectedCollection.schema?.properties ?? {};
+
+  //   // 3. Dynamically build a filtered configuration object containing ONLY keys this style supports
+  //   const filteredOptions: Record<string, unknown> = {};
+
+  //   for (const [key, value] of Object.entries(styleOptions)) {
+  //     if (value !== undefined && key in schemaProperties) {
+  //       filteredOptions[key] = value;
+  //     }
+  //   }
+
+  //   this.logger.debug(
+  //     `Creating avatar with style: ${style}, filtered options: ${JSON.stringify(filteredOptions)}`,
+  //   );
+
+  //   // 4. Safely type assert to bypass open dictionary warnings cleanly without 'any'
+  //   const dicebearOptions = filteredOptions as unknown as StyleOptions<
+  //     Record<string, unknown>
+  //   >;
+
+  //   return new createAvatar(selectedCollection, dicebearOptions);
+  // }
 
   /**
    * Constructs a URL that points to our local DiceBear API endpoint.
@@ -567,15 +637,25 @@ export class ImagesService implements OnModuleInit {
   //   return `${baseUrl}/${urlPath}`;
   // }
 
-  private selectCollection(style: DiceBearStyle): Style<any> {
-    if (style in this.availableStyles) {
-      return this.availableStyles[style];
+  // private selectCollection(style: DiceBearStyle): Style<any> {
+  private selectCollection(
+    style: DiceBearStyleType,
+  ): Style<Record<string, unknown>> {
+    const selectedCollection = this.availableStyles[style];
+    if (selectedCollection) {
+      return selectedCollection;
     }
 
     // If the style is not found, log a warning and return a default.
     this.logger.warn(
-      `Avatar style "${style}" not found. Falling back to 'initials'.`,
+      `Avatar Style "${style}" not found. Falling back to initials.`,
     );
-    return this.availableStyles.initials;
+
+    const initialsCollection = this.availableStyles.initials;
+    if (!initialsCollection) {
+      throw new Error('Initials DiceBear style is not loaded.');
+    }
+
+    return initialsCollection;
   }
 }
