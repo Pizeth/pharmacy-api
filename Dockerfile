@@ -37,6 +37,9 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 COPY --from=builder /usr/src/app/dist ./dist
 
+# 🟢 CRITICAL FIX: Copy the prisma schemas from the builder stage
+COPY --from=builder /usr/src/app/prisma ./prisma
+
 # Install only production assets while bypassing hooks
 RUN npm ci --only=production --ignore-scripts
 
