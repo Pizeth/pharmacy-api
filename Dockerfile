@@ -3,14 +3,15 @@ FROM node:26-alpine3.24 AS builder
 
 WORKDIR /usr/src/app
 
-# CRITICAL: Copy yarn.lock if you are using Yarn!
-COPY package.json yarn.lock ./ 
+# Copy package files for npm
+COPY package.json package-lock.json ./ 
 
-RUN yarn install --frozen-lockfile
+# Install all dependencies (including devDependencies needed for build)
+RUN npm ci
 
 COPY . .
 
-RUN yarn build
+RUN npm run build
 
 # Stage 2: Production image
 FROM node:26-alpine3.24 AS production
@@ -20,12 +21,12 @@ ENV NODE_ENV=${NODE_ENV}
 
 WORKDIR /usr/src/app
 
-# Copy package files AND yarn.lock for production install
-COPY package.json yarn.lock ./
+# Copy package files and the compiled dist folder
+COPY package.json package-lock.json ./
 COPY --from=builder /usr/src/app/dist ./dist
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile
+RUN npm ci --only=production
 
 EXPOSE 3000
 
