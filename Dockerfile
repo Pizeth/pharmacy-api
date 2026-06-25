@@ -1,30 +1,31 @@
 # Stage 1: Build the NestJS application
-FROM node:24.0-alpine AS builder
+FROM node:26-alpine3.21 AS builder
 
 WORKDIR /usr/src/app
 
-COPY package*.json package-lock.json ./ 
-RUN yarn install --frozen-lockfile # or npm ci
+# CRITICAL: Copy yarn.lock if you are using Yarn!
+COPY package.json yarn.lock ./ 
+
+RUN yarn install --frozen-lockfile
 
 COPY . .
 
-# RUN yarn build # This runs `nest build` which creates the `dist` folder
-RUN yarn build && ls -al /usr/src/app/dist
+RUN yarn build
 
 # Stage 2: Production image
-FROM node:24.0-alpine AS production
+FROM node:26-alpine3.21 AS production
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 
 WORKDIR /usr/src/app
 
-# Copy only the necessary files from the builder stage
-COPY --from=builder /usr/src/app/package*.json ./
+# Copy package files AND yarn.lock for production install
+COPY package.json yarn.lock ./
 COPY --from=builder /usr/src/app/dist ./dist
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile # or npm ci --only=production
+RUN yarn install --production --frozen-lockfile
 
 EXPOSE 3000
 

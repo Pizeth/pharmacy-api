@@ -50,7 +50,12 @@ export class ExceptionService {
       // Conditionally include stack trace in development for easier debugging
       ...(this.config.get<string>('NODE_ENV')?.toLowerCase() ===
         'development' && {
-        stack: errors instanceof Error ? errors.stack : errors,
+        stack:
+          errors instanceof Error
+            ? errors.stack
+              ? errors.stack
+              : errors
+            : errors,
       }),
     };
 
