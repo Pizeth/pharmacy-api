@@ -1,5 +1,5 @@
 # Stage 1: Build the NestJS application
-FROM node:26-alpine3.21 AS builder
+FROM node:26-alpine3.24 AS builder
 
 WORKDIR /usr/src/app
 
@@ -13,7 +13,7 @@ COPY . .
 RUN yarn build
 
 # Stage 2: Production image
-FROM node:26-alpine3.21 AS production
+FROM node:26-alpine3.24 AS production
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
