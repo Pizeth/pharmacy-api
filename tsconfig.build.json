@@ -9,6 +9,9 @@
     "test",
     "dist",
     "**/*spec.ts",
+    "scripts",
+    "webpack-hmr.config.ts",
+    "webpack-hmr.config.cjs",
     "src/lib/auth.cli.ts" // 👈 Exclude your CLI standalone tool from the production build
   ]
 }

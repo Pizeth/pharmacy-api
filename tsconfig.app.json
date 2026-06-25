@@ -39,7 +39,7 @@
     "src/**/*",
     "src/types/**/*",
     "webpack-hmr.config.cjs",
-    "generate-styles.ts",
+    // "generate-styles.ts",
     "dicebear-styles.map.ts",
     // "prisma.config.ts",
     // "webpack-hmr.config.ts",
