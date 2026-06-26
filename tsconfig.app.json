@@ -3,7 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "allowJs": true,
-    "module": "commonjs",
+    // "module": "commonjs",
+    "module": "ESNext",
     // "module": "nodenext", // 👈 Allows import.meta
     // "moduleResolution": "NodeNext", // 👈 Helps resolve modern ESM paths
     "target": "ES2022", // 👈 Ensures modern JS output
