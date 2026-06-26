@@ -39,7 +39,7 @@ export default defineConfig(
           allowDefaultProject: [],
         },
         // project: ['./tsconfig.json', './tsconfig.scripts.json'],
-        tsconfigRootDir: import.meta.dirname,
+        // tsconfigRootDir: import.meta.dirname,
       },
     },
   },
