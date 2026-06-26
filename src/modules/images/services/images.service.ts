@@ -206,17 +206,22 @@ export class ImagesService implements OnModuleInit {
   // Use the onModuleInit lifecycle hook to load and verify font paths at startup.
   onModuleInit() {
     this.logger.log('Verifying custom font paths...');
+    // Get the absolute root directory of your project space
+    const projectRoot = process.cwd();
+
     for (const font of Object.values(AvailableFonts)) {
       try {
         // Construct path to the font file inside the `dist` directory.
         const fontPath = path.join(
-          __dirname,
-          '..',
+          // __dirname,
+          // '..',
+          projectRoot,
           'dist',
           'assets',
           'fonts',
           font,
         );
+
         // Check that the file actually exists before caching its path.
         if (fs.existsSync(fontPath)) {
           this.loadedFontPaths.set(font, fontPath);
