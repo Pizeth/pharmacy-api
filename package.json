@@ -8,7 +8,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build --webpack --webpackPath webpack-hmr.config.cjs",
+    "build": "nest build --webpack --webpackPath webpack-hmr.config.cjs -- --stats-error-details",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "prestart": "npm run build",
     "start": "node dist/main.js",
