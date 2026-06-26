@@ -4,6 +4,10 @@
     "rootDir": "./src", // 👈 Explicitly locks down the source root layout
     "outDir": "./dist" // 👈 Tells it exactly where to drop compiled files
   },
+  "include": [
+    "src/**/*",
+    "src/generated/prisma/**/*" // 👈 Explicitly tell the build config to bundle these!
+  ],
   "exclude": [
     "node_modules",
     "test",

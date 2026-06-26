@@ -16,8 +16,9 @@ RUN npm ci --ignore-scripts
 COPY . .
 
 # 3. Generate Prisma client & execute the custom dicebear setup scripts
-RUN npx prisma generate
-RUN npm run generate:dicebear
+RUN npx prisma generate && npm run generate:dicebear
+# RUN npx prisma generate
+# RUN npm run generate:dicebear
 
 # 4. Run the final production build
 RUN npm run build
@@ -37,7 +38,9 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 COPY --from=builder /usr/src/app/dist ./dist
 
-# 🟢 CRITICAL FIX: Copy the prisma schemas from the builder stage
+# 🟢 CRITICAL FIX for Custom Output Paths: 
+# Copy the generated client folder (which contains the binary engines Webpack needs to execute)
+COPY --from=builder /usr/src/app/src/generated/prisma ./src/generated/prisma
 COPY --from=builder /usr/src/app/prisma ./prisma
 
 # Install only production assets while bypassing hooks
@@ -46,7 +49,9 @@ RUN npm ci --only=production --ignore-scripts
 EXPOSE 3000
 
 # Generate production Prisma Client bindings
-RUN npx prisma generate
+# 🛑 REMOVED: "RUN npx prisma generate" is no longer needed here because 
+# the compiled engine binaries are cleanly copied from the builder stage above.
+# RUN npx prisma generate
 
 # Execute natively. Northflank will handle secret injection!
 CMD ["node", "dist/main"]
