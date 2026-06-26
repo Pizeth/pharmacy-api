@@ -20,10 +20,13 @@ module.exports = function (options, webpack) {
     // 👇 Dynamically clear out the HMR entry poller if we aren't explicitly watching files
     entry: isWatch ? ['webpack/hot/poll?100', options.entry] : options.entry,
     // 1. Force external packages to rely on modern ESM import statements
-    externalsType: 'module-import', // 👈 Enable ESM import statements for externals
+    externalsType: 'import', // 👈 Enable ESM import statements for externals
     externals: [
       nodeExternals({
-        allowlist: ['webpack/hot/poll?100', /^@dicebear/],
+        // allowlist: ['webpack/hot/poll?100', /^@dicebear/],
+        allowlist: isWatch
+          ? ['webpack/hot/poll?100', /^@dicebear/]
+          : [/^@dicebear/],
         importType: 'module', // 👈 CHANGE from 'commonjs' to 'module'
         // importType: 'commonjs',
       }),
