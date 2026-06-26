@@ -7,11 +7,18 @@
 // import { RunScriptWebpackPlugin } from 'run-script-webpack-plugin';
 const nodeExternals = require('webpack-node-externals');
 const { RunScriptWebpackPlugin } = require('run-script-webpack-plugin');
+// 👇 Add this explicit require at the top
+// const webpackInstance = require('webpack');
 
 module.exports = function (options, webpack) {
-  return {
+  // Check if Webpack is running in watch mode (local dev)
+  const isWatch = options.watch || process.argv.includes('--watch');
+
+  const config = {
     ...options,
-    entry: ['webpack/hot/poll?100', options.entry],
+    // entry: ['webpack/hot/poll?100', options.entry],
+    // 👇 Dynamically clear out the HMR entry poller if we aren't explicitly watching files
+    entry: isWatch ? ['webpack/hot/poll?100', options.entry] : options.entry,
     // 1. Force external packages to rely on modern ESM import statements
     externalsType: 'module-import', // 👈 Enable ESM import statements for externals
     externals: [
@@ -50,17 +57,48 @@ module.exports = function (options, webpack) {
 
     target: 'node',
     plugins: [
-      ...options.plugins,
+      ...(options.plugins || []),
+      // new webpack.HotModuleReplacementPlugin(),
+      // new webpack.WatchIgnorePlugin({
+      //   paths: [/\.js$/, /\.d\.ts$/],
+      // }),
+      // new RunScriptWebpackPlugin({
+      //   // Fallback to 'main.js' if options.output is undefined
+      //   name: options.output?.filename || 'main.js',
+      //   // Sync the runner script name with the new .cjs output
+      //   // name: 'main.cjs',
+      //   autoRestart: false,
+      // }),
+    ],
+  };
+
+  // Clean out NestJS internal CLI flags so Webpack schema validation passes perfectly
+  delete config.WEBPACK_WATCH;
+  delete config.WEBPACK_BUILD;
+
+  // Only inject dev-only Hot Module Replacement plugins if actively developing locally
+  if (isWatch) {
+    config.output.hotUpdateMainFilename =
+      '[runtime].[fullhash].hot-update.json';
+    config.output.hotUpdateChunkFilename = '[id].[fullhash].hot-update.js';
+
+    config.plugins.push(
       new webpack.HotModuleReplacementPlugin(),
       new webpack.WatchIgnorePlugin({
         paths: [/\.js$/, /\.d\.ts$/],
       }),
+      // 👇 Use the guaranteed local instance here
+      // new webpackInstance.HotModuleReplacementPlugin(),
+      // new webpackInstance.WatchIgnorePlugin({
+      //   paths: [/\.js$/, /\.d\.ts$/],
+      // }),
       new RunScriptWebpackPlugin({
-        name: options.output.filename,
-        // Sync the runner script name with the new .cjs output
-        // name: 'main.cjs',
+        // ✅ Uses optional chaining to prevent undefined reading crashes
+        name: options.output?.filename || 'main.js',
         autoRestart: false,
       }),
-    ],
-  };
+    );
+  }
+
+  return config;
 };
