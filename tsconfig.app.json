@@ -3,8 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "allowJs": true,
-    // "module": "commonjs",
-    "module": "nodenext", // 👈 Allows import.meta
+    "module": "commonjs",
+    // "module": "nodenext", // 👈 Allows import.meta
     // "moduleResolution": "NodeNext", // 👈 Helps resolve modern ESM paths
     "target": "ES2022", // 👈 Ensures modern JS output
     "types": ["node", "express", "express-session", "jest", "multer"],
@@ -31,8 +31,8 @@
       // "*": ["./src/*"],
       "*": ["./src/*"]
     },
-    // "moduleResolution": "bundler"
-    "moduleResolution": "nodenext"
+    "moduleResolution": "bundler"
+    // "moduleResolution": "nodenext"
     // "ignoreDeprecations": "6.0"
     // "moduleResolution": "node16"
   },
