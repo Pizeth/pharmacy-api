@@ -24,6 +24,12 @@ RUN npx prisma generate && npm run generate:dicebear
 # Webpack now copies the assets into dist/ during this step
 RUN npm run build
 
+# Should show i18n/ and assets/
+RUN ls -la dist/        
+
+# Should show your translation files
+RUN ls -la dist/i18n/   
+
 RUN cp -r src/i18n dist/i18n && cp -r src/assets dist/assets
 
 # Stage 2: Production image

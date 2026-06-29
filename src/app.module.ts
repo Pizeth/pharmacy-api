@@ -26,6 +26,9 @@ import { AppController } from 'app.controller';
 import { AppService } from 'app.service';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
+// Force absolute path regardless of __dirname resolution
+const i18nPath = process.env.I18N_PATH ?? path.join(__dirname, 'i18n');
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -105,8 +108,10 @@ import { AppService } from 'app.service';
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        path: path.join(__dirname, '/i18n/'),
-        watch: true,
+        // path: path.join(__dirname, '/i18n/'),
+        // watch: true,
+        path: i18nPath,
+        watch: process.env.NODE_ENV !== 'production', // 👈 disable in prod
       },
       resolvers: [
         { use: QueryResolver, options: ['lang'] },
