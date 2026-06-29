@@ -7,6 +7,7 @@
 // import { RunScriptWebpackPlugin } from 'run-script-webpack-plugin';
 const nodeExternals = require('webpack-node-externals');
 const { RunScriptWebpackPlugin } = require('run-script-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin'); // 👈 Add this import
 // 👇 Add this explicit require at the top
 // const webpackInstance = require('webpack');
 
@@ -69,6 +70,13 @@ module.exports = function (options, webpack) {
     target: 'node',
     plugins: [
       ...(options.plugins || []),
+      // 🧠 ✅ THE FIX: Tell Webpack to copy your assets relative to the output main.js bundle file
+      new CopyPlugin({
+        patterns: [
+          { from: 'src/i18n', to: 'i18n' },
+          { from: 'src/assets', to: 'assets' },
+        ],
+      }),
       // new webpack.HotModuleReplacementPlugin(),
       // new webpack.WatchIgnorePlugin({
       //   paths: [/\.js$/, /\.d\.ts$/],
