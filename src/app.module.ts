@@ -27,7 +27,13 @@ import { AppService } from 'app.service';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 // Force absolute path regardless of __dirname resolution
-const i18nPath = process.env.I18N_PATH ?? path.join(__dirname, 'i18n');
+// const i18nPath =
+//   process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/');
+
+const i18nPath =
+  process.env.NODE_ENV === 'production'
+    ? (process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/'))
+    : path.join(__dirname, 'i18n'); // or wherever it works in dev
 
 @Module({
   imports: [
