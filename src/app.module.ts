@@ -29,11 +29,27 @@ import { AppService } from 'app.service';
 // Force absolute path regardless of __dirname resolution
 // const i18nPath =
 //   process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/');
-
-const i18nPath =
+console.log('__dirname:', __dirname);
+console.log('process.cwd():', process.cwd());
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log(
+  'i18nPath will be:',
   process.env.NODE_ENV === 'production'
     ? (process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/'))
-    : path.join(__dirname, 'i18n'); // or wherever it works in dev
+    : path.join(__dirname, 'i18n'),
+);
+
+// const i18nPath =
+//   process.env.NODE_ENV === 'production'
+//     ? (process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/'))
+//     : path.join(__dirname, 'i18n'); // or wherever it works in dev
+
+const i18nPath =
+  process.env.I18N_PATH ??
+  path.resolve(
+    process.cwd(),
+    process.env.NODE_ENV === 'production' ? 'dist/i18n' : 'src/i18n',
+  );
 
 @Module({
   imports: [
