@@ -24,6 +24,7 @@ import { ValidationError } from './exceptions/zod-validatoin.exception';
 import { ProfileModule } from './modules/profiles/profile.module';
 import { AppController } from 'app.controller';
 import { AppService } from 'app.service';
+import { HealthModule } from './modules/health/health.module';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 // Force absolute path regardless of __dirname resolution
@@ -147,6 +148,7 @@ const i18nPath =
     FileModule,
     TimeParserModule,
     ProfileModule,
+    HealthModule,
   ],
   providers: [
     // Logger,
