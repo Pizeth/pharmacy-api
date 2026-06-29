@@ -70,8 +70,7 @@ export default registerAs('timeParser', (): TimeParserConfig => {
     defaultLocale: process.env.DEFAULT_LOCALE ?? 'en',
     // enableSuggestions: process.env.ENABLE_SUGGESTIONS === 'true',
     enableSuggestions: true,
-    localesPath:
-      process.env.LOCALES_PATH ?? path.join(process.cwd(), 'src/i18n'),
+    localesPath: process.env.I18N_PATH ?? path.join(process.cwd(), 'src/i18n'),
     parseOptions: defaultParseOptions,
     formatOptions: defaultFormatOptions,
     preload: process.env.PRELOAD === 'true',
