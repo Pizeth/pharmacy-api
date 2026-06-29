@@ -19,7 +19,9 @@ async function bootstrap() {
   });
   // app.setGlobalPrefix('v1');
   // Set a global prefix for all routes (e.g., /api)
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['health/live', 'health/ready'], // 👈 exclude from prefix
+  });
 
   // Enable URI versioning with a default version "3"
   app.enableVersioning({

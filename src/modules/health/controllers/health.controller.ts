@@ -1,7 +1,13 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 
-@Controller('health')
+@Controller({ path: 'health', version: VERSION_NEUTRAL }) // 👈 no version prefix
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
