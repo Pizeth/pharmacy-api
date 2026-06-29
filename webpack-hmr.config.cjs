@@ -51,6 +51,14 @@ module.exports = function (options, webpack) {
       outputModule: true, // 👈 Required to make Webpack output true import/export code
     },
 
+    // 🧠 ✅ THE FIX: Map Prisma's explicit .js imports directly back to your .ts source files
+    resolve: {
+      ...options.resolve,
+      extensionAlias: {
+        '.js': ['.ts', '.js'],
+      },
+    },
+
     // 👈 ADD THIS BLOCK HERE
     // Tells Webpack to replace __dirname with the correct runtime path in ESM
     node: {
