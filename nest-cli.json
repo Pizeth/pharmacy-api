@@ -6,6 +6,10 @@
     "deleteOutDir": true,
     "webpack": true,
     "webpackConfigPath": "webpack-hmr.config.cjs",
-    "tsConfigPath": "tsconfig.build.json"
+    "tsConfigPath": "tsconfig.build.json",
+    "assets": [
+      { "include": "i18n/**/*", "watchAssets": true },
+      { "include": "assets/**/*", "outDir": "dist/", "watchAssets": true }
+    ]
   }
 }
