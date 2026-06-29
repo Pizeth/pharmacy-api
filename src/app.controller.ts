@@ -11,22 +11,13 @@
 //   }
 // }
 
-import {
-  Controller,
-  Get,
-  Param,
-  Post,
-  Body,
-  Put,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
 // import { UsersService } from './modules/users/services/users.service';
-import { Prisma, User, User as UserModel } from 'generated/prisma/client';
-import { PaginatedDataResult } from './types/types';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { AppService } from 'app.service';
 
-@Controller({ version: '1' })
+// @Controller({ version: '1' })
+@Controller({ path: '', version: VERSION_NEUTRAL }) // 👈 no version prefix
 export class AppController {
   constructor(
     // private readonly userService: UsersService,
