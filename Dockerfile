@@ -23,6 +23,10 @@ RUN npx prisma generate && npm run generate:dicebear
 # 4. Run the final production build
 RUN npm run build
 
+# 🧠 ✅ THE FIX: Manually copy the raw static asset folders into the dist directory 
+# so they are available for Stage 2 to import.
+RUN cp -r src/i18n dist/i18n && cp -r src/assets dist/assets
+
 # Stage 2: Production image
 FROM node:26-alpine3.24 AS production
 
