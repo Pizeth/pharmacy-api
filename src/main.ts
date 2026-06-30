@@ -6,7 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { HotModule } from './types/types';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
 import 'reflect-metadata';
-import { VersioningType } from '@nestjs/common';
+import { RequestMethod, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 // import { ZodValidationPipe } from 'nestjs-zod';
@@ -24,10 +24,11 @@ async function bootstrap() {
     exclude: [
       // { path: '/', method: RequestMethod.GET }, // 👈 FIXED: Explicitly bypass ONLY the root GET request
       // '/',
-      'images',
-      'auth-config',
-      'health/live',
-      'health/ready',
+      // '/auth',
+      { path: 'images', method: RequestMethod.GET },
+      { path: 'images/*path', method: RequestMethod.GET }, // 👈 catches all sub-routes
+      { path: 'health/live', method: RequestMethod.GET },
+      { path: 'health/ready', method: RequestMethod.GET },
     ], // 👈 exclude from prefix
   });
 

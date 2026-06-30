@@ -41,6 +41,7 @@ import { PrismaModule } from 'modules/prisma/prisma.module';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { AuthHooks } from './hooks/auth.hook';
 import { AuthService } from './services/auth.service';
+import { AuthController } from './controllers/auth.controller';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AuthService } from './services/auth.service';
     }),
   ],
   providers: [AuthHooks, AuthService],
+  controllers: [AuthController],
 })
 export class AuthModule {}
 

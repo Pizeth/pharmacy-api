@@ -1,15 +1,18 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, VERSION_NEUTRAL } from '@nestjs/common';
 import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
 import { Auth } from 'lib/auth';
 import {
   ACTIVE_SOCIAL_PROVIDERS,
   ACTIVE_GENERIC_PROVIDERS,
+  ACTIVE_BASE_PROVIDERS,
 } from 'lib/auth.provider';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 // import { ACTIVE_SOCIAL_PROVIDERS, ACTIVE_GENERIC_PROVIDERS } from 'types/auth';
 // import { Auth } from 'lib/auth';
 // import { Auth } from '../auth';
 
-@Controller('auth')
+// @Controller('auth')
+@Controller({ path: 'auth-info', version: VERSION_NEUTRAL }) // 👈 no version prefix
 @UseGuards(AuthGuard)
 export class AuthController {
   // Better Auth handles all of these automatically — no need to define them:
@@ -24,16 +27,20 @@ export class AuthController {
   // POST /api/auth/verify-email
   // ... and everything else from your plugins
 
+  @AllowAnonymous()
   @Get('me')
   getMe(@Session() session: UserSession<Auth>) {
+    if (!session) return 'Please login first!';
     return session.user;
   }
 
+  @AllowAnonymous()
   @Get('providers')
   getEnabledProviders() {
     return {
       // Direct list of what you initialized in your createAuth() factory
       // Send active OAuth targets so Next.js can map buttons dynamically
+      base: ACTIVE_BASE_PROVIDERS,
       social: ACTIVE_SOCIAL_PROVIDERS,
       generic: ACTIVE_GENERIC_PROVIDERS,
     };
