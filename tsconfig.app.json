@@ -37,6 +37,12 @@
     // "ignoreDeprecations": "6.0"
     // "moduleResolution": "node16"
   },
+  "watchOptions": {
+    "watchFile": "dynamicPriorityPolling",
+    "watchDirectory": "dynamicPriorityPolling",
+    "fallbackPolling": "dynamicPriority",
+    "excludeDirectories": ["**/node_modules", "dist"]
+  },
   "include": [
     "src/**/*",
     "src/types/**/*",

@@ -19,15 +19,17 @@ module.exports = function (options, webpack) {
     ...options,
     // entry: ['webpack/hot/poll?100', options.entry],
     // 👇 Dynamically clear out the HMR entry poller if we aren't explicitly watching files
-    entry: isWatch ? ['webpack/hot/poll?100', options.entry] : options.entry,
+    // entry: isWatch ? ['webpack/hot/poll?100', options.entry] : options.entry,
+    entry: options.entry,
     // 1. Force external packages to rely on modern ESM import statements
     externalsType: 'import', // 👈 Enable ESM import statements for externals
     externals: [
       nodeExternals({
         // allowlist: ['webpack/hot/poll?100', /^@dicebear/],
-        allowlist: isWatch
-          ? ['webpack/hot/poll?100', /^@dicebear/]
-          : [/^@dicebear/],
+        // allowlist: isWatch
+        //   ? ['webpack/hot/poll?100', /^@dicebear/]
+        //   : [/^@dicebear/],
+        allowlist: [/^@dicebear/], // 👈 Cleaned up the poll entry here
         importType: 'module', // 👈 CHANGE from 'commonjs' to 'module'
         // importType: 'commonjs',
       }),
@@ -114,7 +116,8 @@ module.exports = function (options, webpack) {
       new RunScriptWebpackPlugin({
         // ✅ Uses optional chaining to prevent undefined reading crashes
         name: options.output?.filename || 'main.js',
-        autoRestart: false,
+        // autoRestart: false,
+        autoRestart: true,
       }),
     );
   }

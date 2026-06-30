@@ -12,101 +12,17 @@
 // }
 
 import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
-// import { UsersService } from './modules/users/services/users.service';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { AppService } from 'app.service';
 
 // @Controller({ version: '1' })
 @Controller({ path: '', version: VERSION_NEUTRAL }) // 👈 no version prefix
 export class AppController {
-  constructor(
-    // private readonly userService: UsersService,
-    private readonly service: AppService,
-  ) {}
-
-  // @Get('post/:id')
-  // async getPostById(@Param('id') id: string): Promise<PostModel> {
-  //   return this.postService.post({ id: Number(id) });
-  // }
-
-  // @Get('feed')
-  // async getPublishedPosts(): Promise<PostModel[]> {
-  //   return this.postService.posts({
-  //     where: { published: true },
-  //   });
-  // }
-
-  // @Get('filtered-posts/:searchString')
-  // async getFilteredPosts(
-  //   @Param('searchString') searchString: string,
-  // ): Promise<PostModel[]> {
-  //   return this.postService.posts({
-  //     where: {
-  //       OR: [
-  //         {
-  //           title: { contains: searchString },
-  //         },
-  //         {
-  //           content: { contains: searchString },
-  //         },
-  //       ],
-  //     },
-  //   });
-  // }
-
-  // @Post('post')
-  // async createDraft(
-  //   @Body() postData: { title: string; content?: string; authorEmail: string },
-  // ): Promise<PostModel> {
-  //   const { title, content, authorEmail } = postData;
-  //   return this.postService.createPost({
-  //     title,
-  //     content,
-  //     author: {
-  //       connect: { email: authorEmail },
-  //     },
-  //   });
-  // }
-
-  // @Get('user/:id')
-  // async getUserById(@Param('id') id: string): Promise<UserModel | null> {
-  //   return this.userService.getOne({ id: Number(id) });
-  // }
-
-  // @Get('users/:params')
-  // async getUsersByParams(
-  //   @Param('params') params: Prisma.UserWhereUniqueInput,
-  // ): Promise<User | null> {
-  //   return this.userService.getOne(params);
-  // }
-
-  // @Get('users')
-  // async getAllUsers(): Promise<PaginatedDataResult<User>> {
-  //   return this.userService.getAll();
-  // }
-
-  // @Post('user')
-  // async signupUser(
-  //   @Body() userData: Prisma.UserCreateInput,
-  // ): Promise<UserModel> {
-  //   return this.userService.createUser(userData);
-  // }
+  constructor(private readonly service: AppService) {}
 
   @AllowAnonymous()
-  @Get(['', '/']) // 👈 FIX: Matches both /api/v1 AND /api/v1/ perfectly
-  getHello() {
+  @Get() // 👈 Matches exactly: http://localhost:3000/
+  getInfo() {
     return this.service.getInfo();
   }
-  // @Put('publish/:id')
-  // async publishPost(@Param('id') id: string): Promise<PostModel> {
-  //   return this.postService.updatePost({
-  //     where: { id: Number(id) },
-  //     data: { published: true },
-  //   });
-  // }
-
-  // @Delete('post/:id')
-  // async deletePost(@Param('id') id: string): Promise<PostModel> {
-  //   return this.postService.deletePost({ id: Number(id) });
-  // }
 }

@@ -25,6 +25,8 @@ import { ProfileModule } from './modules/profiles/profile.module';
 import { AppController } from 'app.controller';
 import { AppService } from 'app.service';
 import { HealthModule } from './modules/health/health.module';
+import { ImagesModule } from 'modules/images/image.module';
+import { ApiModule } from './modules/api/api.module';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 // Force absolute path regardless of __dirname resolution
@@ -146,9 +148,11 @@ const i18nPath =
     }),
     AuthModule,
     FileModule,
+    ImagesModule,
     TimeParserModule,
     ProfileModule,
     HealthModule,
+    ApiModule,
   ],
   providers: [
     // Logger,

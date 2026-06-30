@@ -423,6 +423,10 @@ export class ImagesService implements OnModuleInit {
     }
   }
 
+  getAvailableStyles() {
+    return Object.keys(this.availableStyles);
+  }
+
   /**
    * Loads the default avatar options from the environment variable `APP_DEFAULT_AVATAR_OPTIONS`.
    * If the environment variable is not set, logs a message and uses DiceBear defaults.

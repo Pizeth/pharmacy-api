@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ImagesService } from 'modules/images/services/images.service';
 
 @Injectable()
-export class AppService {
-  constructor(private readonly imageService: ImagesService) {}
+export class V1Service {
   getInfo(): Record<string, unknown> {
     return {
       name: 'PISETHCHESDA Pharmacy API Gateway',
@@ -12,30 +10,14 @@ export class AppService {
       timestamp: new Date().toISOString(),
       description:
         'Core RESTful API engine managing inventory, points of sale (POS), and automated localized asset assets.',
-      documentation: {
-        swaggerUi: '/api-docs',
-        openapiJson: '/api-docs-json',
-      },
       routingRules: {
-        prefix: '/api',
-        versioningStrategy: 'URI Path (e.g., /api/v1/)',
+        prefix: '/api/v1',
       },
       primaryEndpoints: {
         authentication: '/api/v1/auth',
         users: '/api/v1/users',
         profiles: '/api/v1/profiles',
         files: '/api/v1/files',
-        authConfig: '/auth-config',
-        images: {
-          base: '/images',
-          available_styles: this.imageService.getAvailableStyles(),
-          exampleSvg: '/images/adventurer?seed=Chesda',
-          examplePng: '/images/initials/png?seed=Piseth&backgroundColor=e53935',
-        },
-        health: {
-          live: '/health/live',
-          ready: '/health/ready',
-        },
       },
       support: {
         environment: process.env.NODE_ENV || 'development',

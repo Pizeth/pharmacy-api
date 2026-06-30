@@ -1,5 +1,6 @@
-import { AuthMethod, Role } from 'generated/prisma/client';
+import { Role } from 'generated/prisma/client';
 import { Sex } from './commons.enum';
+import { ConfiguredProviderId } from './auth';
 
 export interface SuperAdminData {
   username: string;
@@ -9,7 +10,7 @@ export interface SuperAdminData {
   roleId: number;
   role: Role;
   // authMethod: AuthMethod[];
-  authMethod: ConfiguredProviderId;
+  authMethod: ConfiguredProviderId[];
   profile: {
     firstName: string;
     lastName: string;

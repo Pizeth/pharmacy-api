@@ -12,6 +12,7 @@ import {
   Res,
   ParseEnumPipe,
   Logger,
+  VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -34,7 +35,8 @@ import { ParseDiceBearStylePipe } from '../pipes/parse-style.pipe';
 
 @AllowAnonymous()
 @ApiTags('Images')
-@Controller('images')
+// @Controller('images')
+@Controller({ path: 'images', version: VERSION_NEUTRAL }) // 👈 no version prefix
 export class ImagesController {
   private readonly logger = new Logger(ImagesController.name);
   constructor(private readonly imagesService: ImagesService) {}
