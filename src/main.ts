@@ -78,7 +78,9 @@ async function bootstrap() {
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
   app.enableCors({
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080').split(','),
+    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
+      .split(',')
+      .map((origin) => origin.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true, // ⚠️ CRITICAL: Must be true so Better Auth cookies can be sent across domains!
