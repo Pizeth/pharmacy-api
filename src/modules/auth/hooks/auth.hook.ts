@@ -3,9 +3,21 @@ import {
   Hook,
   BeforeHook,
   AuthHookContext,
+  AfterHook,
 } from '@thallesp/nestjs-better-auth';
 import { AuthService } from '../services/auth.service';
 // import { AuthService } from './auth.service';
+
+type HookContext = AuthHookContext & {
+  context: {
+    session?: {
+      userId?: string | number;
+    };
+    newSession?: {
+      userId?: string | number;
+    };
+  };
+};
 
 @Hook()
 @Injectable()
@@ -21,6 +33,7 @@ export class AuthHooks {
     if (body.email) {
       const user = await this.authService.getUserByIdentifier(body.email);
       if (user) {
+        // Email/password users must be fully activated
         await this.authService.assertUserCanLogin(user.id);
       }
     }
@@ -35,8 +48,61 @@ export class AuthHooks {
     if (body.username) {
       const user = await this.authService.getUserByIdentifier(body.username);
       if (user) {
+        // Username/password users must be fully activated
         await this.authService.assertUserCanLogin(user.id);
       }
     }
+  }
+
+  // 👇 Add this — social sign-ins skip isActivated check
+  // @BeforeHook('/sign-in/social')
+  // async beforeSocialSignIn(ctx: AuthHookContext) {
+  //   const request = ctx.request;
+  //   if (!request) return;
+  //   // const body = (await ctx.request?.json()) as { provider?: string };
+  //   const body = (await request.json()) as { email?: string };
+  //   // Only check enabled/locked/banned — NOT isActivated
+  //   // since Google already verified the identity
+  //   // Social sign-in body may not have email at this stage —
+  //   // Better Auth resolves the email after the OAuth callback.
+  //   // We can only check by email if it's present (e.g. on re-login).
+  //   if (!body.email) return;
+
+  //   const user = await this.authService.getUserByIdentifier(body.email);
+  //   if (user) {
+  //     // Skip activation check — Google/social provider already verified identity
+  //     await this.authService.assertUserCanLogin(user.id, {
+  //       checkActivation: false,
+  //     });
+  //   }
+  // }
+
+  // Runs AFTER Google/social resolves the user — this is where
+  // we actually know who the user is for social sign-ins
+  @AfterHook('/callback/:provider')
+  async afterSocialCallback(ctx: HookContext) {
+    console.log(Object.keys(ctx.context ?? {}));
+    // The session is populated after a successful OAuth callback
+    const userId =
+      ctx.context?.session?.userId ?? ctx.context?.newSession?.userId;
+
+    if (!userId) return;
+
+    await this.authService.assertUserCanLogin(Number(userId), {
+      checkActivation: false, // social provider already verified identity
+    });
+  }
+
+  // Also cover the generic OAuth callback path used by genericOAuth plugin
+  @AfterHook('/oauth2/callback/:provider')
+  async afterGenericOAuthCallback(ctx: HookContext) {
+    const userId =
+      ctx.context?.session?.userId ?? ctx.context?.newSession?.userId;
+
+    if (!userId) return;
+
+    await this.authService.assertUserCanLogin(Number(userId), {
+      checkActivation: false,
+    });
   }
 }

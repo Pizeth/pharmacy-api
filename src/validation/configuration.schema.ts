@@ -41,7 +41,7 @@ export const configurationSchema = z.object({
   // REFRESH_TOKEN_KEY: validation.requiredString('REFRESH_TOKEN_KEY'),
   // EXPIRE_IN: validation.requiredString('EXPIRE_IN'),
   // EXPIRE_REFRESH: validation.requiredString('EXPIRE_REFRESH'),
-  CORS_ORIGIN: validation.requiredString('CORS_ORIGIN'),
+  CORS_ORIGINS: validation.requiredString('CORS_ORIGINS'),
 
   // JWT Security
   BCRYPT_ROUNDS: validation.optionalNumber(12),

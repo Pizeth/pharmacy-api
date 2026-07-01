@@ -16,7 +16,10 @@ export class AuthService {
   ) {}
 
   // Called from Better Auth's before hooks to enforce your custom flags
-  async assertUserCanLogin(userId: number): Promise<void> {
+  async assertUserCanLogin(
+    userId: number,
+    options: { checkActivation?: boolean } = { checkActivation: true },
+  ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -49,12 +52,20 @@ export class AuthService {
       );
     }
 
-    if (!user.isActivated) {
+    // if (!user.isActivated) {
+    //   throw new AppError(
+    //     'Account is not activated',
+    //     HttpStatus.FORBIDDEN,
+    //     this.context,
+    //     'User has not activated their account',
+    //   );
+    // }
+
+    if (options.checkActivation && !user.isActivated) {
       throw new AppError(
         'Account is not activated',
         HttpStatus.FORBIDDEN,
         this.context,
-        'User has not activated their account',
       );
     }
   }

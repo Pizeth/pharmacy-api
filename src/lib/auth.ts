@@ -1,4 +1,4 @@
-import { betterAuth } from 'better-auth';
+import { betterAuth, isProduction } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { PrismaClient } from 'generated/prisma/client';
 // 🚀 Pull the providers dynamically using local relative step-ups
@@ -29,10 +29,14 @@ import {
 
 export const options = (prisma: PrismaClient) => ({
   appName: 'Razeth',
-  baseURL: 'http://localhost:3000',
+  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
+  trustedOrigins: [
+    process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
+    process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
+  ],
   // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
   hooks: {},
   advanced: {
@@ -40,6 +44,21 @@ export const options = (prisma: PrismaClient) => ({
       generateId: 'serial' as const, // 👈 Prevent string-widening
     },
     cookiePrefix: 'razeth',
+    // useSecureCookies: isProduction, // 👈 Better Auth's built-in toggle
+    // crossSubdomainCookies: {
+    //   enabled: false, // same domain in dev, enable in prod if needed
+    // },
+    cookies: {
+      state_cookie: {
+        attributes: {
+          // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
+          // secure: isProduction, // 👈 false for http localhost
+          sameSite: 'none' as const,
+          secure: true, // 👈 must be true when sameSite is 'none'
+          httpOnly: true,
+        },
+      },
+    },
   },
   // Mirror the same plugins/options as your real auth config
   // so the CLI generates the correct schema
@@ -116,6 +135,9 @@ export const options = (prisma: PrismaClient) => ({
         input: false,
       },
     },
+  },
+  account: {
+    skipStateCookieCheck: process.env.NODE_ENV !== 'production',
   },
   plugins: [
     apiKey(),
