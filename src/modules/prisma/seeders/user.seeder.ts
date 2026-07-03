@@ -45,7 +45,11 @@ export class UserSeeder {
           role: 'sys-admin', // Sync string fallback for Better-Auth admin utilities
         },
         create: {
-          name: superAdminData.username,
+          name: superAdminData.profile.firstName.concat(
+            ' ',
+            superAdminData.profile.lastName,
+          ),
+          username: superAdminData.username, // 👈 add this
           email: superAdminData.email,
           image: superAdminData.avatar,
           role: 'sys-admin', // Kept for default admin() plugin compliance
