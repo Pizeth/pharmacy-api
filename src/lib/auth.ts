@@ -34,8 +34,11 @@ export const options = (prisma: PrismaClient) => ({
     provider: 'postgresql',
   }),
   trustedOrigins: [
-    process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
-    process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
+    // process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
+    // process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
+    // 'http://localhost:8080', // 👈 explicitly add for dev
+    ...(process.env.FRONTEND_URL || 'http://localhost:8080').split(','),
+    process.env.BETTER_AUTH_URL || 'http://localhost:3000',
   ],
   // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
   hooks: {},
