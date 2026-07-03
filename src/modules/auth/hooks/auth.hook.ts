@@ -26,47 +26,28 @@ export class AuthHooks {
 
   @BeforeHook('/sign-in/email')
   async beforeEmailSignIn(ctx: AuthHookContext) {
-    const request = ctx.request;
-    if (!request) return;
-
-    // const body = (await request.json()) as { email?: string };
-    // const body = (await request.clone().json()) as { email?: string }; // 👈 clone
-    // if (!body.email) return;
     // 👇 Use ctx.body instead of ctx.request.json()
     const body = ctx.body as { email?: string } | undefined;
     if (!body?.email) return;
 
-    // if (body.email) {
     const user = await this.authService.getUserByIdentifier(body.email);
     if (user) {
       // Email/password users must be fully activated
       await this.authService.assertUserCanLogin(user.id);
     }
-    // }
   }
 
   @BeforeHook('/sign-in/username')
   async beforeUsernameSignIn(ctx: AuthHookContext) {
-    const request = ctx.request;
-    if (!request) return;
-
-    console.log('ctx keys:', Object.keys(ctx));
-    console.log('ctx.body:', (ctx as any).body);
-    console.log('ctx.context:', Object.keys((ctx as any).context ?? {}));
-    // const body = (await request.json()) as { username?: string };
-    // 👇 Clone before reading — body stream can only be consumed once
-    // const body = (await request.clone().json()) as { username?: string };
     // 👇 Use ctx.body instead of ctx.request.json()
     const body = ctx.body as { username?: string } | undefined;
     if (!body?.username) return;
 
-    // if (body.username) {
     const user = await this.authService.getUserByIdentifier(body.username);
     if (user) {
       // Username/password users must be fully activated
       await this.authService.assertUserCanLogin(user.id);
     }
-    // }
   }
 
   // 👇 Add this — social sign-ins skip isActivated check
