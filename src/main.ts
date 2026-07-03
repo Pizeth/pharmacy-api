@@ -82,7 +82,7 @@ async function bootstrap() {
       .split(',')
       .map((origin) => origin.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-captcha-response'],
     credentials: true, // ⚠️ CRITICAL: Must be true so Better Auth cookies can be sent across domains!
   });
 
