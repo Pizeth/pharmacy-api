@@ -51,14 +51,20 @@ export const options = (prisma: PrismaClient) => ({
     // crossSubdomainCookies: {
     //   enabled: false, // same domain in dev, enable in prod if needed
     // },
+    crossSubdomainCookies: {
+      enabled: true, // 👈 enable cross-subdomain cookies
+      domain: '.razeth.com', // 👈 leading dot = all subdomains
+    },
     cookies: {
       state_cookie: {
         attributes: {
           // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
           // secure: isProduction, // 👈 false for http localhost
-          sameSite: 'none' as const,
+          // sameSite: 'none' as const,
+          sameSite: 'lax' as const,
           secure: true, // 👈 must be true when sameSite is 'none'
           httpOnly: true,
+          domain: '.razeth.com', // 👈 explicitly set domain on session cookie
         },
       },
     },
