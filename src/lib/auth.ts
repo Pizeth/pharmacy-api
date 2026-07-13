@@ -59,14 +59,22 @@ export const options = (prisma: PrismaClient) => ({
       session_token: {
         attributes: {
           sameSite: 'lax' as const,
-          secure: isProduction, // 👈 false for http localhost
+          secure: isProduction, // ✅ false in dev = no __Secure- prefix
+          httpOnly: true,
+        },
+      },
+      session_data: {
+        // 👈 also cover session_data cookie
+        attributes: {
+          sameSite: 'lax' as const,
+          secure: isProduction,
           httpOnly: true,
         },
       },
       state_cookie: {
         attributes: {
           sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
-          secure: isProduction, // 👈 false for http localhost
+          secure: isProduction,
           httpOnly: true,
         },
       },
