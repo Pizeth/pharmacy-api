@@ -56,13 +56,21 @@ export const options = (prisma: PrismaClient) => ({
     //   domain: '.razeth.com', // 👈 leading dot = all subdomains
     // },
     cookies: {
+      session_token: {
+        attributes: {
+          sameSite: 'lax' as const,
+          secure: isProduction, // 👈 false for http localhost
+          httpOnly: true,
+          domain: undefined, // 👈 let browser infer from request host
+        },
+      },
       state_cookie: {
         attributes: {
           sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
           // secure: isProduction, // 👈 false for http localhost
           // sameSite: 'none' as const,
           // sameSite: 'lax' as const,
-          secure: true, // 👈 must be true when sameSite is 'none'
+          secure: false, // 👈 must be true when sameSite is 'none'
           httpOnly: true,
           // domain: '.razeth.com', // 👈 explicitly set domain on session cookie
         },
