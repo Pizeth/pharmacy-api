@@ -48,23 +48,23 @@ export const options = (prisma: PrismaClient) => ({
     },
     cookiePrefix: 'razeth',
     // useSecureCookies: isProduction, // 👈 Better Auth's built-in toggle
-    // crossSubdomainCookies: {
-    //   enabled: false, // same domain in dev, enable in prod if needed
-    // },
     crossSubdomainCookies: {
-      enabled: true, // 👈 enable cross-subdomain cookies
-      domain: '.razeth.com', // 👈 leading dot = all subdomains
+      enabled: false, // same domain in dev, enable in prod if needed
     },
+    // crossSubdomainCookies: {
+    //   enabled: true, // 👈 enable cross-subdomain cookies
+    //   domain: '.razeth.com', // 👈 leading dot = all subdomains
+    // },
     cookies: {
       state_cookie: {
         attributes: {
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
+          sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
           // secure: isProduction, // 👈 false for http localhost
           // sameSite: 'none' as const,
-          sameSite: 'lax' as const,
+          // sameSite: 'lax' as const,
           secure: true, // 👈 must be true when sameSite is 'none'
           httpOnly: true,
-          domain: '.razeth.com', // 👈 explicitly set domain on session cookie
+          // domain: '.razeth.com', // 👈 explicitly set domain on session cookie
         },
       },
     },
