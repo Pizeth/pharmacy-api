@@ -59,8 +59,9 @@ export const options = (prisma: PrismaClient) => ({
       session_token: {
         attributes: {
           // sameSite: 'lax' as const,
-          sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          secure: isProduction, // ✅ false in dev = no __Secure- prefix
+          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+          sameSite: 'none',
+          secure: true, // ✅ false in dev = no __Secure- prefix
           httpOnly: true,
         },
       },
@@ -68,15 +69,17 @@ export const options = (prisma: PrismaClient) => ({
         // 👈 also cover session_data cookie
         attributes: {
           // sameSite: 'lax' as const,
-          sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          secure: isProduction,
+          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+          sameSite: 'none',
+          secure: true,
           httpOnly: true,
         },
       },
       state_cookie: {
         attributes: {
-          sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
-          secure: isProduction,
+          // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
+          sameSite: 'none',
+          secure: true,
           httpOnly: true,
         },
       },
