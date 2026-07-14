@@ -60,7 +60,7 @@ export const options = (prisma: PrismaClient) => ({
         attributes: {
           // sameSite: 'lax' as const,
           // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none',
+          sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
           secure: true, // ✅ false in dev = no __Secure- prefix
           httpOnly: true,
         },
@@ -70,7 +70,7 @@ export const options = (prisma: PrismaClient) => ({
         attributes: {
           // sameSite: 'lax' as const,
           // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none',
+          sameSite: 'none' as const,
           secure: true,
           httpOnly: true,
         },
@@ -78,7 +78,7 @@ export const options = (prisma: PrismaClient) => ({
       state_cookie: {
         attributes: {
           // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
-          sameSite: 'none',
+          sameSite: 'none' as const,
           secure: true,
           httpOnly: true,
         },
