@@ -83,6 +83,10 @@ async function bootstrap() {
       .map((origin) => origin.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-captcha-response'],
+    exposedHeaders: [
+      'set-auth-token', // 👈 expose Bearer token header
+      'set-auth-jwt', // 👈 expose JWT header (used by getSession)
+    ],
     credentials: true, // ⚠️ CRITICAL: Must be true so Better Auth cookies can be sent across domains!
   });
 
