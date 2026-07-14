@@ -58,7 +58,8 @@ export const options = (prisma: PrismaClient) => ({
     cookies: {
       session_token: {
         attributes: {
-          sameSite: 'lax' as const,
+          // sameSite: 'lax' as const,
+          sameSite: isProduction ? ('none' as const) : ('lax' as const),
           secure: isProduction, // ✅ false in dev = no __Secure- prefix
           httpOnly: true,
         },
@@ -66,7 +67,8 @@ export const options = (prisma: PrismaClient) => ({
       session_data: {
         // 👈 also cover session_data cookie
         attributes: {
-          sameSite: 'lax' as const,
+          // sameSite: 'lax' as const,
+          sameSite: isProduction ? ('none' as const) : ('lax' as const),
           secure: isProduction,
           httpOnly: true,
         },
