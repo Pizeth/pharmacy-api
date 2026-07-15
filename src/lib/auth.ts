@@ -69,7 +69,7 @@ export const options = (prisma: PrismaClient) => ({
       sameSite: 'none' as const, // 👈 MUST be 'none' for cross-domain OAuth
       secure: true, // 👈 MUST be true when sameSite is 'none'
       httpOnly: true, // 👈 CRITICAL: Protects against XSS token theft
-      partitioned: true, // 👈 CRITICAL: Bypasses Chrome's 3rd-party cookie block
+      // partitioned: true, // 👈 CRITICAL: Bypasses Chrome's 3rd-party cookie block
     },
     cookies: {
       // 🚀 1. Use defaultCookieAttributes instead of individual overrides
@@ -80,7 +80,7 @@ export const options = (prisma: PrismaClient) => ({
           sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
           secure: true, // ✅ false in dev = no __Secure- prefix
           httpOnly: true,
-          partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
+          // partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
         },
       },
       sessionData: {
@@ -91,7 +91,7 @@ export const options = (prisma: PrismaClient) => ({
           sameSite: 'none' as const,
           secure: true,
           httpOnly: true,
-          partitioned: true, // 👈 Required for Cross-Site localhost testing
+          // partitioned: true, // 👈 Required for Cross-Site localhost testing
         },
       },
       stateCookie: {
