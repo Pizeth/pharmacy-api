@@ -51,21 +51,32 @@ export const options = (prisma: PrismaClient) => ({
     // crossSubdomainCookies: {
     //   enabled: false, // same domain in dev, enable in prod if needed
     // },
+    // crossSubdomainCookies: {
+    //   enabled: true, // 👈 enable cross-subdomain cookies
+    //   domain: isProduction ? '.razeth.com' : undefined, // 👈 leading dot = all subdomains
+    // },
+    // Dynamic Subdomain Toggle
     crossSubdomainCookies: {
-      enabled: true, // 👈 enable cross-subdomain cookies
-      domain: isProduction ? '.razeth.com' : undefined, // 👈 leading dot = all subdomains
+      // 💡 ONLY enforce subdomain restriction if the client is actually on the production root domain
+      enabled:
+        isProduction && !(process.env.FRONTEND_URL || '').includes('localhost'),
+      domain:
+        isProduction && !(process.env.FRONTEND_URL || '').includes('localhost')
+          ? '.razeth.com'
+          : undefined,
     },
     cookies: {
-      session_token: {
+      sessionToken: {
         attributes: {
           // sameSite: 'lax' as const,
           // sameSite: isProduction ? ('none' as const) : ('lax' as const),
           sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
           secure: true, // ✅ false in dev = no __Secure- prefix
           httpOnly: true,
+          partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
         },
       },
-      session_data: {
+      sessionData: {
         // 👈 also cover session_data cookie
         attributes: {
           // sameSite: 'lax' as const,
@@ -73,14 +84,16 @@ export const options = (prisma: PrismaClient) => ({
           sameSite: 'none' as const,
           secure: true,
           httpOnly: true,
+          partitioned: true, // 👈 Required for Cross-Site localhost testing
         },
       },
-      state_cookie: {
+      stateCookie: {
         attributes: {
           // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
           sameSite: 'none' as const,
           secure: true,
           httpOnly: true,
+          // Do not partition the state cookie; OAuth validation mechanics require standard storage
         },
       },
     },
