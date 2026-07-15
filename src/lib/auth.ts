@@ -66,36 +66,43 @@ export const options = (prisma: PrismaClient) => ({
           : undefined,
     },
     cookies: {
-      sessionToken: {
-        attributes: {
-          // sameSite: 'lax' as const,
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
-          secure: true, // ✅ false in dev = no __Secure- prefix
-          httpOnly: true,
-          partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
-        },
+      // 🚀 1. Use defaultCookieAttributes instead of individual overrides
+      defaultCookieAttributes: {
+        sameSite: 'none', // 👈 MUST be 'none' for cross-domain OAuth
+        secure: true, // 👈 MUST be true when sameSite is 'none'
+        httpOnly: true, // 👈 CRITICAL: Protects against XSS token theft
+        partitioned: true, // 👈 CRITICAL: Bypasses Chrome's 3rd-party cookie block
       },
-      sessionData: {
-        // 👈 also cover session_data cookie
-        attributes: {
-          // sameSite: 'lax' as const,
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none' as const,
-          secure: true,
-          httpOnly: true,
-          partitioned: true, // 👈 Required for Cross-Site localhost testing
-        },
-      },
-      stateCookie: {
-        attributes: {
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
-          sameSite: 'none' as const,
-          secure: true,
-          httpOnly: true,
-          // Do not partition the state cookie; OAuth validation mechanics require standard storage
-        },
-      },
+      // sessionToken: {
+      //   attributes: {
+      //     // sameSite: 'lax' as const,
+      //     // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+      //     sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
+      //     secure: true, // ✅ false in dev = no __Secure- prefix
+      //     httpOnly: true,
+      //     partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
+      //   },
+      // },
+      // sessionData: {
+      //   // 👈 also cover session_data cookie
+      //   attributes: {
+      //     // sameSite: 'lax' as const,
+      //     // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+      //     sameSite: 'none' as const,
+      //     secure: true,
+      //     httpOnly: true,
+      //     partitioned: true, // 👈 Required for Cross-Site localhost testing
+      //   },
+      // },
+      // stateCookie: {
+      //   attributes: {
+      //     // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
+      //     sameSite: 'none' as const,
+      //     secure: true,
+      //     httpOnly: true,
+      //     // Do not partition the state cookie; OAuth validation mechanics require standard storage
+      //   },
+      // },
     },
   },
   // Mirror the same plugins/options as your real auth config
