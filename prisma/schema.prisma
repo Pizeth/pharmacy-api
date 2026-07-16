@@ -322,6 +322,8 @@ model User {
   phoneNumberVerified Boolean?
   roleId              Int?        @map("role_id")
   // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
+  // profileComplete     Boolean?    @default(false)
+  isLinked            Boolean?    @default(false)
   mustChangePassword  Boolean?    @default(false)
   userRole            Role?       @relation(fields: [roleId], references: [id])
   isEnabled           Boolean?    @default(true)
@@ -468,18 +470,46 @@ model Jwks {
 }
 
 model Profile {
-  id        Int      @id @default(autoincrement())
-  firstName String   @map("first_name") @db.VarChar(50)
-  lastName  String   @map("last_name") @db.VarChar(50)
-  sex       Sex
-  dob       DateTime
-  pob       String?  @db.VarChar(50)
-  address   String?  @db.VarChar(255)
-  phone     String?  @db.VarChar(255)
-  married   Boolean  @default(false)
-  bio       String?
-  userId    Int      @unique @map("user_id")
-  Cashier   Cashier?
+  id          Int      @id @default(autoincrement())
+  officialId  String   @unique @map("official_id") @db.VarChar(10)
+  nationalId  String?  @unique @db.VarChar(10)
+  firstName   String   @map("first_name") @db.VarChar(50)
+  lastName    String   @map("last_name") @db.VarChar(50)
+  sex         Sex
+  dob         DateTime
+  pob         String?  @db.VarChar(50)
+  nationality String?  @db.VarChar(100)
+  phone       String?  @db.VarChar(255)
+  email       String?  @db.VarChar(255)
+  address     String?  @db.VarChar(255)
+  married     Boolean  @default(false)
+  bio         String?
+
+  //--------------------------------------
+  // Civil Service
+  //--------------------------------------
+
+  // --- Advanced Employment & Civil Service Tracking ---
+  status             EmploymentStatus @default(ACTIVE)
+  entryDate          DateTime         @map("entry_date") @db.Date // Date they officially entered government service
+  retirementAge      Int              @default(60) @map("retirement_age") // Allows overrides (60, 62, 65) based on framework
+  expectedRetireDate DateTime?        @map("expected_retire_date") @db.Date
+  actualRetireDate   DateTime?        @map("actual_retire_date") @db.Date // Populated when status changes to RETIRED
+
+  //--------------------------------------
+  // Current assignment shortcut
+  //--------------------------------------
+
+  currentEmploymentId Int?
+
+  //--------------------------------------
+
+  Employments EmploymentHistory[]
+
+  CurrentEmployment EmploymentHistory? @relation("CurrentEmployment", fields: [currentEmploymentId], references: [id])
+
+  userId Int? @unique @map("user_id")
+  // Cashier    Cashier?
 
   // Tracking
   isEnabled       Boolean  @default(true) @map("is_enabled")
@@ -491,35 +521,252 @@ model Profile {
   objectVersionId Int      @default(1) @map("object_version_id")
 
   // Relationships
-  User User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User User? @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // DepartmentHistories DepartmentHistory[]
+  // WorkRecords WorkRecord[] // Chronological deployment history across ministries/departments
 
+  @@index([status])
+  @@index([entryDate])
+  @@index([dob]) // Crucial for calculating retirement forecasts quickly
+  @@index([expectedRetireDate])
+  @@index([actualRetireDate])
   @@map("profiles")
 }
 
-model Cashier {
-  id            Int         @id @default(autoincrement())
-  profileId     Int         @unique @map("profile_id")
-  cashierNumber String      @unique @default(uuid()) @map("cashier_number")
-  cashierType   CashierType @map("cashier_type")
-  description   String?     @db.VarChar(255)
+model Ministry {
+  id        Int     @id @default(autoincrement())
+  code      String  @unique @db.VarChar(20) // e.g., "MCS", "MEF", "MoEYS"
+  // nameKhmer   String  @map("name_khmer") @db.VarChar(255) // e.g., ក្រសួងមុខងារសាធារណៈ
+  // nameEnglish String  @map("name_english") @db.VarChar(255) // e.g., Ministry of Civil Service
+  isEnabled Boolean @default(true) @map("is_enabled")
 
   // Tracking
-  isEnabled       Boolean   @default(true) @map("is_enabled")
-  holdFlag        String?   @map("hold_flag") @db.VarChar(1)
-  startDate       DateTime  @map("start_date")
-  endDate         DateTime? @map("end_date")
-  createdBy       Int       @map("created_by")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedBy       Int       @map("updated_by")
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
-  objectVersionId Int       @default(1) @map("object_version_id")
+  createdBy Int      @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relationships
-  orders  Order[]
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Versions    MinistryVersion[]
+  Departments Department[]
+  // WorkRecords WorkRecord[]
 
-  @@map("cashiers")
+  @@map("ministries")
 }
+
+model MinistryVersion {
+  id                  Int                 @id @default(autoincrement())
+  ministryId          Int
+  code                String              @db.VarChar(20)
+  nameKh              String              @db.VarChar(255)
+  nameEn              String              @db.VarChar(255)
+  shortName           String?             @db.VarChar(100)
+  effectiveFrom       DateTime            @db.Date
+  effectiveTo         DateTime?           @db.Date
+  Ministry            Ministry            @relation(fields: [ministryId], references: [id])
+  DepartmentVersions  DepartmentVersion[]
+  EmploymentHistories EmploymentHistory[]
+
+  @@index([ministryId, effectiveTo])
+  @@map("ministry_versions")
+}
+
+model Department {
+  id        Int     @id @default(autoincrement())
+  // ministryId Int     @map("ministry_id") // Every department explicitly belongs to a Ministry
+  code      String  @unique @db.VarChar(20) // Stable immutable key (e.g., "M_CIVIL_SERV_01")
+  isEnabled Boolean @default(true) @map("is_enabled")
+
+  // Tracking
+  createdBy Int      @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relationships
+  // Versions    DepartmentVersion[]
+  // Histories   DepartmentHistory[]
+  // Ministry    Ministry            @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+  Versions DepartmentVersion[]
+  // WorkRecords WorkRecord[] // Tracks historical assignments to this department
+
+  // Documents model can safely link here: Documents Document[]
+  ministries Ministry[]
+
+  @@map("departments")
+}
+
+model DepartmentVersion {
+  id                Int @id @default(autoincrement())
+  departmentId      Int @map("department_id")
+  ministryVersionId Int @map("ministry_version_id")
+
+  parentVersionId Int?   @map("parent_version_id")
+  // name         String @db.VarChar(150) // Snapshot of name
+  // parentId     Int?   @map("parent_id") // Snapshot of tree location
+  code            String @db.VarChar(20)
+
+  nameKh String @map("name_kh") @db.VarChar(255)
+
+  nameEn String @map("name_en") @db.VarChar(255)
+
+  shortName String? @map("short_name") @db.VarChar(100)
+
+  hierarchyLevel Int? @map("hierarchy_level")
+
+  displayOrder Int? @map("display_order")
+
+  // Period this specific configuration/name was active
+  effectiveFrom DateTime  @map("effective_from") @db.Timestamp(6)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamp(6) // Null means current active name
+
+  createdBy Int      @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  Department      Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  MinistryVersion MinistryVersion @relation(fields: [ministryVersionId], references: [id])
+
+  Parent DepartmentVersion? @relation("DepartmentTree", fields: [parentVersionId], references: [id])
+
+  Children DepartmentVersion[] @relation("DepartmentTree")
+
+  Employments EmploymentHistory[]
+
+  OutgoingTransitions DepartmentTransition[] @relation("TransitionFrom")
+
+  IncomingTransitions DepartmentTransition[] @relation("TransitionTo")
+
+  @@index([departmentId, effectiveTo])
+  @@map("department_versions")
+}
+
+model DepartmentTransition {
+  id Int @id @default(autoincrement())
+
+  fromDepartmentVersionId Int
+
+  toDepartmentVersionId Int
+
+  type OrganizationChangeType
+
+  effectiveDate DateTime @db.Date
+
+  note String?
+
+  From DepartmentVersion @relation("TransitionFrom", fields: [fromDepartmentVersionId], references: [id])
+
+  To DepartmentVersion @relation("TransitionTo", fields: [toDepartmentVersionId], references: [id])
+
+  @@index([fromDepartmentVersionId])
+  @@index([toDepartmentVersionId])
+  @@map("department_transitions")
+}
+
+model EmploymentHistory {
+  id Int @id @default(autoincrement())
+
+  profileId Int
+
+  ministryVersionId Int
+
+  departmentVersionId Int
+
+  //--------------------------------
+
+  assignmentType AssignmentType
+
+  status EmploymentStatus
+
+  //--------------------------------
+
+  startDate DateTime @db.Date
+
+  endDate DateTime? @db.Date
+
+  //--------------------------------
+
+  positionTitle String? @db.VarChar(150)
+
+  rank String? @db.VarChar(100)
+
+  salaryGrade String? @db.VarChar(50)
+
+  salaryStep String? @db.VarChar(50)
+
+  //--------------------------------
+
+  decreeNumber String? @db.VarChar(100)
+
+  decreeDate DateTime? @db.Date
+
+  //--------------------------------
+
+  note String?
+
+  //--------------------------------
+
+  Profile Profile @relation(fields: [profileId], references: [id])
+
+  MinistryVersion MinistryVersion @relation(fields: [ministryVersionId], references: [id])
+
+  DepartmentVersion DepartmentVersion @relation(fields: [departmentVersionId], references: [id])
+  profiles          Profile[]         @relation("CurrentEmployment")
+
+  @@index([profileId, endDate])
+  @@index([departmentVersionId])
+  @@index([ministryVersionId])
+  @@map("employment_histories")
+}
+
+// model WorkRecord {
+//   id           Int            @id @default(autoincrement())
+//   profileId    Int            @map("profile_id")
+//   ministryId   Int            @map("ministry_id")
+//   departmentId Int            @map("department_id")
+//   type         AssignmentType @default(INTERNAL_TRANSFER)
+
+//   // Timeline boundaries for this specific deployment
+//   startDate DateTime  @map("start_date") @db.Date
+//   endDate   DateTime? @map("end_date") @db.Date // Null means current active placement
+
+//   // Official metadata for civil service tracking
+//   referenceDecree String? @map("reference_decree") @db.VarChar(100) // e.g., Royal Decree / Sub-Decree / Prakas number
+//   note            String? @db.VarChar(255)
+
+//   // Tracking
+//   createdBy Int      @map("created_by")
+//   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+//   // Relationships
+//   Profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+//   Ministry   Ministry   @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+//   Department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+//   @@index([profileId, endDate])
+//   @@index([ministryId, startDate])
+//   @@map("work_records")
+// }
+
+// model Cashier {
+//   id            Int         @id @default(autoincrement())
+//   profileId     Int         @unique @map("profile_id")
+//   cashierNumber String      @unique @default(uuid()) @map("cashier_number")
+//   cashierType   CashierType @map("cashier_type")
+//   description   String?     @db.VarChar(255)
+
+//   // Tracking
+//   isEnabled       Boolean   @default(true) @map("is_enabled")
+//   holdFlag        String?   @map("hold_flag") @db.VarChar(1)
+//   startDate       DateTime  @map("start_date")
+//   endDate         DateTime? @map("end_date")
+//   createdBy       Int       @map("created_by")
+//   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+//   updatedBy       Int       @map("updated_by")
+//   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+//   objectVersionId Int       @default(1) @map("object_version_id")
+
+//   // Relationships
+//   orders  Order[]
+//   profile Profile @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+//   @@map("cashiers")
+// }
 
 model Supplier {
   id          Int     @id @default(autoincrement())
@@ -1076,7 +1323,7 @@ model Order {
 
   // Relationships
   branch     StoreBranch @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cashier    Cashier     @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // cashier    Cashier     @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer   Customer    @relation(fields: [customerId], references: [id])
   orderLines OrderLine[]
   invoices   Invoice[]
@@ -1231,6 +1478,57 @@ enum Sex {
   Bi
 
   @@map("sex_enum")
+}
+
+enum EmploymentStatus {
+  ACTIVE // Currently working
+  PROBATION // Currently probation
+  HOLD // Suspended, studying abroad, or on long-term unpaid leave
+  SECONDMENT // Currently working outside of organization
+  STUDY_LEAVE // Currently studying
+  RETIRED // Reached pension age
+  RESIGNED // Voluntarily left the civil service
+  TERMINATED // Terminated due to rule or law violation
+  TRANSFERRED_OUT // Transferred entirely out of the civil service pool / external agency
+  DECEASED // Passed away while in service
+
+  @@map("employment_status_enum")
+}
+
+enum EmploymentType {
+  PERMANENT // Permanent employee
+  TRANSFERRED // Transferred employee
+  CONTRACT // Contractual employee
+  TEMPORARY // Temporary employee
+  INTERN // Intern or trainee
+
+  @@map("employment_type_enum")
+}
+
+enum AssignmentType {
+  INITIAL_APPOINTMENT // Their very first placement into the civil service
+  INTERNAL_TRANSFER // Moving between departments within the same ministry
+  INTER_MINISTERIAL // Transferring from one Ministry to another Ministry
+  PROMOTION // Moving to a higher structural position
+  DEMOTION
+  TEMPORARY_ASSIGNMENT
+  ACTING_ASSIGNMENT
+  SECONDMENT
+  RETURN_FROM_SECONDMENT
+  REINSTATEMENT
+  RETIREMENT
+  RESIGNATION
+}
+
+enum OrganizationChangeType {
+  CREATED
+  RENAMED
+  MOVED_PARENT
+  MOVED_MINISTRY
+  MERGED
+  SPLIT
+  DISSOLVED
+  REACTIVATED
 }
 
 // enum Role {

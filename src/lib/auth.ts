@@ -131,6 +131,18 @@ export const options = (prisma: PrismaClient) => ({
         required: false, // false so social sign-up doesn't break
         input: false, // never set by the client
       },
+      profileComplete: {
+        type: 'boolean' as const,
+        required: false,
+        defaultValue: false, // 👈 new users start incomplete
+        input: false,
+      },
+      isLinked: {
+        type: 'boolean' as const,
+        required: false,
+        defaultValue: false,
+        input: false,
+      },
       // Security flags not covered by admin() plugin
       mustChangePassword: {
         type: 'boolean' as const,

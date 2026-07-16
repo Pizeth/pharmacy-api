@@ -86,9 +86,7 @@ type ActiveGenerics =
  *  Zero maintenance required when adding more social or generic providers above!
  */
 export type ConfiguredProviderId =
-  | ActiveBaseProviders
-  | ActiveSocials
-  | ActiveGenerics;
+  ActiveBaseProviders | ActiveSocials | ActiveGenerics;
 
 // // 1. Explicitly type options-factory function
 // export declare const options: (prisma: PrismaClient) => BetterAuthOptions;

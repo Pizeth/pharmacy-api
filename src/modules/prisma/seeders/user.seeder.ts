@@ -2,7 +2,7 @@ import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../services/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import type { SuperAdminData } from 'types/seed';
-import { Prisma, Role } from 'generated/prisma/client';
+import { EmploymentStatus, Prisma, Role } from 'generated/prisma/client';
 import { AuditActionType, AuditTargetType, Sex } from 'types/commons.enum';
 import { v7 as uuid7 } from 'uuid';
 import { UserDetail } from 'types/dto';
@@ -56,19 +56,28 @@ export class UserSeeder {
           roleId: superAdminData.roleId,
           emailVerified: true,
           isActivated: true,
+          // profileComplete: true,
+          isLinked: true,
           mustChangePassword: true, // Force change on login
           // Using nested writes for related data.
           profile: {
             create: {
+              officialId: superAdminData.profile.officialId,
+              nationalId: superAdminData.profile.nationalId,
               firstName: superAdminData.profile.firstName,
               lastName: superAdminData.profile.lastName,
               sex: superAdminData.profile.sex,
               dob: new Date(superAdminData.profile.dob),
               pob: superAdminData.profile.pob,
+              nationality: superAdminData.profile.nationality,
+              email: superAdminData.email,
               address: superAdminData.profile.address,
               phone: superAdminData.profile.phone,
               married: superAdminData.profile.married,
               bio: superAdminData.profile.bio || '',
+              status: superAdminData.profile.status,
+              entryDate: new Date(superAdminData.profile.entryDate),
+              retirementAge: superAdminData.profile.retirementAge,
               createdBy: 0, // Placeholder for audit field.
               updatedBy: 0, // Placeholder (will be replaced).
             },
@@ -246,15 +255,23 @@ export class UserSeeder {
       ),
       authMethod: [this.config.get('SEED_ADMIN_AUTH_METHOD', 'credential')],
       profile: {
+        officialId: this.config.get('SEED_ADMIN_OFFICIAL_ID', '1931400138'),
+        nationalId: this.config.get('SEED_ADMIN_NATIONAL_ID', '050806585'),
         firstName: this.config.get('SEED_ADMIN_FIRST_NAME', 'Piseth'),
         lastName: this.config.get('SEED_ADMIN_LAST_NAME', 'Mam'),
         sex: this.config.get('SEED_ADMIN_SEX', Sex.MALE),
         dob: this.config.get('SEED_ADMIN_DOB', '1993-07-20'),
         pob: this.config.get('SEED_ADMIN_POB', 'ព្រៃវែង'),
+        nationality: this.config.get('SEED_ADMIN_NATIONALITY', 'ខ្មែរ'),
         address: this.config.get('SEED_ADMIN_ADDRESS', 'ភ្នំពេញ'),
         phone: this.config.get('SEED_ADMIN_PHONE', '015 69 79 27'),
         married: this.config.get('SEED_ADMIN_MARRIED', 'true') === 'true',
         bio: this.config.get('SEED_ADMIN_BIO', ''),
+        status: this.config.get('SEED_ADMIN_STATUS', EmploymentStatus.ACTIVE),
+        entryDate: new Date(
+          this.config.get('SEED_ADMIN_ENTRY_DATE', '04-01-2017'),
+        ),
+        retirementAge: this.config.get('SEED_ADMIN_RETIREMENT_AGE', 60),
       },
     };
   }

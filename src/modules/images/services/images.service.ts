@@ -560,8 +560,7 @@ export class ImagesService implements OnModuleInit {
     // const schemaProperties = selectedCollection.schema?.properties ?? {};
     const descriptor = new OptionsDescriptor(selectedCollection);
     const selectedSchema = descriptor.toJSON() as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
     const schemaProperties = selectedSchema?.properties ?? {};
 
     // 3. Dynamically build a filtered configuration object containing ONLY keys this style supports
