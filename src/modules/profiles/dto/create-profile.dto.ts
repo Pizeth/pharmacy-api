@@ -2,6 +2,7 @@
 // Define your DTO using Zod and `createZodDto`
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
+import { EmploymentStatus } from 'generated/prisma/enums';
 import { createZodDto } from 'nestjs-zod';
 import { Sex } from 'types/commons.enum';
 import { z } from 'zod';
@@ -9,6 +10,24 @@ import { z } from 'zod';
 // Define Zod schema the validation schema
 // You can add .openapi() to provide Swagger-specific metadata.
 export const createProfileSchema = z.object({
+  officialId: z
+    .string()
+    .length(10, 'Official ID must be 10 characters')
+    .trim()
+    .meta({
+      description: 'The public officialId for the user.',
+      example: '1234567890',
+    }),
+  nationalId: z
+    .string()
+    .length(10, 'National ID must be 10 characters')
+    .trim()
+    .nullable()
+    .optional()
+    .meta({
+      description: 'The public nationalId for the user.',
+      example: '1234567890123',
+    }),
   firstName: z
     .string()
     .trim()
@@ -42,6 +61,16 @@ export const createProfileSchema = z.object({
     .meta({
       description: 'The place of birth of the user.',
       example: 'New York',
+    }),
+  nationality: z
+    .string()
+    .max(255, 'Nationality must be at most 255 characters')
+    .trim()
+    .nullable()
+    .optional()
+    .meta({
+      description: 'The nationality of the user.',
+      example: 'United States',
     }),
   address: z
     .string()
@@ -77,6 +106,15 @@ export const createProfileSchema = z.object({
       description: 'A short biography of the user.',
       example: 'I am a software engineer.',
     }),
+  status: z.enum(EmploymentStatus).default('ACTIVE'),
+  entryDate: z.coerce.date().meta({
+    description: 'The date of entry into the organization.',
+    example: '2022-01-01',
+  }),
+  retirementAge: z.coerce.number().int().default(60),
+  expectedRetirementDate: z.coerce.date().nullable().optional(),
+  actualRetirementDate: z.coerce.date().nullable().optional(),
+  curreentEmploymentId: z.coerce.number().int().nullable().optional(),
   userId: z.coerce.number().int(),
   isEnabled: z.boolean().default(true),
   isHold: z.boolean().default(false),
