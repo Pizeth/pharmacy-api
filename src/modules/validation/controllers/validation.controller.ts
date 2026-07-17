@@ -26,4 +26,10 @@ export class ValidationController {
   async validateUsername(@Param('value') value: string) {
     return this.validationService.validateUsername(value);
   }
+
+  @Get('officialId/:value')
+  @HttpCode(HttpStatus.OK)
+  async validateOfficialId(@Param('value') value: string) {
+    return this.validationService.validateOfficialId(value);
+  }
 }

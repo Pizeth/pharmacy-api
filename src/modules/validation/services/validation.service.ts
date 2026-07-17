@@ -44,4 +44,23 @@ export class ValidationService {
       message: 'Username is available',
     };
   }
+
+  async validateOfficialId(officialId: string) {
+    const exists = await this.prisma.profile.findFirst({
+      where: { officialId },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      return {
+        status: HttpStatus.NOT_FOUND,
+        message: 'Official ID not found!',
+      };
+    }
+
+    return {
+      status: HttpStatus.OK,
+      message: 'Official ID is available',
+    };
+  }
 }
