@@ -56,7 +56,7 @@ export class UserSeeder {
           roleId: superAdminData.roleId,
           emailVerified: true,
           isActivated: true,
-          // profileComplete: true,
+          profileComplete: true,
           isLinked: true,
           mustChangePassword: true, // Force change on login
           // Using nested writes for related data.

@@ -305,33 +305,33 @@ model User {
   id                  Int         @id @default(autoincrement())
   name                String
   email               String
-  emailVerified       Boolean     @default(false)
+  emailVerified       Boolean     @default(false) @map("email_verified")
   image               String?
   profile             Profile?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt  @map("updated_at")
   role                String?
   banned              Boolean?    @default(false)
-  banReason           String?
-  banExpires          DateTime?
+  banReason           String?     @map("ban_reason")
+  banExpires          DateTime?   @map("ban_expires")
   username            String?
-  displayUsername     String?
-  twoFactorEnabled    Boolean?    @default(false)
-  lastLoginMethod     String?
-  phoneNumber         String?
-  phoneNumberVerified Boolean?
-  roleId              Int?        @map("role_id")
+  displayUsername     String?     @map("display_name")
+  twoFactorEnabled    Boolean?    @default(false) @map("two_factor_enabled")
+  lastLoginMethod     String?     @map("last_login_method")
+  phoneNumber         String?     @map("phone_number")
+  phoneNumberVerified Boolean?    @map("phone_number_verified")
+  roleId              Int?        @map("role_id")     
   // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
-  // profileComplete     Boolean?    @default(false)
-  isLinked            Boolean?    @default(false)
-  mustChangePassword  Boolean?    @default(false)
+  profileComplete     Boolean?    @default(false) @map("profile_complete")
+  isLinked            Boolean?    @default(false) @map("is_linked")
+  mustChangePassword  Boolean?    @default(false) @map("must_change_password")
   userRole            Role?       @relation(fields: [roleId], references: [id])
-  isEnabled           Boolean?    @default(true)
-  isLocked            Boolean?    @default(false)
-  isActivated         Boolean?    @default(false)
-  deletedAt           String?
-  createdBy           Int?
-  updatedBy           Int?
+  isEnabled           Boolean?    @default(true)  @map("is_enabled")
+  isLocked            Boolean?    @default(false) @map("is_locked")
+  isActivated         Boolean?    @default(false) @map("is_activated")
+  deletedAt           String?     @map("deleted_at")
+  createdBy           Int?        @map("created_by")
+  updatedBy           Int?        @map("updated_by")
   objectVersionId     Int?        @default(1)
   sessions            Session[]
   accounts            Account[]
@@ -349,15 +349,15 @@ model User {
 
 model Session {
   id             Int      @id @default(autoincrement())
-  expiresAt      DateTime
-  token          String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  ipAddress      String?
-  userAgent      String?
-  userId         Int
+  expiresAt      DateTime @map("expires_at")
+  token          String   
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt  @map("updated_by")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  userId         Int      @map("user_id")
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  impersonatedBy String?
+  impersonatedBy String?  @map("impersonated_by")
 
   @@unique([token])
   @@index([userId])
@@ -366,19 +366,19 @@ model Session {
 
 model Account {
   id                    Int       @id @default(autoincrement())
-  accountId             String
-  providerId            String
-  userId                Int
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                Int       @map("user_id")
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   scope                 String?
   password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt  @map("updated_at")
 
   @@unique([providerId, accountId]) // ✅ Add this to fix the upscale upsert and lookups
   @@index([userId])
@@ -389,9 +389,9 @@ model Verification {
   id         Int      @id @default(autoincrement())
   identifier String
   value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt  @map("updated_at")
 
   @@index([identifier])
   @@map("verification")
@@ -399,25 +399,25 @@ model Verification {
 
 model Apikey {
   id                  Int       @id @default(autoincrement())
-  configId            String    @default("default")
+  configId            String    @default("default") @map("config_id")
   name                String?
   start               String?
-  referenceId         String
+  referenceId         String    @map("reference_id")
   prefix              String?
   key                 String
-  refillInterval      Int?
-  refillAmount        Int?
-  lastRefillAt        DateTime?
+  refillInterval      Int?      @map("refill_interval")
+  refillAmount        Int?      @map("refill_amount")
+  lastRefillAt        DateTime? @map("last_refill_at")
   enabled             Boolean?  @default(true)
-  rateLimitEnabled    Boolean?  @default(true)
-  rateLimitTimeWindow Int?      @default(86400000)
-  rateLimitMax        Int?      @default(10)
-  requestCount        Int?      @default(0)
+  rateLimitEnabled    Boolean?  @default(true)  @map("rate_limit_enabled")
+  rateLimitTimeWindow Int?      @default(86400000)  @map("rate_limit_time_window")
+  rateLimitMax        Int?      @default(10)  @map("rate_limit_max")
+  requestCount        Int?      @default(0)   @map("request_count")
   remaining           Int?
-  lastRequest         DateTime?
-  expiresAt           DateTime?
-  createdAt           DateTime
-  updatedAt           DateTime
+  lastRequest         DateTime? @map("last_request")
+  expiresAt           DateTime? @map("expires_at")
+  createdAt           DateTime  @map("created_at")
+  updatedAt           DateTime  @map("updated_at")
   permissions         String?
   metadata            String?
 
@@ -430,8 +430,8 @@ model Apikey {
 model TwoFactor {
   id          Int      @id @default(autoincrement())
   secret      String
-  backupCodes String
-  userId      Int
+  backupCodes String    @map("backup_codes")
+  userId      Int       @map("user_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   verified    Boolean? @default(true)
 
@@ -443,15 +443,15 @@ model TwoFactor {
 model Passkey {
   id           Int       @id @default(autoincrement())
   name         String?
-  publicKey    String
-  userId       Int
+  publicKey    String   @map("public_key")
+  userId       Int      @map("user_id")
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credentialID String
+  credentialID String   @map("credential_id")
   counter      Int
-  deviceType   String
-  backedUp     Boolean
-  transports   String?
-  createdAt    DateTime?
+  deviceType   String   @map("device_type")
+  backedUp     Boolean  @map("backed_up")
+  transports   String?  
+  createdAt    DateTime?  @map("created_at")
   aaguid       String?
 
   @@index([userId])
@@ -461,20 +461,20 @@ model Passkey {
 
 model Jwks {
   id         Int       @id @default(autoincrement())
-  publicKey  String
-  privateKey String
-  createdAt  DateTime
-  expiresAt  DateTime?
+  publicKey  String   @map("public_key")
+  privateKey String   @map("private_key")
+  createdAt  DateTime @map("created_at")
+  expiresAt  DateTime?  @map("expires_at")
 
   @@map("jwks")
 }
 
 model Profile {
   id          Int      @id @default(autoincrement())
-  officialId  String   @unique @map("official_id") @db.VarChar(10)
-  nationalId  String?  @unique @db.VarChar(10)
-  firstName   String   @map("first_name") @db.VarChar(50)
-  lastName    String   @map("last_name") @db.VarChar(50)
+  officialId  String   @unique @db.VarChar(10) @map("official_id")
+  nationalId  String?  @unique @db.VarChar(10) @map("national_id")
+  firstName   String    @db.VarChar(50) @map("first_name")
+  lastName    String   @db.VarChar(50) @map("last_name") 
   sex         Sex
   dob         DateTime
   pob         String?  @db.VarChar(50)
@@ -500,7 +500,7 @@ model Profile {
   // Current assignment shortcut
   //--------------------------------------
 
-  currentEmploymentId Int?
+  currentEmploymentId Int? @map("current_employment_id") 
 
   //--------------------------------------
 
@@ -554,13 +554,13 @@ model Ministry {
 
 model MinistryVersion {
   id                  Int                 @id @default(autoincrement())
-  ministryId          Int
+  ministryId          Int @map("ministry_id") 
   code                String              @db.VarChar(20)
-  nameKh              String              @db.VarChar(255)
-  nameEn              String              @db.VarChar(255)
-  shortName           String?             @db.VarChar(100)
-  effectiveFrom       DateTime            @db.Date
-  effectiveTo         DateTime?           @db.Date
+  nameKh              String              @db.VarChar(255) @map("name_kh")
+  nameEn              String              @db.VarChar(255)  @map("name_en")
+  shortName           String?             @db.VarChar(100)  @map("short_name")
+  effectiveFrom       DateTime            @db.Date  @map("effective_from")
+  effectiveTo         DateTime?           @db.Date  @map("effective_to")
   Ministry            Ministry            @relation(fields: [ministryId], references: [id])
   DepartmentVersions  DepartmentVersion[]
   EmploymentHistories EmploymentHistory[]
@@ -639,13 +639,13 @@ model DepartmentVersion {
 model DepartmentTransition {
   id Int @id @default(autoincrement())
 
-  fromDepartmentVersionId Int
+  fromDepartmentVersionId Int @map("from_department_version_id")
 
-  toDepartmentVersionId Int
+  toDepartmentVersionId Int @map("to_department_version_id")
 
   type OrganizationChangeType
 
-  effectiveDate DateTime @db.Date
+  effectiveDate DateTime @db.Date @map("effective_date")
 
   note String?
 
@@ -661,39 +661,39 @@ model DepartmentTransition {
 model EmploymentHistory {
   id Int @id @default(autoincrement())
 
-  profileId Int
+  profileId Int @map("profile_id")
 
-  ministryVersionId Int
+  ministryVersionId Int @map("ministry_version_id")
 
-  departmentVersionId Int
+  departmentVersionId Int @map("department_version_id")
 
   //--------------------------------
 
-  assignmentType AssignmentType
+  assignmentType AssignmentType @map("assignment_type")
 
   status EmploymentStatus
 
   //--------------------------------
 
-  startDate DateTime @db.Date
+  startDate DateTime @db.Date @map("start_date")
 
-  endDate DateTime? @db.Date
+  endDate DateTime? @db.Date  @map("end_date")
 
   //--------------------------------
 
-  positionTitle String? @db.VarChar(150)
+  positionTitle String? @db.VarChar(150)  @map("position_title")
 
   rank String? @db.VarChar(100)
 
-  salaryGrade String? @db.VarChar(50)
+  salaryGrade String? @db.VarChar(50) @map("salary_grade")
 
-  salaryStep String? @db.VarChar(50)
+  salaryStep String? @db.VarChar(50) @map("salary_step")
 
   //--------------------------------
 
-  decreeNumber String? @db.VarChar(100)
+  decreeNumber String? @db.VarChar(100) @map("decree_number")
 
-  decreeDate DateTime? @db.Date
+  decreeDate DateTime? @db.Date @map("decree_date")
 
   //--------------------------------
 
