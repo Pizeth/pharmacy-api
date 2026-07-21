@@ -114,6 +114,7 @@ export interface GetPaginatedDataParams<
   // page is used for offset pagination (if cursor is not provided).
   page?: number; // Defaults to 1. Used for offset pagination if cursor is not provided
   pageSize?: number; // Defaults to 10. Used as 'take' for both pagination types
+  search?: { fields: string[]; term: string };
 }
 
 // Define interfaces for return types

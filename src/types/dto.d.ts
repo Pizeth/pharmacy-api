@@ -4,6 +4,8 @@ import {
   // RefreshToken,
   Role,
   User,
+  Translation,
+  TranslationKey,
   // UserIdentity,
   // IdentityProvider,
 } from 'generated/prisma/client';
@@ -34,3 +36,7 @@ export interface SignedUser {
 }
 
 export type AccessToken = Omit<SignedUser, 'user' | 'refreshToken'>;
+
+export interface TranslationDetail extends Translation {
+  key: TranslationKey;
+}

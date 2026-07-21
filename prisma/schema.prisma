@@ -1472,6 +1472,45 @@ model Customer {
   @@map("customers")
 }
 
+model TranslationKey {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // e.g. "email_available"
+  description String?  // optional context for translators/admins
+  categoryId  Int  @map("category_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  translations Translation[]
+  translationCategory TranslationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("translation_keys")
+}
+
+model TranslationCategory {
+  id  Int @id @default(autoincrement())
+  name String @unique // e.g. "auth", "validation", "nav" — for grouping in the UI                                                                                               
+  description String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  translationKeys TranslationKey[]
+
+  @@map("translation_category")
+}
+
+model Translation {
+  id        Int      @id @default(autoincrement())
+  locale    String   // "en", "km", "fr" ...
+  value     String   @db.Text
+  keyId     Int @map("key_id")
+  key       TranslationKey @relation(fields: [keyId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([keyId, locale]) // one value per key per locale
+  @@map("translations")
+}
+
 enum Sex {
   Male
   Female

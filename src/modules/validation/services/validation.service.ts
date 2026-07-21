@@ -34,7 +34,7 @@ export class ValidationService {
 
   async validateUsername(username: string) {
     const exists = await this.prisma.user.findFirst({
-      where: { username },
+      where: { username: { equals: username, mode: 'insensitive' } },
       select: { id: true },
     });
 

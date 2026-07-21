@@ -35,9 +35,23 @@ export class DBHelper {
     include,
     page = 1,
     pageSize = 10,
+    search,
   }: GetPaginatedDataParams<TModelName>): Promise<
     PaginatedDataResult<TResult>
   > {
+    // Build the search query dynamically if provided
+    let searchQuery = {};
+    if (search && search.term && search.fields.length > 0) {
+      searchQuery = {
+        OR: search.fields.map((field) => ({
+          [field]: {
+            contains: search.term,
+            mode: 'insensitive',
+          },
+        })),
+      };
+    }
+
     // Base arguments common to all scenarios
     const baseArgs: {
       where?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['where'];
@@ -46,9 +60,10 @@ export class DBHelper {
       take: number;
       orderBy?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['orderBy'];
     } = {
-      where,
-      //   skip: (page - 1) * pageSize,
+      where: { ...where, ...searchQuery },
+      skip: (page - 1) * pageSize,
       take: pageSize,
+      orderBy: { key: 'asc' },
     };
 
     // Only add orderBy to commonArgs if it's provided
