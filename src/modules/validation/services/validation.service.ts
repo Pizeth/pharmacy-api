@@ -1,7 +1,12 @@
 // src/modules/validation/validation.service.ts
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { HttpStatus } from '@nestjs/common';
+import { AppError } from 'exceptions/app.exception';
 
 @Injectable()
 export class ValidationService {
@@ -14,10 +19,11 @@ export class ValidationService {
     });
 
     if (exists) {
-      return {
-        status: HttpStatus.CONFLICT,
-        message: 'Email is already taken',
-      };
+      throw new AppError('Email is already taken', HttpStatus.CONFLICT);
+      // return {
+      //   status: HttpStatus.CONFLICT,
+      //   message: 'Email is already taken',
+      // };
     }
 
     return {
@@ -33,10 +39,11 @@ export class ValidationService {
     });
 
     if (exists) {
-      return {
-        status: HttpStatus.CONFLICT,
-        message: 'Username is already taken',
-      };
+      throw new AppError('Username is already taken', HttpStatus.CONFLICT);
+      // return {
+      //   status: HttpStatus.CONFLICT,
+      //   message: 'Username is already taken',
+      // };
     }
 
     return {
@@ -60,18 +67,22 @@ export class ValidationService {
 
     // ❌ Doesn't exist at all — not a valid employee ID
     if (!employee) {
-      return {
-        status: HttpStatus.NOT_FOUND,
-        message: 'No employee record found with this ID',
-      };
+      throw new NotFoundException('Official ID not found!');
+      // return {
+      //   status: HttpStatus.NOT_FOUND,
+      //   message: 'No employee record found with this ID',
+      // };
     }
 
     // ❌ Exists, but already linked to a different account
     if (employee.userId) {
-      return {
-        status: HttpStatus.CONFLICT,
-        message: 'This ID is already linked to another account',
-      };
+      throw new ConflictException(
+        'This ID is already linked to another account',
+      );
+      // return {
+      //   status: HttpStatus.CONFLICT,
+      //   message: 'This ID is already linked to another account',
+      // };
     }
 
     // ✅ Exists AND unclaimed — this is the success case
