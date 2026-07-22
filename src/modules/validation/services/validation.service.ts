@@ -14,7 +14,7 @@ export class ValidationService {
 
   async validateEmail(email: string) {
     const exists = await this.prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
       select: { id: true },
     });
 
@@ -33,8 +33,12 @@ export class ValidationService {
   }
 
   async validateUsername(username: string) {
-    const exists = await this.prisma.user.findFirst({
-      where: { username: { equals: username, mode: 'insensitive' } },
+    // const exists = await this.prisma.user.findFirst({
+    //   where: { username: { equals: username, mode: 'insensitive' } },
+    //   select: { id: true },
+    // });
+    const exists = await this.prisma.user.findUnique({
+      where: { username: username.trim().toLowerCase() },
       select: { id: true },
     });
 

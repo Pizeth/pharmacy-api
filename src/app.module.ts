@@ -29,6 +29,9 @@ import { ImagesModule } from 'modules/images/image.module';
 import { ApiModule } from './modules/api/api.module';
 import { ValidationModule } from './modules/validation/validation.module';
 import { TranslationModule } from 'modules/i18n/translation.module';
+import { Prisma } from 'generated/prisma/client';
+import { PrismaModule } from 'modules/prisma/prisma.module';
+import { DBHelperModule } from 'modules/helpers/helper.module';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 // Force absolute path regardless of __dirname resolution
@@ -148,6 +151,7 @@ const i18nPath =
         GrpcMetadataResolver,
       ],
     }),
+    DBHelperModule,
     AuthModule,
     FileModule,
     ImagesModule,
@@ -156,7 +160,6 @@ const i18nPath =
     HealthModule,
     ApiModule,
     ValidationModule,
-    I18nModule,
     TranslationModule,
   ],
   providers: [
