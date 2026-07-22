@@ -1,23 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   Hook,
-  BeforeHook,
+  // BeforeHook,
   AuthHookContext,
   AfterHook,
 } from '@thallesp/nestjs-better-auth';
 import { AuthService } from '../services/auth.service';
 import { AppError } from 'exceptions/app.exception';
 import { APIError } from 'better-auth/api';
+import { Status } from 'better-auth';
 // import { AuthService } from './auth.service';
 
 type HookContext = AuthHookContext & {
   context: {
-    session?: {
-      userId?: string | number;
-    };
-    newSession?: {
-      userId?: string | number;
-    };
+    session?: { userId?: number };
+    newSession?: { userId?: number };
   };
 };
 
@@ -26,48 +23,60 @@ type HookContext = AuthHookContext & {
 export class AuthHooks {
   constructor(private readonly authService: AuthService) {}
 
-  @BeforeHook('/sign-in/email')
-  async beforeEmailSignIn(ctx: AuthHookContext) {
+  // ── Email Sign-In (After Password Verification) ──────────────────────────
+  @AfterHook('/sign-in/email')
+  async beforeEmailSignIn(ctx: HookContext) {
     // 👇 Use ctx.body instead of ctx.request.json()
-    const body = ctx.body as { email?: string } | undefined;
-    if (!body?.email) return;
+    // const body = ctx.body as { email?: string } | undefined;
+    // if (!body?.email) return;
 
-    const user = await this.authService.getUserByIdentifier(body.email);
-    if (user) {
-      // Email/password users must be fully activated
-      try {
-        await this.authService.assertUserCanLogin(user.id);
-      } catch (e) {
-        const message =
-          e instanceof AppError ? e.message : 'Account is not activated';
-        // 👈 Safely pass the error to Better Auth's lifecycle handler
-        throw new APIError('FORBIDDEN', {
-          message,
-        });
-      }
+    const userId =
+      ctx.context?.session?.userId ?? ctx.context?.newSession?.userId;
+    if (!userId) return;
+
+    // const user = await this.authService.getUserByIdentifier(body.email);
+    // if (user) {
+    // Email/password users must be fully activated
+    try {
+      await this.authService.assertUserCanLogin(userId);
+    } catch (e) {
+      const httpStatus = (
+        e instanceof AppError ? e.statusCode : HttpStatus.FORBIDDEN
+      ) as Status;
+      const message =
+        e instanceof AppError ? e.message : 'Account is not activated';
+      // 👈 Safely pass the error to Better Auth's lifecycle handler
+      throw new APIError(httpStatus, { message });
     }
+    // }
   }
 
-  @BeforeHook('/sign-in/username')
-  async beforeUsernameSignIn(ctx: AuthHookContext) {
+  // ── Username Sign-In (After Password Verification) ───────────────────────
+  @AfterHook('/sign-in/username')
+  async beforeUsernameSignIn(ctx: HookContext) {
     // 👇 Use ctx.body instead of ctx.request.json()
-    const body = ctx.body as { username?: string } | undefined;
-    if (!body?.username) return;
+    // const body = ctx.body as { username?: string } | undefined;
+    // if (!body?.username) return;
 
-    const user = await this.authService.getUserByIdentifier(body.username);
-    if (user) {
-      // Username/password users must be fully activated
-      try {
-        await this.authService.assertUserCanLogin(user.id);
-      } catch (e) {
-        const message =
-          e instanceof AppError ? e.message : 'Account is not activated';
-        // 👈 Safely pass the error to Better Auth's lifecycle handler
-        throw new APIError('FORBIDDEN', {
-          message,
-        });
-      }
+    const userId =
+      ctx.context?.session?.userId ?? ctx.context?.newSession?.userId;
+    if (!userId) return;
+
+    // const user = await this.authService.getUserByIdentifier(body.username);
+    // if (user) {
+    // Username/password users must be fully activated
+    try {
+      await this.authService.assertUserCanLogin(userId);
+    } catch (e) {
+      const httpStatus = (
+        e instanceof AppError ? e.statusCode : HttpStatus.FORBIDDEN
+      ) as Status;
+      const message =
+        e instanceof AppError ? e.message : 'Account is not activated';
+      // 👈 Safely pass the error to Better Auth's lifecycle handler
+      throw new APIError(httpStatus, { message });
     }
+    // }
   }
 
   // 👇 Add this — social sign-ins skip isActivated check
@@ -93,6 +102,7 @@ export class AuthHooks {
   //   }
   // }
 
+  // ── Social Callbacks ──────────────────────────────────────────────────────
   // Runs AFTER Google/social resolves the user — this is where
   // we actually know who the user is for social sign-ins
   @AfterHook('/callback/:provider')

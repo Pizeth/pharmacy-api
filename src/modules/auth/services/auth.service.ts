@@ -37,7 +37,7 @@ export class AuthService {
     if (!user.isEnabled || user.banned) {
       throw new AppError(
         'Account is banned or inactive',
-        HttpStatus.FORBIDDEN,
+        HttpStatus.UNAUTHORIZED,
         this.context,
         'User is banned or disabled',
       );
@@ -46,7 +46,7 @@ export class AuthService {
     if (user.isLocked) {
       throw new AppError(
         'Account is locked',
-        HttpStatus.FORBIDDEN,
+        HttpStatus.LOCKED,
         this.context,
         'User account is locked due to multiple failed attempts',
       );
