@@ -6,6 +6,8 @@ import {
   AfterHook,
 } from '@thallesp/nestjs-better-auth';
 import { AuthService } from '../services/auth.service';
+import { AppError } from 'exceptions/app.exception';
+import { APIError } from 'better-auth/api';
 // import { AuthService } from './auth.service';
 
 type HookContext = AuthHookContext & {
@@ -33,7 +35,16 @@ export class AuthHooks {
     const user = await this.authService.getUserByIdentifier(body.email);
     if (user) {
       // Email/password users must be fully activated
-      await this.authService.assertUserCanLogin(user.id);
+      try {
+        await this.authService.assertUserCanLogin(user.id);
+      } catch (e) {
+        const message =
+          e instanceof AppError ? e.message : 'Account is not activated';
+        // 👈 Safely pass the error to Better Auth's lifecycle handler
+        throw new APIError('FORBIDDEN', {
+          message,
+        });
+      }
     }
   }
 
@@ -46,7 +57,16 @@ export class AuthHooks {
     const user = await this.authService.getUserByIdentifier(body.username);
     if (user) {
       // Username/password users must be fully activated
-      await this.authService.assertUserCanLogin(user.id);
+      try {
+        await this.authService.assertUserCanLogin(user.id);
+      } catch (e) {
+        const message =
+          e instanceof AppError ? e.message : 'Account is not activated';
+        // 👈 Safely pass the error to Better Auth's lifecycle handler
+        throw new APIError('FORBIDDEN', {
+          message,
+        });
+      }
     }
   }
 
