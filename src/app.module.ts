@@ -32,6 +32,7 @@ import { TranslationModule } from 'modules/i18n/translation.module';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaModule } from 'modules/prisma/prisma.module';
 import { DBHelperModule } from 'modules/helpers/helper.module';
+import { ResendModule } from './modules/email/resend.module';
 // import oidcProviderConfig from './modules/ocid/configs/oidc.config';
 
 // Force absolute path regardless of __dirname resolution
@@ -161,6 +162,7 @@ const i18nPath =
     ApiModule,
     ValidationModule,
     TranslationModule,
+    ResendModule,
   ],
   providers: [
     // Logger,

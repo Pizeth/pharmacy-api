@@ -42,15 +42,17 @@ import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { AuthHooks } from './hooks/auth.hook';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
+import { ResendModule } from 'modules/email/resend.module';
+import { ResendService } from 'modules/email/services/resend.service';
 
 @Module({
   imports: [
     PrismaModule,
     BetterAuthModule.forRootAsync({
-      imports: [PrismaModule],
-      inject: [PrismaService],
-      useFactory: (prisma: PrismaService) => ({
-        auth: createAuth(prisma),
+      imports: [PrismaModule, ResendModule],
+      inject: [PrismaService, ResendService],
+      useFactory: (prisma: PrismaService, email: ResendService) => ({
+        auth: createAuth(prisma, email),
       }),
     }),
   ],

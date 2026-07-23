@@ -26,8 +26,11 @@ import {
   getSocialProvidersConfig,
   getGenericProvidersConfig,
 } from './auth.provider';
+import { ResendService } from 'modules/email/services/resend.service';
+// import { Request } from 'express';
+import { Email } from 'types/email';
 
-export const options = (prisma: PrismaClient) => ({
+export const options = (prisma: PrismaClient, emailService: ResendService) => ({
   appName: 'Razeth',
   baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
   database: prismaAdapter(prisma, {
@@ -215,21 +218,24 @@ export const options = (prisma: PrismaClient) => ({
       secretKey: process.env.TURNSTILE_SECRET_KEY!,
     }),
     magicLink({
-      sendMagicLink: async ({ email, token, url, metadata }, ctx) => {
+      sendMagicLink: async ({ email, token, url, metadata }, _ctx) => {
         // send email to user
+        await emailService.sendMagicLink(email, url, token, metadata);
       },
     }),
-    // emailOTP({
-    //   async sendVerificationOTP({ email, otp, type }) {
-    //     if (type === 'sign-in') {
-    //       // Send the OTP for sign in
-    //     } else if (type === 'email-verification') {
-    //       // Send the OTP for email verification
-    //     } else {
-    //       // Send the OTP for password reset
-    //     }
-    //   },
-    // }),
+    emailOTP({
+      async sendVerificationOTP({ email, otp, type }, _ctx) {
+        await emailService.sendVerificationOTP(email, otp, type);
+
+        // if (type === 'sign-in') {
+        //   // Send the OTP for sign in
+        // } else if (type === 'email-verification') {
+        //   // Send the OTP for email verification
+        // } else {
+        //   // Send the OTP for password reset
+        // }
+      },
+    }),
     // phoneNumber({
     //   sendOTP: ({ phoneNumber, code }, ctx) => {
     //     // Implement sending OTP code via SMS
@@ -264,14 +270,22 @@ export const options = (prisma: PrismaClient) => ({
     }),
   ],
   emailVerification: {
-    // sendVerificationEmail: async ({ user, url, token }, request) => {
-    //   void sendEmail({
-    //     to: user.email,
-    //     subject: 'Verify your email address',
-    //     text: `Click the link to verify your email: ${url}`,
-    //   });
-    // },
+    sendVerificationEmail: async (data: Email, request?: Request) => {
+      // void sendEmail({
+      //   to: user.email,
+      //   subject: 'Verify your email address',
+      //   text: `Click the link to verify your email: ${url}`,
+      // });
+      await emailService.sendVerification(
+        data.user.email,
+        data.user.name || 'User',
+        data.url,
+        data.token,
+        request,
+      );
+    },
     sendOnSignUp: true,
+    sendOnSignIn: true,
     autoSignInAfterVerification: true,
   },
   rateLimit: {
@@ -282,8 +296,8 @@ export const options = (prisma: PrismaClient) => ({
 });
 
 // Factory function so we can inject our existing PrismaService
-export function createAuth(prisma: PrismaClient) {
-  return betterAuth({ ...options(prisma) });
+export function createAuth(prisma: PrismaClient, email: ResendService) {
+  return betterAuth({ ...options(prisma, email) });
 }
 
 // 🎯 Safe downward downstream types export for convenience
