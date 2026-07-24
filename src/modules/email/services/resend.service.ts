@@ -2,7 +2,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import { render } from '@react-email/render';
+// import { render } from '@react-email/render';
 import * as React from 'react';
 import VerifyEmailTemplate from 'modules/email/templates/verify-email';
 import MagicLinkTemplate from '../templates/magic-link';
@@ -26,12 +26,12 @@ export class ResendService {
     _metadata?: Record<string, any>,
   ) {
     try {
-      const html = await render(
-        React.createElement(VerifyEmailTemplate, {
-          userName,
-          verificationUrl: url,
-        }),
-      );
+      // const html = await render(
+      //   React.createElement(VerifyEmailTemplate, {
+      //     userName,
+      //     verificationUrl: url,
+      //   }),
+      // );
 
       const { data, error } = await this.resend.emails.send({
         from:
@@ -39,7 +39,11 @@ export class ResendService {
           'Auth <security@yourdomain.com>',
         to: [email],
         subject: 'Verify your email address',
-        html,
+        // html,
+        react: React.createElement(VerifyEmailTemplate, {
+          userName,
+          verificationUrl: url,
+        }),
       });
 
       if (error) {
@@ -90,12 +94,12 @@ export class ResendService {
     _metadata?: Record<string, any>,
   ) {
     try {
-      const html = await render(
-        React.createElement(MagicLinkTemplate, {
-          email,
-          url,
-        }),
-      );
+      // const html = await render(
+      //   React.createElement(MagicLinkTemplate, {
+      //     email,
+      //     url,
+      //   }),
+      // );
 
       const { data, error } = await this.resend.emails.send({
         from:
@@ -103,7 +107,11 @@ export class ResendService {
           'Auth <security@yourdomain.com>',
         to: [email],
         subject: 'Magic Link',
-        html,
+        // html,
+        react: React.createElement(MagicLinkTemplate, {
+          email,
+          url,
+        }),
       });
 
       if (error) {
