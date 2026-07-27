@@ -51,6 +51,8 @@ export class ValidationService {
       skipDomainWhoisForDisposable: true, // Skip WHOIS lookups for disposable emails
     });
 
+    console.log(verification);
+
     // Handle invalid MX configuration (domain exists but cannot receive emails)
     if (verification.validMx === false) {
       throw new AppError(
