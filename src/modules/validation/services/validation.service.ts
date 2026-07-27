@@ -44,8 +44,11 @@ export class ValidationService {
     const verification = await verifyEmail({
       emailAddress: formattedEmail,
       verifyMx: true, // Resolve MX records via DNS
-      verifySmtp: false, // Leave SMTP false unless you want live mail probing (slows down HTTP requests)
+      verifySmtp: true, // Leave SMTP false unless you want live mail probing (slows down HTTP requests)
+      checkFree: true, // Checks for free email addresses
       suggestDomain: true, // Checks for typos like gnail.com
+      skipMxForDisposable: true, // Skip MX lookups for disposable emails
+      skipDomainWhoisForDisposable: true, // Skip WHOIS lookups for disposable emails
     });
 
     // Handle invalid MX configuration (domain exists but cannot receive emails)
@@ -90,9 +93,9 @@ export class ValidationService {
       verification.domainSuggestion &&
       verification.domainSuggestion.confidence > 0.8
     ) {
-      const [localPart] = formattedEmail.split('@');
-      const suggestedDomain = verification.domainSuggestion.suggested;
-      const suggestedEmail = `${localPart}@${suggestedDomain}`;
+      // const [localPart] = formattedEmail.split('@');
+      const suggestedEmail = verification.domainSuggestion.suggested;
+      // const suggestedEmail = `${localPart}@${suggestedDomain}`;
 
       throw new AppError(
         `Did you mean ${suggestedEmail}?`,
