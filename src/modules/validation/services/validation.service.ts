@@ -57,9 +57,45 @@ export class ValidationService {
     }
 
     // Handle suggested typos if a critical one is detected
-    if (verification.domainSuggestion) {
+    // if (verification.domainSuggestion) {
+    //   throw new AppError(
+    //     `Did you mean ${verification.domainSuggestion.suggested}?`,
+    //     HttpStatus.BAD_REQUEST,
+    //   );
+    // }
+
+    // const domainSuggestion = verification.domainSuggestion as
+    //   { suggested?: string; confidence?: number } | undefined;
+
+    // if (domainSuggestion && domainSuggestion.suggested) {
+    //   // If confidence is present and high, suggest full email; otherwise suggest domain only
+    //   if (domainSuggestion.confidence && domainSuggestion.confidence > 0.8) {
+    //     const [localPart] = formattedEmail.split('@');
+    //     const suggestedEmail = `${localPart}@${domainSuggestion.suggested}`;
+
+    //     throw new AppError(
+    //       `Did you mean ${suggestedEmail}?`,
+    //       HttpStatus.BAD_REQUEST,
+    //     );
+    //   }
+
+    //   throw new AppError(
+    //     `Did you mean ${domainSuggestion.suggested}?`,
+    //     HttpStatus.BAD_REQUEST,
+    //   );
+    // }
+
+    // 4. Handle Suggested Typos (Using your exact DomainSuggestion interface shape)
+    if (
+      verification.domainSuggestion &&
+      verification.domainSuggestion.confidence > 0.8
+    ) {
+      const [localPart] = formattedEmail.split('@');
+      const suggestedDomain = verification.domainSuggestion.suggested;
+      const suggestedEmail = `${localPart}@${suggestedDomain}`;
+
       throw new AppError(
-        `Did you mean ${verification.domainSuggestion.suggested}?`,
+        `Did you mean ${suggestedEmail}?`,
         HttpStatus.BAD_REQUEST,
       );
     }

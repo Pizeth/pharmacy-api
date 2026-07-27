@@ -7,6 +7,7 @@ import * as React from 'react';
 import VerifyEmailTemplate from 'modules/email/templates/verify-email';
 import MagicLinkTemplate from '../templates/magic-link';
 import OtpEmailTemplate from '../templates/otp-email';
+import { TwoFactorEmailTemplate } from '../templates/two-factor-email';
 // import { VerifyEmailTemplate } from './templates/verify-email';
 
 @Injectable()
@@ -84,6 +85,27 @@ export class ResendService {
       return data;
     } catch (err) {
       this.logger.error('Unexpected error sending OTP email', err);
+    }
+  }
+
+  async sendTwoFactorOtp(email: string, userName: string, otp: string) {
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from:
+          this.configService.get<string>('EMAIL_FROM') ||
+          'Auth <security@yourdomain.com>',
+        to: [email],
+        subject: 'Your 2FA Verification Code',
+        react: React.createElement(TwoFactorEmailTemplate, { userName, otp }),
+      });
+
+      if (error) {
+        this.logger.error(`Resend 2FA OTP failed: ${error.message}`);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      this.logger.error('Unexpected error sending 2FA email', err);
     }
   }
 

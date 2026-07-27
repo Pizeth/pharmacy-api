@@ -206,7 +206,20 @@ export const options = (prisma: PrismaClient, emailService: ResendService) => ({
     admin(),
     username({ minUsernameLength: 3, maxUsernameLength: 50 }),
     oneTap(),
-    twoFactor(),
+    twoFactor({
+      issuer: 'Razeth', // Issuer name displayed in authenticator apps (TOTP)
+      // OTP Email integration
+      otpOptions: {
+        async sendOTP({ user, otp }, _ctx) {
+          await emailService.sendTwoFactorOtp(
+            user.email,
+            user.name || 'User',
+            otp,
+          );
+        },
+      },
+      allowPasswordless: true,
+    }),
     passkey(),
     jwt(),
     bearer(),
