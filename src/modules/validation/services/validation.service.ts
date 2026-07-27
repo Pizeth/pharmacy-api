@@ -92,6 +92,9 @@ export class ValidationService {
 
     // 4. Handle Suggested Typos (Using your exact DomainSuggestion interface shape)
     if (
+      !verification.validSmtp &&
+      !verification.isDeliverable &&
+      !verification.canConnectSmtp &&
       verification.domainSuggestion &&
       verification.domainSuggestion.confidence > 0.8
     ) {
