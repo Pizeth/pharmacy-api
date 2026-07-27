@@ -45,6 +45,7 @@
     "@casl/ability": "^7.0.1",
     "@dicebear/core": "^10.3.0",
     "@dicebear/styles": "^10.2.0",
+    "@emailcheck/email-validator-js": "^5.1.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
