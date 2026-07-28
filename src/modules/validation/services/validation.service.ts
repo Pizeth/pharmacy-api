@@ -11,6 +11,7 @@ import {
   isValidEmail,
   isDisposableEmail,
   verifyEmail,
+  VerificationErrorCode,
 } from '@emailcheck/email-validator-js';
 
 @Injectable()
@@ -45,13 +46,14 @@ export class ValidationService {
       emailAddress: formattedEmail,
       verifyMx: true, // Resolve MX records via DNS
       verifySmtp: true, // Leave SMTP false unless you want live mail probing (slows down HTTP requests)
+      checkDisposable: true, // Checks against built-in lists of temporary emails
       checkFree: true, // Checks for free email addresses
       suggestDomain: true, // Checks for typos like gnail.com
       skipMxForDisposable: true, // Skip MX lookups for disposable emails
       skipDomainWhoisForDisposable: true, // Skip WHOIS lookups for disposable emails
     });
 
-    console.log(verification);
+    console.log('Local Server Verification Result:', verification);
 
     // Handle invalid MX configuration (domain exists but cannot receive emails)
     if (verification.validMx === false) {
@@ -60,6 +62,20 @@ export class ValidationService {
         HttpStatus.BAD_REQUEST,
       );
     }
+
+    /**
+     * Safe Fallback handling for Yahoo/iCloud/Network Provider Block False Negatives
+     * If the server completely failed to dial out to SMTP (Port 25 block/IP ban),
+     * but format and MX are healthy, bypass the SMTP check to keep signups completely functional.
+     */
+    const hasSmtpNetworkError =
+      verification.validSmtp === null &&
+      verification.metadata?.error ===
+        VerificationErrorCode.smtpConnectionFailed;
+
+    const cleanDeliverableStatus = hasSmtpNetworkError
+      ? true
+      : verification.isDeliverable;
 
     // Handle suggested typos if a critical one is detected
     // if (verification.domainSuggestion) {
@@ -92,9 +108,7 @@ export class ValidationService {
 
     // 4. Handle Suggested Typos (Using your exact DomainSuggestion interface shape)
     if (
-      !verification.validSmtp &&
-      !verification.isDeliverable &&
-      !verification.canConnectSmtp &&
+      !cleanDeliverableStatus &&
       verification.domainSuggestion &&
       verification.domainSuggestion.confidence > 0.8
     ) {
@@ -104,6 +118,14 @@ export class ValidationService {
 
       throw new AppError(
         `Did you mean ${suggestedEmail}?`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Catch actual deliverability failures (only when SMTP check didn't crash)
+    if (!cleanDeliverableStatus && !hasSmtpNetworkError) {
+      throw new AppError(
+        'The email address does not exist or cannot receive mail.',
         HttpStatus.BAD_REQUEST,
       );
     }
