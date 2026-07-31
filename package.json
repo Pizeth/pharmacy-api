@@ -37,14 +37,14 @@
     "seed": "tsx prisma/seed.ts --seed"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1095.0",
-    "@aws-sdk/s3-request-presigner": "^3.1095.0",
+    "@aws-sdk/client-s3": "^3.1099.0",
+    "@aws-sdk/s3-request-presigner": "^3.1099.0",
     "@better-auth/api-key": "^1.6.25",
     "@better-auth/i18n": "^1.6.25",
     "@better-auth/passkey": "^1.6.25",
     "@casl/ability": "^7.0.1",
-    "@dicebear/converter": "^10.3.0",
-    "@dicebear/core": "^10.3.0",
+    "@dicebear/converter": "^10.3.2",
+    "@dicebear/core": "^10.3.2",
     "@dicebear/styles": "^10.2.0",
     "@emailcheck/email-validator-js": "^5.1.0",
     "@nestjs/axios": "^4.0.1",
@@ -55,12 +55,12 @@
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/swagger": "^11.4.6",
     "@nestjs/throttler": "^6.5.0",
-    "@prisma/adapter-pg": "^7.9.0",
-    "@prisma/client": "^7.9.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@react-email/render": "^2.1.0",
     "@resvg/resvg-js": "^2.6.2",
     "@thallesp/nestjs-better-auth": "^2.7.0",
-    "axios": "^1.18.1",
+    "axios": "^1.19.0",
     "bcrypt": "^6.0.0",
     "better-auth": "^1.6.25",
     "cbor": "^10.0.12",
@@ -82,7 +82,7 @@
     "qrcode": "^1.5.4",
     "react-email": "^6.9.1",
     "reflect-metadata": "^0.2.2",
-    "resend": "^6.18.0",
+    "resend": "^6.18.1",
     "rxjs": "^7.8.2",
     "tsx": "^4.23.1",
     "ua-parser-js": "^2.0.10",
@@ -97,7 +97,7 @@
     "@nestjs/schematics": "^11.1.0",
     "@nestjs/testing": "^11.1.28",
     "@swc/cli": "^0.8.1",
-    "@swc/core": "^1.15.46",
+    "@swc/core": "^1.15.47",
     "@types/bcrypt": "^6.0.0",
     "@types/clamscan": "^2.4.1",
     "@types/express": "^5.0.6",
@@ -105,7 +105,7 @@
     "@types/form-data": "^2.5.2",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.2.0",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.1",
     "@types/passport": "^1.0.17",
     "@types/pg": "^8.20.0",
@@ -120,7 +120,7 @@
     "globals": "^17.8.0",
     "jest": "^30.4.2",
     "prettier": "^3.9.6",
-    "prisma": "^7.9.0",
+    "prisma": "^7.9.1",
     "run-script-webpack-plugin": "^0.2.3",
     "sharp": "^0.35.3",
     "source-map-support": "^0.5.21",
@@ -131,8 +131,8 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
-    "webpack": "^5.109.0",
-    "webpack-cli": "^7.2.1",
+    "webpack": "^5.109.2",
+    "webpack-cli": "^7.2.2",
     "webpack-node-externals": "^3.0.0"
   },
   "jest": {
@@ -153,10 +153,7 @@
     "testEnvironment": "node"
   },
   "overrides": {
-    "multer": "^2.2.0",
     "brace-expansion": "^5.0.8",
-    "find-my-way": "^9.7.0",
-    "js-yaml": "^5.2.2",
-    "sharp": "^0.35.3"
+    "js-yaml": "^5.2.2"
   }
 }
