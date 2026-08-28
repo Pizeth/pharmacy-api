@@ -61,9 +61,9 @@ export class DBHelper {
       orderBy?: Prisma.Args<PrismaClient[TModelName], 'findMany'>['orderBy'];
     } = {
       where: { ...where, ...searchQuery },
-      skip: (page - 1) * pageSize,
+      // skip: (page - 1) * pageSize,
       take: pageSize,
-      orderBy: { key: 'asc' },
+      // orderBy: { key: 'asc' },
     };
 
     // Only add orderBy to commonArgs if it's provided
@@ -109,7 +109,7 @@ export class DBHelper {
     const data = (await modelDelegate.findMany(resolvedArgs)) as TResult[];
 
     // Get total count based on where conditions (for overall pagination metadata)
-    const total = await modelDelegate.count({ where });
+    const total = await modelDelegate.count({ ...where, ...searchQuery });
 
     // Calculate pagination metadata
     let currentPageForMeta = page;
