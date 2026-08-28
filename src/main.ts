@@ -11,6 +11,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 // import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './app.module';
+// import { StandardSchemaValidationPipe } from '@nestjs/common';
 
 declare const module: HotModule;
 
@@ -105,11 +106,23 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
 
+  // const documentFactory = () =>
+  //   SwaggerModule.createDocument(app, swaggerConfig, swaggerDocumentOptions);
+
   // Serve static OpenAPI JSON
   // app.use(
   //   '/api-docs/json',
   //   swaggerUi.serveFiles(openApiSpec),
   //   swaggerUi.setup(openApiSpec),
+  // );
+
+  /**
+   * NestJS 12 schema-first request validation.
+   */
+  // app.useGlobalPipes(
+  //   new StandardSchemaValidationPipe({
+  //     transform: true,
+  //   }),
   // );
 
   // await app.listen(process.env.PORT ?? 3000);
