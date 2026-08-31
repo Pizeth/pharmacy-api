@@ -3,12 +3,40 @@
 import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
 
+/**
+ * Prisma CLI configuration.
+ *
+ * IMPORTANT:
+ *
+ * Do not use:
+ *
+ *   env('DIRECT_URL')
+ *
+ * here because every Prisma CLI command loads this configuration,
+ * including `prisma generate`.
+ *
+ * The Docker build intentionally does not receive production database
+ * credentials, and `prisma generate` does not require a live database.
+ *
+ * Commands that actually access the database, such as migrations,
+ * must run in an environment where DIRECT_URL is provided.
+ */
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
   },
   datasource: {
-    url: env('DIRECT_URL'),
+    /**
+     * Prisma 7 uses datasource.url from prisma.config.ts for CLI
+     * database operations.
+     *
+     * During `prisma generate`, this may legitimately be absent.
+     *
+     * In deployed migration jobs, Infisical/Northflank must provide
+     * DIRECT_URL.
+     */
+    // url: env('DIRECT_URL'),
+    url: process.env.DIRECT_URL ?? '',
   },
 });
