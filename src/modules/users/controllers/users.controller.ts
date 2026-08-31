@@ -10,7 +10,7 @@ import {
   //   Delete,
 } from '@nestjs/common';
 // import { UsersService } from './user.service';
-import { Prisma, User, User as UserModel } from 'generated/prisma/client';
+import type { Prisma, User, User as UserModel } from 'generated/prisma/client';
 import { PaginatedDataResult } from 'types/types';
 import { UsersService } from '../services/users.service';
 import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';

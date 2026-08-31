@@ -1,0 +1,6 @@
+"build": "nest build --builder rspack --rspackPath webpack-hmr.config.cjs -- --stats-error-details",
+"start:dev": "nest build --builder rspack --rspackPath webpack-hmr.config.cjs --watch",
+"start:dev2": "nest build --builder rspack --rspackPath webpack-hmr.config.cjs --watch",
+"build:webpack": "tsc webpack-hmr.config.ts --outDir ./dist --ignoreConfig",
+"start:dev1": "npm run build:webpack && nest start --builder rspack --rspackPath ./dist/webpack-hmr.config.js --watch",
+"start:debug": "nest start --debug --watch"

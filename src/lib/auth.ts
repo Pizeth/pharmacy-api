@@ -1,4 +1,4 @@
-import { betterAuth, isProduction } from 'better-auth';
+import { betterAuth, isProduction, type BetterAuthOptions } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { PrismaClient } from 'generated/prisma/client';
 // 🚀 Pull the providers dynamically using local relative step-ups
@@ -30,293 +30,310 @@ import { ResendService } from 'modules/email/services/resend.service';
 // import { Request } from 'express';
 import { Email } from 'types/email';
 
-export const options = (prisma: PrismaClient, emailService: ResendService) => ({
-  appName: 'Razeth',
-  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-  database: prismaAdapter(prisma, {
-    provider: 'postgresql',
-  }),
-  trustedOrigins: [
-    // process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
-    // process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
-    // 'http://localhost:8080', // 👈 explicitly add for dev
-    ...(process.env.FRONTEND_URL || 'http://localhost:8080').split(','),
-    process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-  ],
-  // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
-  hooks: {},
-  advanced: {
-    database: {
-      generateId: 'serial' as const, // 👈 Prevent string-widening
-    },
-    cookiePrefix: 'razeth',
-    // useSecureCookies: isProduction, // 👈 Better Auth's built-in toggle
-    // crossSubdomainCookies: {
-    //   enabled: false, // same domain in dev, enable in prod if needed
-    // },
-    // crossSubdomainCookies: {
-    //   enabled: true, // 👈 enable cross-subdomain cookies
-    //   domain: isProduction ? '.razeth.com' : undefined, // 👈 leading dot = all subdomains
-    // },
-    // Dynamic Subdomain Toggle
-    crossSubdomainCookies: {
-      // 💡 ONLY enforce subdomain restriction if the client is actually on the production root domain
-      enabled:
-        isProduction && !(process.env.FRONTEND_URL || '').includes('localhost'),
-      domain:
-        isProduction && !(process.env.FRONTEND_URL || '').includes('localhost')
-          ? '.razeth.com'
-          : undefined,
-    },
-    defaultCookieAttributes: {
-      sameSite: 'none' as const, // 👈 MUST be 'none' for cross-domain OAuth
-      secure: true, // 👈 MUST be true when sameSite is 'none'
-      httpOnly: true, // 👈 CRITICAL: Protects against XSS token theft
-      // partitioned: true, // 👈 CRITICAL: Bypasses Chrome's 3rd-party cookie block
-    },
-    cookies: {
-      // 🚀 1. Use defaultCookieAttributes instead of individual overrides
-      sessionToken: {
-        attributes: {
-          // sameSite: 'lax' as const,
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
-          secure: true, // ✅ false in dev = no __Secure- prefix
-          httpOnly: true,
-          // partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
-        },
-      },
-      sessionData: {
-        // 👈 also cover session_data cookie
-        attributes: {
-          // sameSite: 'lax' as const,
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const),
-          sameSite: 'none' as const,
-          secure: true,
-          httpOnly: true,
-          // partitioned: true, // 👈 Required for Cross-Site localhost testing
-        },
-      },
-      stateCookie: {
-        attributes: {
-          // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
-          sameSite: 'none' as const,
-          secure: true,
-          httpOnly: true,
-          // Do not partition the state cookie; OAuth validation mechanics require standard storage
-        },
-      },
-    },
-  },
-  // Mirror the same plugins/options as your real auth config
-  // so the CLI generates the correct schema
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: true,
-    // onExistingUserSignUp: async ({ user }, request) => {
-    //   // Notify the existing user about the sign-up attempt
-    //   console.log(`Someone tried to sign up with ${user.email}`);
-    // },
-    // sendResetPassword: async ({ user, url, token }, request) => {
-    //   void sendEmail({
-    //     to: user.email,
-    //     subject: 'Reset your password',
-    //     text: `Click the link to reset your password: ${url}`,
-    //   });
-    // },
-  },
-  socialProviders: getSocialProvidersConfig(),
-  user: {
-    additionalFields: {
-      // Role relation — CASL reads this to load permissions
-      roleId: {
-        type: 'number' as const, // 👈 Force exact literal mapping
-        required: false, // false so social sign-up doesn't break
-        input: false, // never set by the client
-      },
-      profileComplete: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: false, // 👈 new users start incomplete
-        input: false,
-      },
-      isLinked: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: false,
-        input: false,
-      },
-      // Security flags not covered by admin() plugin
-      mustChangePassword: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: false,
-        input: false,
-      },
-      isEnabled: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: true,
-        input: false,
-      },
-      isLocked: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: false,
-        input: false,
-      },
-      isActivated: {
-        type: 'boolean' as const,
-        required: false,
-        defaultValue: false,
-        input: false,
-      },
-      // Soft delete
-      deletedAt: {
-        type: 'string' as const, // Better Auth has no "date" type, use string for ISO date
-        required: false,
-        input: false,
-      },
-      // Audit tracking
-      createdBy: {
-        type: 'number' as const,
-        required: false,
-        input: false,
-      },
-      lastUpdatedBy: {
-        type: 'number' as const,
-        required: false,
-        input: false,
-      },
-      objectVersionId: {
-        type: 'number' as const,
-        required: false,
-        defaultValue: 1,
-        input: false,
-      },
-    },
-  },
-  account: {
-    skipStateCookieCheck: process.env.NODE_ENV !== 'production',
-  },
-  plugins: [
-    apiKey(),
-    // admin() kept ONLY for utilities: ban user, list users, impersonate
-    // Its `role` string field on User is ignored — CASL handles authorization
-    admin(),
-    username({ minUsernameLength: 3, maxUsernameLength: 50 }),
-    oneTap(),
-    twoFactor({
-      issuer: 'Razeth', // Issuer name displayed in authenticator apps (TOTP)
-      // OTP Email integration
-      otpOptions: {
-        async sendOTP({ user, otp }, _ctx) {
-          await emailService.sendTwoFactorOtp(
-            user.email,
-            user.name || 'User',
-            otp,
-          );
-        },
-      },
-      allowPasswordless: true,
+export const options = (prisma: PrismaClient, emailService: ResendService) =>
+  ({
+    appName: 'Razeth',
+    baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+    database: prismaAdapter(prisma, {
+      provider: 'postgresql',
     }),
-    passkey(),
-    jwt(),
-    bearer(),
-    haveIBeenPwned(),
-    lastLoginMethod({ storeInDatabase: true }),
-    multiSession(),
-    captcha({
-      provider: 'cloudflare-turnstile' as const, // or google-recaptcha, hcaptcha, captchafox
-      secretKey: process.env.TURNSTILE_SECRET_KEY!,
-    }),
-    magicLink({
-      sendMagicLink: async ({ email, token, url, metadata }, _ctx) => {
-        // send email to user
-        await emailService.sendMagicLink(email, url, token, metadata);
+    trustedOrigins: [
+      // process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
+      // process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
+      // 'http://localhost:8080', // 👈 explicitly add for dev
+      ...(process.env.FRONTEND_URL || 'http://localhost:8080').split(','),
+      process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+    ],
+    // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
+    hooks: {},
+    advanced: {
+      database: {
+        generateId: 'serial' as const, // 👈 Prevent string-widening
       },
-    }),
-    emailOTP({
-      async sendVerificationOTP({ email, otp, type }, _ctx) {
-        await emailService.sendVerificationOTP(email, otp, type);
+      cookiePrefix: 'razeth',
+      // useSecureCookies: isProduction, // 👈 Better Auth's built-in toggle
+      // crossSubdomainCookies: {
+      //   enabled: false, // same domain in dev, enable in prod if needed
+      // },
+      // crossSubdomainCookies: {
+      //   enabled: true, // 👈 enable cross-subdomain cookies
+      //   domain: isProduction ? '.razeth.com' : undefined, // 👈 leading dot = all subdomains
+      // },
+      // Dynamic Subdomain Toggle
+      crossSubDomainCookies: {
+        // 💡 ONLY enforce subdomain restriction if the client is actually on the production root domain
+        enabled:
+          isProduction &&
+          !(process.env.FRONTEND_URL || '').includes('localhost'),
+        domain:
+          isProduction &&
+          !(process.env.FRONTEND_URL || '').includes('localhost')
+            ? '.razeth.com'
+            : undefined,
+      },
+      defaultCookieAttributes: {
+        sameSite: 'none' as const, // 👈 MUST be 'none' for cross-domain OAuth
+        secure: true, // 👈 MUST be true when sameSite is 'none'
+        httpOnly: true, // 👈 CRITICAL: Protects against XSS token theft
+        // partitioned: true, // 👈 CRITICAL: Bypasses Chrome's 3rd-party cookie block
+      },
+      cookies: {
+        // 🚀 1. Use defaultCookieAttributes instead of individual overrides
+        sessionToken: {
+          attributes: {
+            // sameSite: 'lax' as const,
+            // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+            sameSite: 'none' as const, // 👈 required for cross-origin OAuth redirect
+            secure: true, // ✅ false in dev = no __Secure- prefix
+            httpOnly: true,
+            // partitioned: true, // 👈 CRITICAL for modern cross-domain OAuth context
+          },
+        },
+        sessionData: {
+          // 👈 also cover session_data cookie
+          attributes: {
+            // sameSite: 'lax' as const,
+            // sameSite: isProduction ? ('none' as const) : ('lax' as const),
+            sameSite: 'none' as const,
+            secure: true,
+            httpOnly: true,
+            // partitioned: true, // 👈 Required for Cross-Site localhost testing
+          },
+        },
+        stateCookie: {
+          attributes: {
+            // sameSite: isProduction ? ('none' as const) : ('lax' as const), // 👈 required for cross-origin OAuth redirect
+            sameSite: 'none' as const,
+            secure: true,
+            httpOnly: true,
+            // Do not partition the state cookie; OAuth validation mechanics require standard storage
+          },
+        },
+      },
+    },
+    // Mirror the same plugins/options as your real auth config
+    // so the CLI generates the correct schema
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: true,
+      // onExistingUserSignUp: async ({ user }, request) => {
+      //   // Notify the existing user about the sign-up attempt
+      //   console.log(`Someone tried to sign up with ${user.email}`);
+      // },
+      // sendResetPassword: async ({ user, url, token }, request) => {
+      //   void sendEmail({
+      //     to: user.email,
+      //     subject: 'Reset your password',
+      //     text: `Click the link to reset your password: ${url}`,
+      //   });
+      // },
+    },
+    socialProviders: getSocialProvidersConfig(),
+    user: {
+      additionalFields: {
+        // Role relation — CASL reads this to load permissions
+        roleId: {
+          type: 'number' as const, // 👈 Force exact literal mapping
+          required: false, // false so social sign-up doesn't break
+          input: false, // never set by the client
+        },
+        profileComplete: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: false, // 👈 new users start incomplete
+          input: false,
+        },
+        isLinked: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+        // Security flags not covered by admin() plugin
+        mustChangePassword: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+        isEnabled: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: true,
+          input: false,
+        },
+        isLocked: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+        isActivated: {
+          type: 'boolean' as const,
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
+        // Soft delete
+        deletedAt: {
+          type: 'string' as const, // Better Auth has no "date" type, use string for ISO date
+          required: false,
+          input: false,
+        },
+        // Audit tracking
+        createdBy: {
+          type: 'number' as const,
+          required: false,
+          input: false,
+        },
+        lastUpdatedBy: {
+          type: 'number' as const,
+          required: false,
+          input: false,
+        },
+        objectVersionId: {
+          type: 'number' as const,
+          required: false,
+          defaultValue: 1,
+          input: false,
+        },
+      },
+    },
+    account: {
+      skipStateCookieCheck: process.env.NODE_ENV !== 'production',
+    },
+    plugins: [
+      apiKey(),
+      // admin() kept ONLY for utilities: ban user, list users, impersonate
+      // Its `role` string field on User is ignored — CASL handles authorization
+      admin(),
+      username({ minUsernameLength: 3, maxUsernameLength: 50 }),
+      oneTap(),
+      twoFactor({
+        issuer: 'Razeth', // Issuer name displayed in authenticator apps (TOTP)
+        // OTP Email integration
+        otpOptions: {
+          async sendOTP({ user, otp }, _ctx) {
+            await emailService.sendTwoFactorOtp(
+              user.email,
+              user.name || 'User',
+              otp,
+            );
+          },
+        },
+        allowPasswordless: true,
+      }),
+      passkey(),
+      jwt(),
+      bearer(),
+      haveIBeenPwned(),
+      lastLoginMethod({ storeInDatabase: true }),
+      multiSession(),
+      captcha({
+        provider: 'cloudflare-turnstile' as const, // or google-recaptcha, hcaptcha, captchafox
+        secretKey: process.env.TURNSTILE_SECRET_KEY!,
+      }),
+      magicLink({
+        sendMagicLink: async ({ email, token, url, metadata }, _ctx) => {
+          // send email to user
+          await emailService.sendMagicLink(email, url, token, metadata);
+        },
+      }),
+      emailOTP({
+        async sendVerificationOTP({ email, otp, type }, _ctx) {
+          await emailService.sendVerificationOTP(email, otp, type);
 
-        // if (type === 'sign-in') {
-        //   // Send the OTP for sign in
-        // } else if (type === 'email-verification') {
-        //   // Send the OTP for email verification
-        // } else {
-        //   // Send the OTP for password reset
-        // }
-      },
-    }),
-    // phoneNumber({
-    //   sendOTP: ({ phoneNumber, code }, ctx) => {
-    //     // Implement sending OTP code via SMS
-    //   },
-    // }),
-    genericOAuth({
-      config: getGenericProvidersConfig(),
-      // [
-      //   {
-      //     providerId: 'telegram',
-      //     clientId: process.env.TELEGRAM_CLIENT_ID!,
-      //     clientSecret: process.env.TELEGRAM_CLIENT_SECRET!,
-      //     discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL!,
-      //     // ... other config options
+          // if (type === 'sign-in') {
+          //   // Send the OTP for sign in
+          // } else if (type === 'email-verification') {
+          //   // Send the OTP for email verification
+          // } else {
+          //   // Send the OTP for password reset
+          // }
+        },
+      }),
+      // phoneNumber({
+      //   sendOTP: ({ phoneNumber, code }, ctx) => {
+      //     // Implement sending OTP code via SMS
       //   },
-      //   // Add more providers as needed
-      // ],
-    }),
-    i18n({
-      translations: {
-        fr: {
-          USER_NOT_FOUND: 'Utilisateur non trouvé',
-          INVALID_EMAIL_OR_PASSWORD: 'Email ou mot de passe invalide',
-          INVALID_PASSWORD: 'Mot de passe invalide',
+      // }),
+      genericOAuth({
+        config: getGenericProvidersConfig(),
+        // [
+        //   {
+        //     providerId: 'telegram',
+        //     clientId: process.env.TELEGRAM_CLIENT_ID!,
+        //     clientSecret: process.env.TELEGRAM_CLIENT_SECRET!,
+        //     discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL!,
+        //     // ... other config options
+        //   },
+        //   // Add more providers as needed
+        // ],
+      }),
+      i18n({
+        translations: {
+          fr: {
+            USER_NOT_FOUND: 'Utilisateur non trouvé',
+            INVALID_EMAIL_OR_PASSWORD: 'Email ou mot de passe invalide',
+            INVALID_PASSWORD: 'Mot de passe invalide',
+          },
+          de: {
+            USER_NOT_FOUND: 'Benutzer nicht gefunden',
+            INVALID_EMAIL_OR_PASSWORD: 'Ungültige E-Mail oder Passwort',
+            INVALID_PASSWORD: 'Ungültiges Passwort',
+          },
         },
-        de: {
-          USER_NOT_FOUND: 'Benutzer nicht gefunden',
-          INVALID_EMAIL_OR_PASSWORD: 'Ungültige E-Mail oder Passwort',
-          INVALID_PASSWORD: 'Ungültiges Passwort',
-        },
+      }),
+    ],
+    emailVerification: {
+      sendVerificationEmail: async (data: Email, request?: Request) => {
+        // void sendEmail({
+        //   to: user.email,
+        //   subject: 'Verify your email address',
+        //   text: `Click the link to verify your email: ${url}`,
+        // });
+        await emailService.sendVerification(
+          data.user.email,
+          data.user.name || 'User',
+          data.url,
+          data.token,
+          request,
+        );
       },
-    }),
-  ],
-  emailVerification: {
-    sendVerificationEmail: async (data: Email, request?: Request) => {
-      // void sendEmail({
-      //   to: user.email,
-      //   subject: 'Verify your email address',
-      //   text: `Click the link to verify your email: ${url}`,
-      // });
-      await emailService.sendVerification(
-        data.user.email,
-        data.user.name || 'User',
-        data.url,
-        data.token,
-        request,
-      );
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
     },
-    sendOnSignUp: true,
-    sendOnSignIn: true,
-    autoSignInAfterVerification: true,
-  },
-  rateLimit: {
-    enabled: true,
-    window: 10, // time window in seconds
-    max: 100, // max requests in the window
-  },
-});
+    rateLimit: {
+      enabled: true,
+      window: 10, // time window in seconds
+      max: 100, // max requests in the window
+    },
+  }) satisfies BetterAuthOptions;
 
-// Factory function so we can inject our existing PrismaService
+/**
+ * Factory function so NestJS can inject the existing Prisma and email
+ * services while Better Auth retains the complete inferred plugin
+ * configuration.
+ */
 export function createAuth(prisma: PrismaClient, email: ResendService) {
   return betterAuth({ ...options(prisma, email) });
 }
 
 // 🎯 Safe downward downstream types export for convenience
+/**
+ * Exact Better Auth instance type, including inferred plugins and
+ * additional fields.
+ */
 export type Auth = ReturnType<typeof createAuth>;
 
 // 2. Infer the exact schema type returned by the function
+/**
+ * Exact application-specific Better Auth configuration type.
+ *
+ * Because `options()` uses `satisfies BetterAuthOptions`, this remains
+ * more specific than BetterAuthOptions itself.
+ */
 export type AuthOptions = ReturnType<typeof options>;
 
 // // 1. Explicitly type options-factory function

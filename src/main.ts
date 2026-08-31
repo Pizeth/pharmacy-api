@@ -1,26 +1,46 @@
 // **CRITICAL STEP**: The import of the patch file MUST be the very first line.
 // import './zod-patch'; // <-- This executes the patch immediately.
-import * as dotenv from 'dotenv';
-dotenv.config(); // 👈 MUST be line 1 before importing any services/auth modules!
-import { NestFactory } from '@nestjs/core';
-import { HotModule } from './types/types';
-import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+// import * as dotenv from 'dotenv';
+// dotenv.config(); // 👈 MUST be line 1 before importing any services/auth modules!
+
+/**
+ * Must execute before application modules that may read process.env
+ * during module initialization.
+ */
+import 'dotenv/config';
 import 'reflect-metadata';
 import { RequestMethod, VersioningType } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
-// import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './app.module';
+import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+// import { HotModule } from './types/types';
+
+// import { ZodValidationPipe } from 'nestjs-zod';
+
 // import { StandardSchemaValidationPipe } from '@nestjs/common';
 
-declare const module: HotModule;
+// declare const module: HotModule;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    bodyParser: false, // Required for Better Auth
+    /**
+     * Required by the Better Auth Nest integration.
+     *
+     * That integration re-registers body parsing for the normal
+     * non-auth routes.
+     */
+    bodyParser: false,
   });
+
   // app.setGlobalPrefix('v1');
   // Set a global prefix for all routes (e.g., /api)
+  /**
+   * --------------------------------------------------------------
+   * Global API prefix
+   * --------------------------------------------------------------
+   */
   app.setGlobalPrefix('api', {
     exclude: [
       // { path: '/', method: RequestMethod.GET }, // 👈 FIXED: Explicitly bypass ONLY the root GET request
@@ -33,13 +53,29 @@ async function bootstrap() {
     ], // 👈 exclude from prefix
   });
 
-  // Enable URI versioning with a default version "3"
+  /**
+   * --------------------------------------------------------------
+   * URI API versioning
+   * --------------------------------------------------------------
+   *
+   * Produces routes such as:
+   *
+   *   /api/v1/...
+   */
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1', // 👈 This automatically injects /v1 after /api
   });
 
-  // 🛡️ Direct Express interceptor for the absolute root domain
+  /**
+   * --------------------------------------------------------------
+   * Absolute application root
+   * --------------------------------------------------------------
+   *
+   * 🛡️ Direct Express interceptor for the absolute root domain
+   * Registered directly on the Express adapter so this endpoint is
+   * independent from the global /api prefix and API versioning.
+   */
   app.getHttpAdapter().get('/', (req: Request, res: Response) => {
     res.status(200).json({
       name: 'Welcome to PISETHCHESDA Pharmacy API Gateway',
@@ -76,8 +112,19 @@ async function bootstrap() {
     });
   });
 
+  /**
+   * --------------------------------------------------------------
+   * Correlation middleware
+   * --------------------------------------------------------------
+   */
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
+
+  /**
+   * --------------------------------------------------------------
+   * CORS
+   * --------------------------------------------------------------
+   */
   app.enableCors({
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
       .split(',')
@@ -89,22 +136,36 @@ async function bootstrap() {
       'set-auth-jwt', // 👈 expose JWT header (used by getSession)
       'Authorization',
     ],
+
+    /**
+     * Required for Better Auth cookies across origins.
+     */
     credentials: true, // ⚠️ CRITICAL: Must be true so Better Auth cookies can be sent across domains!
   });
 
   // 1. Use the global ZodValidationPipe from `nestjs-zod`
   // app.useGlobalPipes(new ZodValidationPipe());
 
-  // 2. Setup Swagger as usual
-  const config = new DocumentBuilder()
+  /**
+   * --------------------------------------------------------------
+   * OpenAPI
+   * --------------------------------------------------------------
+   *
+   * NestJS 12 + Swagger 12 automatically understands Standard Schema
+   * libraries exposing ~standard.jsonSchema.
+   *
+   * Zod 4 does this natively, so no custom standardSchemaConverter
+   * is needed.
+   */
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Pharmacy API')
     .setDescription('API documentation for Chesda Pharmacy app')
     .setVersion('1.0')
     .addTag('pharmacy')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api-docs', app, swaggerDocument);
 
   // const documentFactory = () =>
   //   SwaggerModule.createDocument(app, swaggerConfig, swaggerDocumentOptions);
@@ -125,14 +186,26 @@ async function bootstrap() {
   //   }),
   // );
 
-  // await app.listen(process.env.PORT ?? 3000);
+  /**
+   * --------------------------------------------------------------
+   * Start server
+   * --------------------------------------------------------------
+   */
   await app.listen(process.env.PORT || 3000, '0.0.0.0');
   console.log(`Application is running on: ${await app.getUrl()}`);
 
-  if (module.hot) {
-    module.hot.accept();
-    module.hot.dispose(() => app.close());
-  }
+  /**
+   * --------------------------------------------------------------
+   * Existing webpack HMR
+   * --------------------------------------------------------------
+   *
+   * Keep this temporarily while the Nest 12 framework upgrade and
+   * bundler migration remain separate changes.
+   */
+  // if (module.hot) {
+  //   module.hot.accept();
+  //   module.hot.dispose(() => app.close());
+  // }
 }
 bootstrap().catch((error) => {
   console.error('Application failed to start:', error);

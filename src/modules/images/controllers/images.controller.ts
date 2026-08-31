@@ -26,11 +26,8 @@ import {
 import { Public } from 'decorators/public.decorator';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 // 1. Import your dynamic types and arrays
-import {
-  availableStyleNames,
-  DiceBearStyle,
-  DiceBearStyleType,
-} from 'dicebear-styles.map';
+import { availableStyleNames, DiceBearStyle } from 'dicebear-styles.map';
+import type { DiceBearStyleType } from 'dicebear-styles.map';
 import { ParseDiceBearStylePipe } from '../pipes/parse-style.pipe';
 
 @AllowAnonymous()

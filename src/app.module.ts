@@ -1,4 +1,8 @@
-import { Module, Logger as l } from '@nestjs/common';
+import {
+  Module,
+  StandardSchemaValidationPipe,
+  Logger as l,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
@@ -38,15 +42,21 @@ import { ResendModule } from './modules/email/resend.module';
 // Force absolute path regardless of __dirname resolution
 // const i18nPath =
 //   process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/');
-console.log('__dirname:', __dirname);
+// console.log('__dirname:', __dirname);
+// console.log('process.cwd():', process.cwd());
+// console.log('NODE_ENV:', process.env.NODE_ENV);
+// console.log(
+//   'i18nPath will be:',
+//   process.env.NODE_ENV === 'production'
+//     ? (process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/'))
+//     : path.join(__dirname, 'i18n'),
+// );
+
+console.log('import.meta.dirname:', import.meta.dirname);
+
 console.log('process.cwd():', process.cwd());
+
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log(
-  'i18nPath will be:',
-  process.env.NODE_ENV === 'production'
-    ? (process.env.I18N_PATH ?? path.join(process.cwd(), 'dist/i18n/'))
-    : path.join(__dirname, 'i18n'),
-);
 
 // const i18nPath =
 //   process.env.NODE_ENV === 'production'
@@ -103,6 +113,28 @@ const i18nPath =
         }
       },
     }),
+    // ConfigModule.forRoot({
+    //   /**
+    //    * Make ConfigService available application-wide.
+    //    */
+    //   isGlobal: true,
+
+    //   /**
+    //    * Explicit environment file used by the application.
+    //    */
+    //   envFilePath: '.env',
+
+    //   /**
+    //    * NestJS 12 accepts Standard Schema implementations directly.
+    //    *
+    //    * Zod 4 satisfies that contract, so configurationSchema is both:
+    //    *
+    //    *   - runtime validation
+    //    *   - transformation/default source
+    //    *   - inferred TypeScript source
+    //    */
+    //   validationSchema: configurationSchema,
+    // }),
     // Setup ClsModule globally.
     ClsModule.forRoot({
       global: true, // Make the ClsService available everywhere
@@ -165,14 +197,51 @@ const i18nPath =
     ResendModule,
   ],
   providers: [
-    // Logger,
+    /**
+     * Global rate-limiting guard.
+     */
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+
+    /**
+     * --------------------------------------------------------------
+     * Transitional nestjs-zod validation
+     * --------------------------------------------------------------
+     *
+     * Keep this temporarily for existing routes that still use:
+     *
+     *   createZodDto(...)
+     *
+     * and the nestjs-zod DTO integration.
+     *
+     * Once those routes have migrated to NestJS 12 native
+     * Standard Schema metadata, this provider and the nestjs-zod
+     * package can be removed.
+     */
     {
       provide: APP_PIPE,
       useClass: ZodValidationPipe,
+    },
+
+    /**
+     * --------------------------------------------------------------
+     * NestJS 12 native Standard Schema validation
+     * --------------------------------------------------------------
+     *
+     * Handles schemas attached directly through:
+     *
+     *   @Body({ schema })
+     *   @Query({ schema })
+     *   @Param(..., { schema })
+     *   @RawBody({ schema })
+     *
+     * Zod 4 implements the Standard Schema contract natively.
+     */
+    {
+      provide: APP_PIPE,
+      useClass: StandardSchemaValidationPipe,
     },
     AppService,
   ],

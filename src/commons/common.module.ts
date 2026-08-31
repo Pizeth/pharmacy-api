@@ -29,7 +29,7 @@ import { CryptoService } from './services/crypto.service';
   ],
   providers: [
     ExceptionService,
-    LoggerService,
+    // LoggerService,
     QrCodeServicce,
     CryptoService,
     {
@@ -51,7 +51,7 @@ import { CryptoService } from './services/crypto.service';
   ],
   exports: [
     ExceptionService,
-    LoggerService,
+    // LoggerService,
     QrCodeServicce,
     CryptoService,
     FileModule,

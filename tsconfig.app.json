@@ -13,7 +13,8 @@
     // "module": "ESNext",
     // "moduleResolution": "node16",
     // "module": "es2022",
-    "declaration": true,
+    // "declaration": true,
+    "declaration": false,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -32,6 +33,28 @@
     "paths": {
       // "*": ["./src/*"],
       "*": ["./src/*"]
+      // "app.controller": ["./src/app.controller.ts"],
+      // "app.module": ["./src/app.module.ts"],
+      // "app.service": ["./src/app.service.ts"],
+      // "dicebear-styles.map": ["./src/dicebear-styles.map.ts"],
+      // "commons/*": ["./src/commons/*"],
+      // "config/*": ["./src/config/*"],
+      // "decorators/*": ["./src/decorators/*"],
+      // "exceptions/*": ["./src/exceptions/*"],
+      // "factories/*": ["./src/factories/*"],
+      // "filters/*": ["./src/filters/*"],
+      // "generated/*": ["./src/generated/*"],
+      // "guards/*": ["./src/guards/*"],
+      // "interceptors/*": ["./src/interceptors/*"],
+      // "lib/*": ["./src/lib/*"],
+
+      // "middlewares/*": ["./src/middlewares/*"],
+      // "modules/*": ["./src/modules/*"],
+      // "pipes/*": ["./src/pipes/*"],
+      // "types/*": ["./src/types/*"],
+      // "utils/*": ["./src/utils/*"],
+
+      // "validation/*": ["./src/validation/*"]
     },
     "moduleResolution": "bundler"
     // "moduleResolution": "nodenext"
