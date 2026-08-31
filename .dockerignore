@@ -1,8 +1,42 @@
+# Dependencies
 node_modules
-npm-debug.log
-Dockerfile
-.dockerignore
+
+# Build output
+dist
+dist-scripts
+coverage
+
+# Git
 .git
 .gitignore
+
+# Local IDE/editor
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Tests if not required for build
+test
+**/*.spec.ts
+
+# Local cache
+.rspack-cache
+.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker own file
+Dockerfile
+.dockerignore
+
 README.md
-dist

@@ -1,60 +1,115 @@
-# Stage 1: Build the NestJS application
+# ---------------------------------------------------------------
+# Stage 1: Build
+# ---------------------------------------------------------------
 FROM node:26-alpine3.24 AS builder
 
 WORKDIR /usr/src/app
 
-# Install build tools needed for native packages (bcrypt, farmhash)
+# Native build toolchain.
+#
+# Required only while dependencies/native addons are being prepared.
 RUN apk add --no-cache python3 make g++
 
-# Copy package files for npm
+# ---------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------
 COPY package.json package-lock.json ./ 
 
-# 1. Install dependencies (including devDependencies needed for build) without running postinstall scripts yet
-RUN npm ci --ignore-scripts
+# TEMPORARY:
+#
+# --legacy-peer-deps is currently required because several ecosystem
+# packages have not widened their peer ranges to NestJS 12 yet:
+#
+#   @nestjs/throttler
+#   nestjs-cls
+#   @thallesp/nestjs-better-auth
+#   nestjs-zod
+#
+# Remove this when those packages officially support Nest 12.
+RUN npm ci --legacy-peer-deps
 
-# 2. Copy your source code (needed for your scripts to work)
+# ---------------------------------------------------------------
+# Application source
+# ---------------------------------------------------------------
+
 COPY . .
 
-# 3. Generate Prisma client & execute the custom dicebear setup scripts
-RUN npx prisma generate && npm run generate:dicebear
-# RUN npx prisma generate
-# RUN npm run generate:dicebear
+# ---------------------------------------------------------------
+# Prisma generation
+# ---------------------------------------------------------------
+#
+# Prisma Client is generated before the application bundle so Rspack
+# can compile the generated client together with the rest of src/.
+RUN npx prisma generate
 
-# 4. Run the final production build, 
-# Webpack now copies the assets into dist/ during this step
-RUN npm run build 
+# ---------------------------------------------------------------
+# Production application build
+# ---------------------------------------------------------------
+#
+# package.json prebuild automatically executes:
+#
+#   npm run generate:dicebear
+#
+# followed by our NestJS 12 + Rspack build.
+RUN npm run build
 
-# RUN cp -r src/i18n dist/i18n && cp -r src/assets dist/assets
+# ---------------------------------------------------------------
+# Remove development dependencies
+# ---------------------------------------------------------------
+#
+# The production image can reuse this node_modules tree because both
+# stages use exactly the same Node + Alpine base.
+#
+# --ignore-scripts prevents package lifecycle scripts from executing a
+# second time while pruning.
+RUN npm prune --omit=dev --ignore-scripts --legacy-peer-deps
 
-# Stage 2: Production image
+# ---------------------------------------------------------------
+# Stage 2: Runtime
+# ---------------------------------------------------------------
 FROM node:26-alpine3.24 AS production
 
-ARG NODE_ENV=production
-ENV NODE_ENV=${NODE_ENV}
+ENV NODE_ENV=production
 
 WORKDIR /usr/src/app
 
-# Production stage also requires build tools to compile bcrypt/farmhash dependencies
-RUN apk add --no-cache python3 make g++
+# ---------------------------------------------------------------
+# Runtime application
+# ---------------------------------------------------------------
 
-# Copy package files and the compiled dist folder
 COPY package.json package-lock.json ./
+
+# Reuse production-only dependencies prepared in the builder.
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+
+# Compiled NestJS application.
 COPY --from=builder /usr/src/app/dist ./dist
 
-# 🟢 CRITICAL FIX for Custom Output Paths: 
-# Copy the generated client folder (which contains the binary engines Webpack needs to execute)
+# ---------------------------------------------------------------
+# Prisma generated client
+# ---------------------------------------------------------------
+#    
+#🟢 CRITICAL FIX for Custom Output Paths: 
+#
+# Keep this for now because Prisma Client uses a custom source output directory.
+#
+# Depending on exactly how much Rspack bundles, we may later confirm
+# that this copy is redundant, but there is no need to remove it during
+# the NestJS migration.
 COPY --from=builder /usr/src/app/src/generated/prisma ./src/generated/prisma
-COPY --from=builder /usr/src/app/prisma ./prisma
 
-# Install only production assets while bypassing hooks
-RUN npm ci --only=production --ignore-scripts
 
+# ---------------------------------------------------------------
+# Networking
+# ---------------------------------------------------------------
 EXPOSE 3000
 
-# Generate production Prisma Client bindings
-# 🛑 REMOVED: "RUN npx prisma generate" is no longer needed here because 
-# the compiled engine binaries are cleanly copied from the builder stage above.
-# RUN npx prisma generate
-
-# Execute natively. Northflank will handle secret injection!
-CMD ["node", "dist/main"]
+# ---------------------------------------------------------------
+# Runtime
+# ---------------------------------------------------------------
+#
+# Northflank injects secrets/runtime configuration into process.env.
+#
+# No Infisical CLI or secret-fetching process is required inside this
+# image when using the Northflank secret sync.
+CMD ["node", "--enable-source-maps", "dist/main.js"]
