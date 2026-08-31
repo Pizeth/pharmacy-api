@@ -1,5 +1,7 @@
 // rspack.config.cjs
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 const path = require('node:path');
 
 /**
@@ -19,6 +21,12 @@ const path = require('node:path');
  * 3. Make output.path explicitly absolute.
  *
  * This keeps the workaround very small and isolated.
+ *
+ * @param {import('@rspack/core').Configuration} options
+ *   NestJS-generated Rspack configuration.
+ *
+ * @returns {import('@rspack/core').Configuration}
+ *   Final Rspack configuration.
  */
 module.exports = function rspackConfig(options) {
   const projectRoot = process.cwd();

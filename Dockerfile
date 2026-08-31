@@ -5,14 +5,19 @@ FROM node:26-alpine3.24 AS builder
 
 WORKDIR /usr/src/app
 
-# Native build toolchain.
+# ---------------------------------------------------------------
+# Native build dependencies
+# ---------------------------------------------------------------
 #
-# Required only while dependencies/native addons are being prepared.
+# Required while installing/building native dependencies such as
+# bcrypt/farmhash.
 RUN apk add --no-cache python3 make g++
 
 # ---------------------------------------------------------------
-# Dependencies
+# Dependency installation
 # ---------------------------------------------------------------
+#
+# Copy only package manifests first so Docker can cache this layer.
 COPY package.json package-lock.json ./ 
 
 # TEMPORARY:
@@ -31,31 +36,41 @@ RUN npm ci --legacy-peer-deps
 # ---------------------------------------------------------------
 # Application source
 # ---------------------------------------------------------------
-
+#
+# Source must exist before application-specific generation scripts run.
 COPY . .
 
 # ---------------------------------------------------------------
-# Prisma generation
+# Prisma Client generation
 # ---------------------------------------------------------------
 #
-# Prisma Client is generated before the application bundle so Rspack
-# can compile the generated client together with the rest of src/.
+# Prisma Client is generated before the application bundle under src/generated/prisma, 
+# so Rspack can compile the generated client together with the rest of src/.
 RUN npx prisma generate
 
 # ---------------------------------------------------------------
 # Production application build
 # ---------------------------------------------------------------
 #
-# package.json prebuild automatically executes:
+# package.json contains:
 #
-#   npm run generate:dicebear
+#   "prebuild": "npm run generate:dicebear"
 #
-# followed by our NestJS 12 + Rspack build.
+# Therefore this command performs:
+#
+#   DiceBear generation
+#       ↓
+#   NestJS 12 / Rspack build
+#
+# Do NOT run generate:dicebear separately here.
 RUN npm run build
 
 # ---------------------------------------------------------------
 # Remove development dependencies
 # ---------------------------------------------------------------
+# 
+#Remove development dependencies before copying node_modules into
+# the final runtime image.
 #
 # The production image can reuse this node_modules tree because both
 # stages use exactly the same Node + Alpine base.
@@ -65,7 +80,7 @@ RUN npm run build
 RUN npm prune --omit=dev --ignore-scripts --legacy-peer-deps
 
 # ---------------------------------------------------------------
-# Stage 2: Runtime
+# Stage 2: Production  Runtime
 # ---------------------------------------------------------------
 FROM node:26-alpine3.24 AS production
 
@@ -74,28 +89,34 @@ ENV NODE_ENV=production
 WORKDIR /usr/src/app
 
 # ---------------------------------------------------------------
-# Runtime application
+# Runtime package metadata
 # ---------------------------------------------------------------
-
 COPY package.json package-lock.json ./
 
-# Reuse production-only dependencies prepared in the builder.
+# ---------------------------------------------------------------
+# Production dependencies
+# ---------------------------------------------------------------
+#
+# Both stages use the same Node/Alpine environment, so native
+# dependencies are ABI-compatible.
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-# Compiled NestJS application.
+# ---------------------------------------------------------------
+# Compiled NestJS application
+# ---------------------------------------------------------------
 COPY --from=builder /usr/src/app/dist ./dist
 
 # ---------------------------------------------------------------
-# Prisma generated client
+# Generated Prisma Client
 # ---------------------------------------------------------------
 #    
 #🟢 CRITICAL FIX for Custom Output Paths: 
 #
-# Keep this for now because Prisma Client uses a custom source output directory.
+# Keep this while the application imports Prisma from the custom:
 #
-# Depending on exactly how much Rspack bundles, we may later confirm
-# that this copy is redundant, but there is no need to remove it during
-# the NestJS migration.
+#   src/generated/prisma
+#
+# output location.
 COPY --from=builder /usr/src/app/src/generated/prisma ./src/generated/prisma
 
 
@@ -108,8 +129,8 @@ EXPOSE 3000
 # Runtime
 # ---------------------------------------------------------------
 #
-# Northflank injects secrets/runtime configuration into process.env.
+# Northflank / Infisical provides configuration through process.env.
 #
-# No Infisical CLI or secret-fetching process is required inside this
-# image when using the Northflank secret sync.
+# No HMR, watcher, Nest CLI, TypeScript compiler, Prisma CLI, or
+# secret-fetching process is required in production.
 CMD ["node", "--enable-source-maps", "dist/main.js"]
