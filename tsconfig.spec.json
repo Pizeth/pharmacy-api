@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.app.json",
+
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "incremental": false,
+
+    "types": ["node", "express", "express-session", "jest", "multer"]
+  },
+
+  "include": ["src/**/*.ts", "src/**/*.tsx", "env.d.ts"],
+
+  "exclude": ["node_modules", "dist", "coverage"]
+}

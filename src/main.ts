@@ -17,10 +17,6 @@ import { AppModule } from './app.module';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
 // import { HotModule } from './types/types';
 
-// import { ZodValidationPipe } from 'nestjs-zod';
-
-// import { StandardSchemaValidationPipe } from '@nestjs/common';
-
 // declare const module: HotModule;
 
 async function bootstrap() {
@@ -175,15 +171,6 @@ async function bootstrap() {
   //   '/api-docs/json',
   //   swaggerUi.serveFiles(openApiSpec),
   //   swaggerUi.setup(openApiSpec),
-  // );
-
-  /**
-   * NestJS 12 schema-first request validation.
-   */
-  // app.useGlobalPipes(
-  //   new StandardSchemaValidationPipe({
-  //     transform: true,
-  //   }),
   // );
 
   /**

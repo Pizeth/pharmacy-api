@@ -207,7 +207,8 @@ const i18nPath =
 
     /**
      * --------------------------------------------------------------
-     * Transitional nestjs-zod validation
+     * Transitional compatibility for existing routes that still use
+     * nestjs-zod DTOs.
      * --------------------------------------------------------------
      *
      * Keep this temporarily for existing routes that still use:

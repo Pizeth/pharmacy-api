@@ -19,7 +19,7 @@ import {
   R2UploadSuccessResponse,
   // HttpErrorStatusEnum,
 } from 'types/types';
-import { VirusScanService } from 'commons/services/virus-scan.service';
+import { VirusScanService } from 'common/services/virus-scan.service';
 // import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from 'exceptions/app.exception';

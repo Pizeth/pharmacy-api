@@ -1,7 +1,13 @@
+// src/modules/helpers/services/db-helper.ts
+
 import { Injectable } from '@nestjs/common';
 import { PrismaClient, Prisma } from 'generated/prisma/client';
+import type {
+  DataTablePrismaPageCountArgs,
+  DataTablePrismaPageFindManyArgs,
+  GetDataTablePrismaPageParams,
+} from 'common/data-table';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
-// import { PrismaService } from 'src/prisma.service';
 import {
   GetPaginatedDataParams,
   PaginatedDataResult,
@@ -13,11 +19,188 @@ import {
 @Injectable() // Make DBHelper injectable
 export class DBHelper {
   // Inject PrismaService in the constructor
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Retrieves paginated data from a specified Prisma model.
-   * Supports both offset-based (page/pageSize) and cursor-based pagination.
+   * Executes one offset-paginated DataTable query.
+   *
+   * This is the canonical DB execution path for the new DataTable
+   * server architecture.
+   *
+   * Responsibilities:
+   *
+   *   - apply translated skip/take
+   *   - select client sorting or server default ordering
+   *   - execute findMany
+   *   - execute count with EXACTLY the same effective `where`
+   *   - calculate pagination metadata
+   *
+   * Responsibilities deliberately NOT handled here:
+   *
+   *   - parsing HTTP input
+   *   - field authorization
+   *   - filter operator authorization
+   *   - global-search field selection
+   *   - building Prisma where expressions
+   *   - building Prisma orderBy expressions
+   *   - cursor pagination
+   *
+   * Those responsibilities are handled by earlier DataTable layers.
+   */
+  public async getDataTablePage<
+    TResult,
+    TWhere extends object,
+    TOrderBy extends object,
+  >({
+    query,
+    defaultOrderBy,
+    operations,
+  }: GetDataTablePrismaPageParams<TResult, TWhere, TOrderBy>): Promise<
+    PaginatedDataResult<TResult>
+  > {
+    /**
+     * ----------------------------------------------------------------
+     * Effective ordering
+     * ----------------------------------------------------------------
+     *
+     * The translator provides orderBy only when client sorting exists.
+     *
+     * Otherwise we use the resource-owned default.
+     *
+     * DBHelper never invents a field name such as:
+     *
+     *   { key: 'asc' }
+     *
+     * because it has no knowledge of the model.
+     */
+    const effectiveOrderBy: readonly TOrderBy[] =
+      query.orderBy && query.orderBy.length > 0
+        ? query.orderBy
+        : defaultOrderBy;
+
+    /**
+     * ----------------------------------------------------------------
+     * findMany arguments
+     * ----------------------------------------------------------------
+     */
+    const findManyArgs: DataTablePrismaPageFindManyArgs<TWhere, TOrderBy> =
+      query.where
+        ? {
+            skip: query.skip,
+            take: query.take,
+            where: query.where,
+            orderBy: effectiveOrderBy,
+          }
+        : {
+            skip: query.skip,
+            take: query.take,
+            orderBy: effectiveOrderBy,
+          };
+
+    /**
+     * ----------------------------------------------------------------
+     * count arguments
+     * ----------------------------------------------------------------
+     *
+     * IMPORTANT:
+     *
+     * When a where clause exists, this is the exact same object used by
+     * findMany.
+     *
+     * Therefore:
+     *
+     *   filters
+     *   +
+     *   global search
+     *
+     * affect both:
+     *
+     *   returned rows
+     *   totalItems
+     *
+     * identically.
+     */
+    const countArgs: DataTablePrismaPageCountArgs<TWhere> = query.where
+      ? {
+          where: query.where,
+        }
+      : {};
+
+    /**
+     * Execute the page query and total count concurrently.
+     *
+     * They are independent read operations.
+     */
+    const [data, total] = await Promise.all([
+      operations.findMany(findManyArgs),
+      operations.count(countArgs),
+    ]);
+
+    /**
+     * ----------------------------------------------------------------
+     * Pagination metadata
+     * ----------------------------------------------------------------
+     *
+     * Phase 1.7.7 creates:
+     *
+     *   skip = (page - 1) * pageSize
+     *   take = pageSize
+     *
+     * Therefore the one-based page can be reconstructed safely as:
+     *
+     *   floor(skip / take) + 1
+     */
+    const currentPage = Math.floor(query.skip / query.take) + 1;
+
+    const totalPages = Math.ceil(total / query.take);
+
+    const metadata: PaginationMetadata = {
+      currentPage,
+      pageSize: query.take,
+      totalItems: total,
+      totalPages,
+
+      /**
+       * Example:
+       *
+       * skip = 0
+       * take = 25
+       * total = 26
+       *
+       * 0 + 25 < 26
+       *            ↓
+       * true
+       */
+      hasNextPage: query.skip + query.take < total,
+      hasPreviousPage: query.skip > 0,
+    };
+
+    return {
+      data,
+      metadata,
+    };
+  }
+
+  /**
+   * Retrieves paginated data from a dynamically selected Prisma model.
+   *
+   * Supports both application's legacy offset-based (page/pageSize) and cursor-based pagination.
+   *
+   * @deprecated
+   * New server-side DataTable endpoints must use `getDataTablePage()`.
+   *
+   * The DataTable architecture now resolves:
+   *
+   *   filtering
+   *   searching
+   *   sorting
+   *
+   * before reaching DBHelper, so new DataTable endpoints must not use
+   * this method's dynamic `search.fields` mechanism.
+   *
+   * Existing non-DataTable callers can remain here until they are
+   * audited/migrated separately.
+   *
    * @param params - Parameters for pagination, filtering, sorting, and selection.
    * @returns A promise that resolves to an object containing the data and pagination metadata.
    */
@@ -109,7 +292,19 @@ export class DBHelper {
     const data = (await modelDelegate.findMany(resolvedArgs)) as TResult[];
 
     // Get total count based on where conditions (for overall pagination metadata)
-    const total = await modelDelegate.count({ ...where, ...searchQuery });
+    /**
+     * IMPORTANT:
+     *
+     * Reuse the exact effective where condition used by findMany.
+     *
+     * This fixes two legacy problems:
+     *
+     * 1. Prisma count arguments expect the filter under `where`.
+     *
+     * 2. Search/filter conditions must match between findMany() and
+     *    count(), otherwise totalItems/totalPages become incorrect.
+     */
+    const total = await modelDelegate.count(baseArgs.where);
 
     // Calculate pagination metadata
     let currentPageForMeta = page;

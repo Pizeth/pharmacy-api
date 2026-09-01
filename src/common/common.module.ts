@@ -4,7 +4,7 @@ import { ExceptionService } from './services/exception.service';
 import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { GlobalExceptionFilter } from 'filters/http-exception.filter';
 import { TransformInterceptor } from 'interceptors/transform.interceptor';
-import { QrCodeServicce } from 'commons/configs/qr-code.service';
+import { QrCodeServicce } from 'common/configs/qr-code.service';
 import { FileModule } from 'modules/files/file.module';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { ImagesModule } from 'modules/images/image.module';
