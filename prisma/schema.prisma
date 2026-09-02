@@ -380,7 +380,7 @@ model Account {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt  @map("updated_at")
 
-  @@unique([providerId, accountId]) // ✅ Add this to fix the upscale upsert and lookups
+  @@unique([providerId, accountId], map: "account_issuer_accountId_uidx") // ✅ Add this to fix the upscale upsert and lookups
   @@index([userId])
   @@map("account")
 }
@@ -434,6 +434,8 @@ model TwoFactor {
   userId      Int       @map("user_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   verified    Boolean? @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
 
   @@index([secret])
   @@index([userId])
@@ -465,6 +467,8 @@ model Jwks {
   privateKey String   @map("private_key")
   createdAt  DateTime @map("created_at")
   expiresAt  DateTime?  @map("expires_at")
+  alg        String?
+  crv        String?
 
   @@map("jwks")
 }

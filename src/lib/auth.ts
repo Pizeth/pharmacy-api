@@ -49,6 +49,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     advanced: {
       database: {
         generateId: 'serial' as const, // 👈 Prevent string-widening
+        joins: true,
       },
       cookiePrefix: 'razeth',
       // useSecureCookies: isProduction, // 👈 Better Auth's built-in toggle
