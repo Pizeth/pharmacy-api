@@ -331,7 +331,7 @@ model User {
   isActivated         Boolean?    @default(false) @map("is_activated")
   deletedAt           String?     @map("deleted_at")
   createdBy           Int?        @map("created_by")
-  updatedBy           Int?        @map("updated_by")
+  lastUpdatedBy       Int?        @map("last_updated_by")
   objectVersionId     Int?        @default(1)
   sessions            Session[]
   accounts            Account[]
