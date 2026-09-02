@@ -138,117 +138,248 @@
 //   }
 // }
 
+// src/modules/prisma/seeders/seeder.ts
+
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
+import { TranslationSeeder } from './translation.seeder';
 import { UserSeeder } from './user.seeder';
-import { ConfigService } from '@nestjs/config';
-// import { TokenService } from 'commons/services/token.service';
-// import { PasswordUtils } from 'commons/services/password-utils.service';
-// import { OidcSeeder } from './oidc.seeder';
-import { Prisma } from 'generated/prisma/client';
-// import { CryptoService } from 'commons/services/crypto.service';
+
+/**
+ * Commands understood by the standalone Prisma seed runner.
+ */
+export type SeedCommand = 'seed' | 'translations' | 'clear';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
   private readonly logger = new Logger(Seeder.name);
 
-  // With a clean DI graph, we can go back to simple constructor injection.
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(UserSeeder) private readonly userSeeder: UserSeeder,
     @Inject(RoleSeeder) private readonly roleSeeder: RoleSeeder,
+    @Inject(TranslationSeeder)
+    private readonly translationSeeder: TranslationSeeder,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
   }
-  onModuleInit() {
+
+  /**
+   * Diagnostic only.
+   *
+   * This is useful for the standalone CLI application context because
+   * seed initialization failures are otherwise harder to diagnose.
+   */
+  onModuleInit(): void {
     this.logger.debug(`PrismaService injected: ${!!this.prisma}`);
     this.logger.debug(`ConfigService injected: ${!!this.config}`);
     this.logger.debug(`UserSeeder injected: ${!!this.userSeeder}`);
     this.logger.debug(`RoleSeeder injected: ${!!this.roleSeeder}`);
+    this.logger.debug(
+      `TranslationSeeder injected: ${!!this.translationSeeder}`,
+    );
   }
 
-  async run(command: 'seed' | 'clear') {
-    this.logger.debug(`Running command: ${command}`);
-    this.logger.debug(`PrismaService available: ${!!this.prisma}`);
-    this.logger.debug(
-      `PrismaService client: ${this.prisma ? '✅ exists' : '❌ missing'}`,
-    );
+  /**
+   * CLI command dispatcher.
+   */
+  async run(command: SeedCommand): Promise<void> {
+    this.logger.log(`Running database command: ${command}`);
 
     if (!this.prisma) {
       throw new Error(
-        '❌ PrismaService is not available. Check dependency injection.',
+        'PrismaService is not available. Check SeederModule dependency injection.',
       );
     }
 
-    if (command === 'seed') {
-      await this.seedAll();
-    } else if (command === 'clear') {
-      await this.clearAll();
+    /**
+     * Protect every command capable of mutating database state.
+     * including clear.
+     */
+    this.assertDatabaseMutationAllowed();
+
+    switch (command) {
+      case 'seed':
+        await this.seedAll();
+        return;
+
+      case 'translations':
+        await this.seedTranslations();
+        return;
+
+      case 'clear':
+        await this.clearAll();
+        return;
     }
   }
 
-  private async seedAll() {
-    // Access configuration safely with fallbacks
+  /**
+   * ----------------------------------------------------------------
+   * Production protection to prevent accidental mutation of
+   * the production database.
+   * ----------------------------------------------------------------
+   */
+  private assertDatabaseMutationAllowed(): void {
     const nodeEnv = this.config
-      .get<string>('NODE_ENV', 'DEVELOPMENT')
+      .get<string>('NODE_ENV', 'development')
       .toLowerCase();
-    this.logger.log(`nodeEnv is ${nodeEnv}`);
-    const allowProdSeeding = this.config.get<string>(
-      'ALLOW_PRODUCTION_SEEDING',
-      'false',
-    );
-    this.logger.log(`allowProdSeeding is ${allowProdSeeding}`);
 
-    // Check if we're in production and have safety checks;
-    if (
-      nodeEnv === 'production' &&
-      !(allowProdSeeding.toLowerCase() === 'true')
-    ) {
-      this.logger.error(
-        'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
-      );
+    // console.log(
+    //   this.config
+    //     .get<string>('ALLOW_PRODUCTION_SEEDING', 'false')
+    //     .toLowerCase(),
+    // );
+
+    const allowProductionSeeding =
+      this.config.get<boolean>('ALLOW_PRODUCTION_SEEDING', false) === true;
+
+    this.logger.log(`NODE_ENV=${nodeEnv}`);
+
+    if (nodeEnv === 'production' && !allowProductionSeeding) {
       throw new Error(
-        'Production seeding is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
+        'Production database seeding/clearing is disabled. Set ALLOW_PRODUCTION_SEEDING=true to override.',
       );
     }
+  }
 
-    this.logger.log('Beginning Database seeding process...🌱');
+  /**
+   * ----------------------------------------------------------------
+   * Seed the complete application's baseline data.
+   * ----------------------------------------------------------------
+   */
+  private async seedAll() {
+    this.logger.log('🌱 Beginning complete database seeding process...');
 
     const result = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
+        /**
+         * ------------------------------------------------------
+         * 1. Authorization baseline
+         * ------------------------------------------------------
+         *
+         * Foreign-key order:
+         *
+         * Role
+         *   ↓
+         * User
+         *
+         * Translation models are independent from User/Role but
+         * remain inside the same initialization transaction.
+         */
         this.logger.log('🔧 Seeding roles...');
+
         const roles = await this.roleSeeder.seed(tx);
 
+        /**
+         * ------------------------------------------------------
+         * 2. Administrative baseline
+         * ------------------------------------------------------
+         */
         this.logger.log('👤 Seeding users...');
+
         const user = await this.userSeeder.seed(roles, tx);
 
-        return { roles, user };
+        /**
+         * ------------------------------------------------------
+         * 3. Translation baseline
+         * ------------------------------------------------------
+         */
+        this.logger.log('🌐 Seeding translations...');
+
+        const translations = await this.translationSeeder.seed(tx);
+
+        return { roles, user, translations };
       },
+
+      /**
+       * Translation seeding adds a meaningful number of upserts.
+       *
+       * A 60-second timeout is reasonable for a CLI initialization
+       * process, especially with remote PostgreSQL/Supabase database.
+       */
       {
-        maxWait: 5000, // default: 2000
-        timeout: 10000, // default: 5000
+        maxWait: 10_000,
+        timeout: 60_000,
       },
     );
 
-    this.logger.log('📊 Database Seeding completed');
+    this.logger.log(
+      `✅ Complete database seed finished 📊: ${result.roles.length} roles, super-admin verified, ${result.translations.keys} translation keys.`,
+    );
     return result;
   }
 
-  private async clearAll() {
-    this.logger.log('🧹 Clearing database...');
+  /**
+   * ----------------------------------------------------------------
+   * Translation-only seed
+   * ----------------------------------------------------------------
+   * This command is intentionally independent from RoleSeeder and
+   * UserSeeder.
+   *
+   * It is ideal for the current database, where roles/users already
+   * exist but translation tables are still empty.
+   */
+  private async seedTranslations(): Promise<void> {
+    this.logger.log('🌐 Beginning translation-only seed...');
+
+    const result = await this.prisma.$transaction(
+      (tx: Prisma.TransactionClient) => this.translationSeeder.seed(tx),
+      {
+        maxWait: 10_000,
+        timeout: 60_000,
+      },
+    );
+
+    this.logger.log(
+      `✅ Translation-only seed finished: ${result.categories} categories, ${result.keys} keys, ${result.translations} locale values.`,
+    );
+  }
+
+  /**
+   * ----------------------------------------------------------------
+   * Clear application seedable data
+   * ----------------------------------------------------------------
+   */
+  private async clearAll(): Promise<void> {
+    this.logger.warn('🧹 Clearing database seedable data...');
 
     await this.prisma.$transaction([
-      // Clear in reverse order of dependencies
+      /**
+       * ----------------------------------------------------------
+       * Translation hierarchy
+       * ----------------------------------------------------------
+       *
+       * Translation
+       *     ↓
+       * TranslationKey
+       *     ↓
+       * TranslationCategory
+       */
+      this.prisma.translation.deleteMany(),
+
+      this.prisma.translationKey.deleteMany(),
+
+      this.prisma.translationCategory.deleteMany(),
+
+      /**
+       * Existing identity/domain cleanup.
+       */
       this.prisma.auditTrail.deleteMany(),
+
       this.prisma.profile.deleteMany(),
+
       this.prisma.account.deleteMany(),
+
       this.prisma.user.deleteMany(),
+
       this.prisma.role.deleteMany(),
-      // Add other cleanup as needed
     ]);
-    this.logger.log('✅ Database cleared');
+
+    this.logger.log('✅ Database clear completed.');
   }
 }

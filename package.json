@@ -15,6 +15,7 @@
     "start:dev": "nest start --builder rspack --path tsconfig.build.json --rspackPath rspack.config.cjs --watch",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --seed",
+    "db:seed:translations": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --translations",
     "db:seed:dev": "tsx --watch --tsconfig tsconfig.seed.json prisma/seed.ts --seed",
     "db:clear": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --clear",
     "db:full-reset": "npm run db:clear && npm run db:reset",
@@ -24,7 +25,7 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
-    "test:datatable": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js src/common/data-table src/modules/helpers/services/db-helper.spec.ts",
+    "test:datatable": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js src/common/data-table src/modules/helpers/services/db-helper.spec.ts src/modules/i18n/data-table",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "generate:dicebear": "tsx scripts/generate-dicebear.ts",
@@ -34,8 +35,8 @@
     "seed": "tsx prisma/seed.ts --seed"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1121.0",
-    "@aws-sdk/s3-request-presigner": "^3.1121.0",
+    "@aws-sdk/client-s3": "^3.1124.0",
+    "@aws-sdk/s3-request-presigner": "^3.1124.0",
     "@better-auth/api-key": "^1.7.2",
     "@better-auth/i18n": "^1.7.2",
     "@better-auth/passkey": "^1.7.2",
@@ -73,7 +74,7 @@
     "nestjs-cls": "^6.2.2",
     "nestjs-i18n": "^10.8.5",
     "nestjs-zod": "^5.5.0",
-    "nodemailer": "^9.0.6",
+    "nodemailer": "^9.1.1",
     "openid-client": "^6.8.7",
     "passport": "^0.7.0",
     "pg": "^8.23.0",
@@ -90,12 +91,12 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.6",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
-    "@rspack/core": "^2.2.1",
+    "@rspack/core": "^2.2.2",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.16.1",
     "@types/bcrypt": "^6.0.0",
@@ -105,7 +106,7 @@
     "@types/form-data": "^2.5.2",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.2.0",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/nodemailer": "^8.0.1",
     "@types/passport": "^1.0.17",
     "@types/pg": "^8.23.1",
@@ -117,8 +118,8 @@
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
-    "globals": "^17.11.0",
-    "jest": "^30.5.0",
+    "globals": "^17.12.0",
+    "jest": "^30.5.1",
     "prettier": "^3.9.6",
     "prisma": "^7.10.0",
     "sharp": "^0.35.4",
@@ -129,9 +130,9 @@
     "tsconfig-paths": "^4.2.0",
     "tsconfig-paths-webpack-plugin": "^4.2.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0",
+    "typescript-eslint": "^8.69.0",
     "webpack-node-externals": "^3.0.0",
-    "zod-openapi": "^6.0.1"
+    "zod-openapi": "^6.0.2"
   },
   "jest": {
     "moduleFileExtensions": [

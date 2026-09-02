@@ -6,8 +6,8 @@ import {
   DataTableQueryPolicyConfigurationError,
   DataTableQueryPolicyError,
 } from './data-table-query-policy.error';
-
 import { resolveDataTableQuery } from './resolve-data-table-query';
+import { z } from 'zod';
 
 /**
  * Test-only resource policy.
@@ -454,5 +454,134 @@ describe('createDataTableQueryPolicy', () => {
         },
       }),
     ).toThrow(DataTableQueryPolicyConfigurationError);
+  });
+});
+
+/**
+ * Policy demonstrating resource-specific value validation.
+ */
+const typedValuePolicy = createDataTableQueryPolicy({
+  sorting: {},
+  filtering: {
+    categoryId: {
+      target: 'categoryId',
+      operators: ['equals', 'in'],
+      values: {
+        equals: z.number().int().positive(),
+        in: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    key: {
+      target: 'key',
+      operators: ['equals', 'contains'],
+      values: {
+        equals: z.string().trim().min(1),
+        contains: z.string().trim().min(1),
+      },
+    },
+  },
+});
+
+describe('resolveDataTableQuery', () => {
+  // Test cases for the resolveDataTableQuery function with the typed value policy
+  it('applies resource-specific filter value parsing and transformation', () => {
+    const query = dataTableQuerySchema.parse({
+      filters: [
+        {
+          field: 'key',
+          operator: 'equals',
+
+          /**
+           * Generic equals validation intentionally does not trim
+           * strings.
+           *
+           * The resource-specific parser does.
+           */
+          value: '   auth.login   ',
+        },
+      ],
+    });
+
+    const result = resolveDataTableQuery(typedValuePolicy, query);
+
+    expect(result.filters[0]).toEqual({
+      field: 'key',
+      target: 'key',
+      operator: 'equals',
+      value: 'auth.login',
+    });
+  });
+
+  it('rejects a structurally valid value that is invalid for the resource field', () => {
+    /**
+     * Generic equals accepts strings.
+     *
+     * But this resource declares:
+     *
+     *   categoryId equals -> positive integer
+     */
+    const query = dataTableQuerySchema.parse({
+      filters: [
+        {
+          field: 'categoryId',
+          operator: 'equals',
+          value: 'not-a-number',
+        },
+      ],
+    });
+
+    expect(() => resolveDataTableQuery(typedValuePolicy, query)).toThrow(
+      DataTableQueryPolicyError,
+    );
+
+    try {
+      resolveDataTableQuery(typedValuePolicy, query);
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(DataTableQueryPolicyError);
+
+      if (error instanceof DataTableQueryPolicyError) {
+        expect(error.code).toBe('INVALID_FILTER_VALUE');
+        expect(error.field).toBe('categoryId');
+        expect(error.operator).toBe('equals');
+        expect(error.cause).toBeDefined();
+      }
+    }
+  });
+
+  it('rejects an in-filter containing values invalid for the resource field', () => {
+    /**
+     * Generic `in` accepts scalar arrays:
+     *
+     *   string[]
+     *   number[]
+     *   boolean[]
+     *
+     * But categoryId is explicitly:
+     *
+     *   positive integer[]
+     */
+    const query = dataTableQuerySchema.parse({
+      filters: [
+        {
+          field: 'categoryId',
+          operator: 'in',
+          value: [1, 2, 'invalid'],
+        },
+      ],
+    });
+
+    expect(() => resolveDataTableQuery(typedValuePolicy, query)).toThrow(
+      DataTableQueryPolicyError,
+    );
+
+    try {
+      resolveDataTableQuery(typedValuePolicy, query);
+    } catch (error: unknown) {
+      if (error instanceof DataTableQueryPolicyError) {
+        expect(error.code).toBe('INVALID_FILTER_VALUE');
+        expect(error.field).toBe('categoryId');
+        expect(error.operator).toBe('in');
+      }
+    }
   });
 });

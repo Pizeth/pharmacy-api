@@ -1,0 +1,305 @@
+{
+  "categories": [
+    {
+      "name": "common",
+      "description": "Common actions and labels shared throughout the application"
+    },
+    {
+      "name": "auth",
+      "description": "Authentication and account related text"
+    },
+    {
+      "name": "validation",
+      "description": "Form validation and input error messages"
+    },
+    {
+      "name": "navigation",
+      "description": "Navigation menus and application sections"
+    },
+    {
+      "name": "profile",
+      "description": "Personal profile and civil-service information"
+    },
+    {
+      "name": "translation",
+      "description": "Translation administration interface"
+    }
+  ],
+  "keys": [
+    {
+      "key": "common_save",
+      "description": "Save action",
+      "category": "common",
+      "translations": {
+        "en": "Save",
+        "km": "រក្សាទុក"
+      }
+    },
+    {
+      "key": "common_cancel",
+      "description": "Cancel action",
+      "category": "common",
+      "translations": {
+        "en": "Cancel",
+        "km": "បោះបង់"
+      }
+    },
+    {
+      "key": "common_delete",
+      "description": "Delete action",
+      "category": "common",
+      "translations": {
+        "en": "Delete",
+        "km": "លុប"
+      }
+    },
+    {
+      "key": "common_edit",
+      "description": "Edit action",
+      "category": "common",
+      "translations": {
+        "en": "Edit",
+        "km": "កែសម្រួល"
+      }
+    },
+    {
+      "key": "common_create",
+      "description": "Create action",
+      "category": "common",
+      "translations": {
+        "en": "Create",
+        "km": "បង្កើត"
+      }
+    },
+
+    {
+      "key": "auth_login",
+      "description": "Login action",
+      "category": "auth",
+      "translations": {
+        "en": "Login",
+        "km": "ចូលប្រើប្រាស់"
+      }
+    },
+    {
+      "key": "auth_logout",
+      "description": "Logout action",
+      "category": "auth",
+      "translations": {
+        "en": "Logout",
+        "km": "ចាកចេញ"
+      }
+    },
+    {
+      "key": "auth_email",
+      "description": "Email field label",
+      "category": "auth",
+      "translations": {
+        "en": "Email",
+        "km": "អ៊ីមែល"
+      }
+    },
+    {
+      "key": "auth_password",
+      "description": "Password field label",
+      "category": "auth",
+      "translations": {
+        "en": "Password",
+        "km": "ពាក្យសម្ងាត់"
+      }
+    },
+    {
+      "key": "auth_forgot_password",
+      "description": "Forgot password action",
+      "category": "auth",
+      "translations": {
+        "en": "Forgot password",
+        "km": "ភ្លេចពាក្យសម្ងាត់"
+      }
+    },
+
+    {
+      "key": "validation_required",
+      "description": "Required field validation message",
+      "category": "validation",
+      "translations": {
+        "en": "This field is required",
+        "km": "វាលនេះត្រូវតែបំពេញ"
+      }
+    },
+    {
+      "key": "validation_invalid_email",
+      "description": "Invalid email validation message",
+      "category": "validation",
+      "translations": {
+        "en": "Invalid email address",
+        "km": "អាសយដ្ឋានអ៊ីមែលមិនត្រឹមត្រូវ"
+      }
+    },
+    {
+      "key": "validation_min_length",
+      "description": "Minimum length validation message",
+      "category": "validation",
+      "translations": {
+        "en": "The value is too short",
+        "km": "តម្លៃនេះខ្លីពេក"
+      }
+    },
+    {
+      "key": "validation_max_length",
+      "description": "Maximum length validation message",
+      "category": "validation",
+      "translations": {
+        "en": "The value is too long",
+        "km": "តម្លៃនេះវែងពេក"
+      }
+    },
+    {
+      "key": "validation_password_mismatch",
+      "description": "Password confirmation mismatch",
+      "category": "validation",
+      "translations": {
+        "en": "Passwords do not match",
+        "km": "ពាក្យសម្ងាត់មិនត្រូវគ្នា"
+      }
+    },
+
+    {
+      "key": "navigation_dashboard",
+      "description": "Dashboard navigation label",
+      "category": "navigation",
+      "translations": {
+        "en": "Dashboard",
+        "km": "ផ្ទាំងគ្រប់គ្រង"
+      }
+    },
+    {
+      "key": "navigation_users",
+      "description": "Users navigation label",
+      "category": "navigation",
+      "translations": {
+        "en": "Users",
+        "km": "អ្នកប្រើប្រាស់"
+      }
+    },
+    {
+      "key": "navigation_profiles",
+      "description": "Profiles navigation label",
+      "category": "navigation",
+      "translations": {
+        "en": "Profiles",
+        "km": "ប្រវត្តិរូប"
+      }
+    },
+    {
+      "key": "navigation_translations",
+      "description": "Translations navigation label",
+      "category": "navigation",
+      "translations": {
+        "en": "Translations",
+        "km": "ការបកប្រែ"
+      }
+    },
+    {
+      "key": "navigation_settings",
+      "description": "Settings navigation label",
+      "category": "navigation",
+      "translations": {
+        "en": "Settings",
+        "km": "ការកំណត់"
+      }
+    },
+
+    {
+      "key": "profile_first_name",
+      "description": "First name field label",
+      "category": "profile",
+      "translations": {
+        "en": "First name",
+        "km": "នាមខ្លួន"
+      }
+    },
+    {
+      "key": "profile_last_name",
+      "description": "Last name field label",
+      "category": "profile",
+      "translations": {
+        "en": "Last name",
+        "km": "នាមត្រកូល"
+      }
+    },
+    {
+      "key": "profile_phone",
+      "description": "Phone field label",
+      "category": "profile",
+      "translations": {
+        "en": "Phone",
+        "km": "លេខទូរស័ព្ទ"
+      }
+    },
+    {
+      "key": "profile_address",
+      "description": "Address field label",
+      "category": "profile",
+      "translations": {
+        "en": "Address",
+        "km": "អាសយដ្ឋាន"
+      }
+    },
+    {
+      "key": "profile_status",
+      "description": "Profile status field label",
+      "category": "profile",
+      "translations": {
+        "en": "Status",
+        "km": "ស្ថានភាព"
+      }
+    },
+
+    {
+      "key": "translation_key",
+      "description": "Translation key column label",
+      "category": "translation",
+      "translations": {
+        "en": "Translation key",
+        "km": "សោបកប្រែ"
+      }
+    },
+    {
+      "key": "translation_category",
+      "description": "Translation category column label",
+      "category": "translation",
+      "translations": {
+        "en": "Category",
+        "km": "ប្រភេទ"
+      }
+    },
+    {
+      "key": "translation_locale",
+      "description": "Translation locale column label",
+      "category": "translation",
+      "translations": {
+        "en": "Locale",
+        "km": "ភាសា"
+      }
+    },
+    {
+      "key": "translation_value",
+      "description": "Translation value column label",
+      "category": "translation",
+      "translations": {
+        "en": "Value",
+        "km": "តម្លៃ"
+      }
+    },
+    {
+      "key": "translation_description",
+      "description": "Translation description column label",
+      "category": "translation",
+      "translations": {
+        "en": "Description",
+        "km": "ការពិពណ៌នា"
+      }
+    }
+  ]
+}

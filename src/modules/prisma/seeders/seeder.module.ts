@@ -9,6 +9,7 @@ import { ValidationError } from 'exceptions/zod-validatoin.exception';
 import { Seeder } from './seeder';
 import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
+import { TranslationSeeder } from './translation.seeder';
 
 @Module({
   imports: [
@@ -52,7 +53,7 @@ import { RoleSeeder } from './role.seeder';
       },
     }),
   ],
-  providers: [RoleSeeder, UserSeeder, Seeder],
+  providers: [RoleSeeder, UserSeeder, TranslationSeeder, Seeder],
   exports: [Seeder],
 })
 export class SeederModule {}

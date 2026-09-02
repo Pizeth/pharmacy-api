@@ -1,8 +1,8 @@
 // src/common/data-table/prisma/types.ts
 
 import type {
-  DataTableFilterOperator,
-  DataTableFilterScalar,
+  // DataTableFilterOperator,
+  // DataTableFilterScalar,
   DataTableSortDirection,
 } from '../schemas/data-table-query.schema';
 
@@ -56,80 +56,146 @@ export type DataTablePrismaSortMappers<
  * ------------------------------------------------------------------
  */
 
-/**
- * Runtime-compatible mapper family.
- *
- * Every property is optional here because different targets expose
- * different operators.
- *
- * `DataTablePrismaFilterMappers` below makes the operators required
- * according to each resource policy.
- */
-export interface DataTablePrismaFilterMapperSet<TWhere extends object> {
-  readonly equals?: (value: DataTableFilterScalar) => TWhere;
-  readonly contains?: (value: string) => TWhere;
-  readonly gte?: (value: number) => TWhere;
-  readonly lte?: (value: number) => TWhere;
-  readonly in?: (value: readonly DataTableFilterScalar[]) => TWhere;
-}
+// /**
+//  * Runtime-compatible mapper family.
+//  *
+//  * Every property is optional here because different targets expose
+//  * different operators.
+//  *
+//  * `DataTablePrismaFilterMappers` below makes the operators required
+//  * according to each resource policy.
+//  */
+// export interface DataTablePrismaFilterMapperSet<TWhere extends object> {
+//   readonly equals?: (value: DataTableFilterScalar) => TWhere;
+//   readonly contains?: (value: string) => TWhere;
+//   readonly gte?: (value: number) => TWhere;
+//   readonly lte?: (value: number) => TWhere;
+//   readonly in?: (value: readonly DataTableFilterScalar[]) => TWhere;
+// }
 
 /**
- * Pull one operator's function type out of the runtime mapper family.
- */
-type DataTablePrismaFilterMapperForOperator<
-  TWhere extends object,
-  TOperator extends DataTableFilterOperator,
-> = NonNullable<DataTablePrismaFilterMapperSet<TWhere>[TOperator]>;
-
-/**
- * Mapper requirements for a single trusted target.
+ * Prisma mapper functions required for one trusted internal target.
  *
- * Only the operators declared by the resource policy are required.
+ * The callback's value type is derived from the resource policy.
  *
  * Example:
  *
- * status:
- *   equals | in
+ * policy:
  *
- * produces:
+ * categoryId: {
+ *   target: 'categoryId',
  *
- * {
- *   equals: (...),
- *   in: (...),
+ *   operators: [
+ *     'equals',
+ *     'in',
+ *   ],
+ *
+ *   values: {
+ *     equals:
+ *       z.number().int(),
+ *
+ *     in:
+ *       z.array(z.number().int()),
+ *   },
  * }
  *
- * while `contains`, `gte`, and `lte` are not required.
+ *
+ * mapper:
+ *
+ * categoryId: {
+ *   equals:
+ *     value => ...
+ *
+ *     // value: number
+ *
+ *   in:
+ *     value => ...
+ *
+ *     // value: number[]
+ * }
  */
-type DataTablePrismaRequiredFilterMapperSet<
+export type DataTablePrismaFilterMapperSet<
   TPolicy extends DataTableQueryPolicy,
-  TTarget extends string,
+  TTarget extends DataTableFilterTargetOf<TPolicy>,
   TWhere extends object,
 > = {
-  readonly [
-    TOperator in DataTableFilterOperatorsForTarget<TPolicy, TTarget>
-  ]: DataTablePrismaFilterMapperForOperator<TWhere, TOperator>;
+  readonly [TOperator in DataTableFilterOperatorsForTarget<TPolicy, TTarget>]: (
+    value: DataTableFilterValueForTargetOperator<TPolicy, TTarget, TOperator>,
+  ) => TWhere;
 };
 
 /**
- * Complete filtering mapper map.
+ * Complete resource filtering mapper map.
  *
- * The first half gives us a common runtime shape.
- *
- * The second half adds the policy-derived compile-time requirements.
+ * Every trusted target declared by the resource policy must have all
+ * of the corresponding allowed operator mappers.
  */
 export type DataTablePrismaFilterMappers<
   TPolicy extends DataTableQueryPolicy,
   TWhere extends object,
-> = Readonly<
-  Record<
-    DataTableFilterTargetOf<TPolicy>,
-    DataTablePrismaFilterMapperSet<TWhere>
-  >
-> & {
+> = {
   readonly [
     TTarget in DataTableFilterTargetOf<TPolicy>
-  ]: DataTablePrismaRequiredFilterMapperSet<TPolicy, TTarget, TWhere>;
+  ]: DataTablePrismaFilterMapperSet<TPolicy, TTarget, TWhere>;
 };
+
+// /**
+//  * Pull one operator's function type out of the runtime mapper family.
+//  */
+// type DataTablePrismaFilterMapperForOperator<
+//   TWhere extends object,
+//   TOperator extends DataTableFilterOperator,
+// > = NonNullable<DataTablePrismaFilterMapperSet<TWhere>[TOperator]>;
+
+// /**
+//  * Mapper requirements for a single trusted target.
+//  *
+//  * Only the operators declared by the resource policy are required.
+//  *
+//  * Example:
+//  *
+//  * status:
+//  *   equals | in
+//  *
+//  * produces:
+//  *
+//  * {
+//  *   equals: (...),
+//  *   in: (...),
+//  * }
+//  *
+//  * while `contains`, `gte`, and `lte` are not required.
+//  */
+// type DataTablePrismaRequiredFilterMapperSet<
+//   TPolicy extends DataTableQueryPolicy,
+//   TTarget extends string,
+//   TWhere extends object,
+// > = {
+//   readonly [
+//     TOperator in DataTableFilterOperatorsForTarget<TPolicy, TTarget>
+//   ]: DataTablePrismaFilterMapperForOperator<TWhere, TOperator>;
+// };
+
+// /**
+//  * Complete filtering mapper map.
+//  *
+//  * The first half gives us a common runtime shape.
+//  *
+//  * The second half adds the policy-derived compile-time requirements.
+//  */
+// export type DataTablePrismaFilterMappers<
+//   TPolicy extends DataTableQueryPolicy,
+//   TWhere extends object,
+// > = Readonly<
+//   Record<
+//     DataTableFilterTargetOf<TPolicy>,
+//     DataTablePrismaFilterMapperSet<TWhere>
+//   >
+// > & {
+//   readonly [
+//     TTarget in DataTableFilterTargetOf<TPolicy>
+//   ]: DataTablePrismaRequiredFilterMapperSet<TPolicy, TTarget, TWhere>;
+// };
 
 /**
  * ------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { dataTableQuerySchema } from '../schemas/data-table-query.schema';
 import { createDataTableQueryPolicy } from '../query/create-data-table-query-policy';
 import { resolveDataTableQuery } from '../query/resolve-data-table-query';
 import { createDataTablePrismaTranslator } from './create-data-table-prisma-translator';
+import { z } from 'zod';
 
 /**
  * ------------------------------------------------------------------
@@ -57,6 +58,25 @@ interface TestOrderByInput {
 
 /**
  * ------------------------------------------------------------------
+ * Resource-specific typed value test
+ * ------------------------------------------------------------------
+ */
+
+interface TypedValueWhereInput {
+  readonly AND?: readonly TypedValueWhereInput[];
+  readonly OR?: readonly TypedValueWhereInput[];
+  readonly categoryId?: {
+    readonly equals?: number;
+    readonly in?: readonly number[];
+  };
+}
+
+interface TypedValueOrderByInput {
+  readonly id?: 'asc' | 'desc';
+}
+
+/**
+ * ------------------------------------------------------------------
  * Test resource policy
  * ------------------------------------------------------------------
  */
@@ -100,6 +120,67 @@ const testPolicy = createDataTableQueryPolicy({
 
   search: {
     targets: ['title', 'description', 'documentNumber'],
+  },
+});
+
+const typedValuePolicy = createDataTableQueryPolicy({
+  sorting: {},
+  filtering: {
+    categoryId: {
+      target: 'categoryId',
+      operators: ['equals', 'in'],
+      values: {
+        equals: z.number().int().positive(),
+        in: z.array(z.number().int().positive()).min(1),
+      },
+    },
+  },
+});
+
+/**
+ * If policy typing is working correctly:
+ *
+ * equals.value -> number
+ * in.value     -> number[]
+ *
+ * The assignments below therefore compile without casts.
+ */
+const typedValueTranslator = createDataTablePrismaTranslator<
+  TypedValueWhereInput,
+  TypedValueOrderByInput
+>()({
+  policy: typedValuePolicy,
+  sorting: {},
+  filtering: {
+    categoryId: {
+      equals: (value) => ({
+        categoryId: {
+          /**
+           * `value` is inferred as number.
+           */
+          equals: value,
+        },
+      }),
+
+      in: (value) => ({
+        categoryId: {
+          /**
+           * `value` is inferred as number[].
+           */
+          in: value,
+        },
+      }),
+    },
+  },
+  search: {},
+  where: {
+    and: (clauses) => ({
+      AND: [...clauses],
+    }),
+
+    or: (clauses) => ({
+      OR: [...clauses],
+    }),
   },
 });
 
@@ -584,6 +665,28 @@ describe('createDataTablePrismaTranslator', () => {
           ],
         },
       ],
+    });
+  });
+
+  it('uses the resource-specific parsed value in the Prisma mapper', () => {
+    const query = dataTableQuerySchema.parse({
+      filters: [
+        {
+          field: 'categoryId',
+          operator: 'equals',
+          value: 7,
+        },
+      ],
+    });
+
+    const resolved = resolveDataTableQuery(typedValuePolicy, query);
+
+    const result = typedValueTranslator.translate(resolved);
+
+    expect(result.where).toEqual({
+      categoryId: {
+        equals: 7,
+      },
     });
   });
 });

@@ -1,89 +1,125 @@
+// prisma/seed.ts
+
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
+import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import {
-  Logger,
-  // DynamicModule, ForwardReference, Type
-} from '@nestjs/common';
-import { Seeder } from 'modules/prisma/seeders/seeder'; // Adjust path if needed
+import { Seeder } from 'modules/prisma/seeders/seeder';
+import type { SeedCommand } from 'modules/prisma/seeders/seeder';
 import { SeederModule } from 'modules/prisma/seeders/seeder.module';
-// import { INestApplicationContext } from '@nestjs/common';
+
 const logger = new Logger('PrismaSeeder');
 
+/**
+ * Convert an unknown caught value into useful logger text without introducing `any`.
+ */
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+
+  return String(error);
+}
+
+/**
+ * Handle truly uncaught asynchronous failures.
+ */
 process.on('unhandledRejection', (reason: unknown) => {
-  logger.error('Unhandled Rejection:', reason as any);
-});
-process.on('uncaughtException', (err: Error) => {
-  logger.error('Uncaught Exception:', err);
+  logger.error('Unhandled promise rejection.', describeError(reason));
+  process.exitCode = 1;
 });
 
-// type IEntryNestModule =
-//   | Type<any>
-//   | DynamicModule
-//   | ForwardReference
-//   | Promise<IEntryNestModule>;
+/**
+ * Handle truly uncaught synchronous failures.
+ */
+process.on('uncaughtException', (error: Error) => {
+  logger.error('Uncaught exception.', error.stack ?? error.message);
+  process.exitCode = 1;
+});
 
-// async function createContextWithTimeout(
-//   module: IEntryNestModule, // Use 'any' or a more specific type if available, like Type<any>
-//   ms = 5000,
-// ): Promise<INestApplicationContext> {
-//   return Promise.race([
-//     NestFactory.createApplicationContext(module, {
-//       logger: ['error', 'warn', 'debug', 'log'],
-//     }),
-//     new Promise<INestApplicationContext>((_, reject) =>
-//       setTimeout(
-//         () =>
-//           reject(new Error(`createApplicationContext timed out after ${ms}ms`)),
-//         ms,
-//       ),
-//     ),
-//   ]);
-// }
+/**
+ * Resolve the requested CLI operation.
+ *
+ * Supported:
+ *
+ *   --seed
+ *   --translations
+ *   --clear
+ */
+function resolveCommand(): SeedCommand | undefined {
+  if (process.argv.includes('--clear')) {
+    return 'clear';
+  }
 
-async function bootstrap() {
-  const appContext = await NestFactory.createApplicationContext(SeederModule, {
-    // Disable logging from the NestJS core to make our own logs cleaner
-    logger: ['error', 'warn', 'debug', 'log'],
-  });
+  if (process.argv.includes('--translations')) {
+    return 'translations';
+  }
 
-  // const appContext = await createContextWithTimeout(SeederModule, 5000);
+  if (process.argv.includes('--seed')) {
+    return 'seed';
+  }
+
+  return undefined;
+}
+
+/**
+ * Standalone Nest application-context bootstrap.
+ *
+ * This intentionally does NOT start the HTTP server.
+ */
+async function bootstrap(): Promise<void> {
+  let appContext: INestApplicationContext | undefined;
 
   try {
-    logger.log('Initializing the seeder...');
+    appContext = await NestFactory.createApplicationContext(SeederModule, {
+      logger: ['error', 'warn', 'debug', 'log'],
+    });
 
-    // Get the SeederService from the application context
+    logger.log('Initializing database seeder...');
+
+    /**
+     * Resolve Seeder from the DI container.
+     */
     const seeder = appContext.get(Seeder, { strict: false });
+
     logger.debug(`Seeder resolved from context: ${!!seeder}`);
-    // logger.debug('Resolved Seeder instance:', seeder);
     logger.log('🌱 Starting database seeding...');
 
-    // Handle command line arguments
-    if (process.argv.includes('--clear')) {
-      logger.log('🧹 Clearing database...');
-      await seeder.run('clear');
-    } else if (process.argv.includes('--seed')) {
-      logger.log('🌱 Seeding database...');
-      await seeder.run('seed');
-    } else {
+    const command = resolveCommand();
+
+    if (!command) {
       logger.warn(
-        'No command specified. Use --seed to seed or --clear to clear the database.',
+        'No command specified. Use --seed, --translations, or --clear.',
       );
+
+      return;
     }
 
-    logger.log('✅ Database Seeding script finished successfully.');
-    await appContext.close();
-    process.exit(0);
-  } catch (error) {
-    logger.error('❌ Database Seeding script failed:', error);
+    logger.log(`Executing database command: ${command}`);
+
+    await seeder.run(command);
+
+    logger.log('✅ Database seeding script finished successfully.');
+  } catch (error: unknown) {
+    logger.error('❌ Database seeding script failed.', describeError(error));
+
+    /**
+     * Do not call process.exit() from inside lifecycle management.
+     *
+     * Assigning exitCode lets Node finish pending output and lets the
+     * finally block close Nest cleanly.
+     */
+    process.exitCode = 1;
   } finally {
-    // Ensure the application context is closed when the script is done
-    await appContext.close();
-    process.exit(1);
+    if (appContext) {
+      await appContext.close();
+    }
   }
 }
 
-// Run the bootstrap function
-bootstrap().catch((error) => {
-  logger.error('❌ Seeding process failed:', error);
-  process.exit(1);
-});
+/**
+ * Deliberately discard the top-level Promise.
+ *
+ * bootstrap() manages its own failures and assigns process.exitCode.
+ */
+void bootstrap();

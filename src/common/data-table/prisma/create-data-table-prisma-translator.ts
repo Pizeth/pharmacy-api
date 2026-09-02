@@ -14,7 +14,7 @@ import type {
 import { DataTablePrismaTranslatorConfigurationError } from './data-table-prisma-translator.error';
 
 import type {
-  DataTablePrismaFilterMapperSet,
+  // DataTablePrismaFilterMapperSet,
   DataTablePrismaFilterMappers,
   DataTablePrismaQuery,
   DataTablePrismaSearchMappers,
@@ -48,10 +48,18 @@ function getOwnUnknown(value: object, key: PropertyKey): unknown {
   return Reflect.get(value, key);
 }
 
+// /**
+//  * Validate one configured function at a runtime reflection boundary.
+//  */
+// function isFunction(value: unknown): value is (...args: never[]) => unknown {
+//   return typeof value === 'function';
+// }
+
 /**
- * Validate one configured function at a runtime reflection boundary.
+ * Runtime function guard used only at dynamic configuration lookup
+ * boundaries.
  */
-function isFunction(value: unknown): value is (...args: never[]) => unknown {
+function isFunction(value: unknown): value is (argument: unknown) => unknown {
   return typeof value === 'function';
 }
 
@@ -147,15 +155,15 @@ function getSortMapper<
   return mappers[target];
 }
 
-function getFilterMapperSet<
-  TPolicy extends DataTableQueryPolicy,
-  TWhere extends object,
->(
-  mappers: DataTablePrismaFilterMappers<TPolicy, TWhere>,
-  target: DataTableFilterTargetOf<TPolicy>,
-): DataTablePrismaFilterMapperSet<TWhere> {
-  return mappers[target];
-}
+// function getFilterMapperSet<
+//   TPolicy extends DataTableQueryPolicy,
+//   TWhere extends object,
+// >(
+//   mappers: DataTablePrismaFilterMappers<TPolicy, TWhere>,
+//   target: DataTableFilterTargetOf<TPolicy>,
+// ): DataTablePrismaFilterMapperSet<TWhere> {
+//   return mappers[target];
+// }
 
 function getSearchMapper<
   TPolicy extends DataTableQueryPolicy,
@@ -185,70 +193,122 @@ function missingFilterOperatorMapper(
   });
 }
 
+// function translateFilter<
+//   TPolicy extends DataTableQueryPolicy,
+//   TWhere extends object,
+// >(
+//   mappers: DataTablePrismaFilterMappers<TPolicy, TWhere>,
+//   filter: ResolvedDataTableFilter<DataTableFilterTargetOf<TPolicy>>,
+// ): TWhere {
+//   const mapperSet = getFilterMapperSet(mappers, filter.target);
+
+//   /**
+//    * The switch keeps each filter value correctly narrowed to the
+//    * operator-specific Zod type.
+//    */
+//   switch (filter.operator) {
+//     case 'equals': {
+//       const mapper = mapperSet.equals;
+
+//       if (!mapper) {
+//         throw missingFilterOperatorMapper(filter.target, 'equals');
+//       }
+
+//       return mapper(filter.value);
+//     }
+
+//     case 'contains': {
+//       const mapper = mapperSet.contains;
+
+//       if (!mapper) {
+//         throw missingFilterOperatorMapper(filter.target, 'contains');
+//       }
+
+//       return mapper(filter.value);
+//     }
+
+//     case 'gte': {
+//       const mapper = mapperSet.gte;
+
+//       if (!mapper) {
+//         throw missingFilterOperatorMapper(filter.target, 'gte');
+//       }
+
+//       return mapper(filter.value);
+//     }
+
+//     case 'lte': {
+//       const mapper = mapperSet.lte;
+
+//       if (!mapper) {
+//         throw missingFilterOperatorMapper(filter.target, 'lte');
+//       }
+
+//       return mapper(filter.value);
+//     }
+
+//     case 'in': {
+//       const mapper = mapperSet.in;
+
+//       if (!mapper) {
+//         throw missingFilterOperatorMapper(filter.target, 'in');
+//       }
+
+//       return mapper(filter.value);
+//     }
+//   }
+// }
+
+/**
+ * Translate one already resource-validated filter into a Prisma
+ * WhereInput fragment.
+ *
+ * The mapper lookup is necessarily dynamic:
+ *
+ *   trusted target
+ *       +
+ *   trusted operator
+ *
+ * Therefore the callback temporarily crosses an `unknown` runtime
+ * reflection boundary here.
+ *
+ * Resource mapper declarations themselves remain fully typed.
+ */
 function translateFilter<
   TPolicy extends DataTableQueryPolicy,
   TWhere extends object,
 >(
   mappers: DataTablePrismaFilterMappers<TPolicy, TWhere>,
+
   filter: ResolvedDataTableFilter<DataTableFilterTargetOf<TPolicy>>,
 ): TWhere {
-  const mapperSet = getFilterMapperSet(mappers, filter.target);
+  const mapperSet = getOwnUnknown(mappers, filter.target);
+
+  if (typeof mapperSet !== 'object' || mapperSet === null) {
+    throw new DataTablePrismaTranslatorConfigurationError({
+      code: 'MISSING_FILTER_MAPPER',
+      target: filter.target,
+      message: `DataTable Prisma translator is missing the filtering mapper for target "${filter.target}".`,
+    });
+  }
+
+  const mapper = getOwnUnknown(mapperSet, filter.operator);
+
+  if (!isFunction(mapper)) {
+    throw missingFilterOperatorMapper(filter.target, filter.operator);
+  }
 
   /**
-   * The switch keeps each filter value correctly narrowed to the
-   * operator-specific Zod type.
+   * The resource policy already validated/transformed the filter value.
+   *
+   * The mapper configuration is statically checked against that same
+   * policy, so its callback parameter has the corresponding narrowed
+   * type.
+   *
+   * Dynamic target/operator lookup erases that correlation at runtime,
+   * therefore the generic engine bridges it here.
    */
-  switch (filter.operator) {
-    case 'equals': {
-      const mapper = mapperSet.equals;
-
-      if (!mapper) {
-        throw missingFilterOperatorMapper(filter.target, 'equals');
-      }
-
-      return mapper(filter.value);
-    }
-
-    case 'contains': {
-      const mapper = mapperSet.contains;
-
-      if (!mapper) {
-        throw missingFilterOperatorMapper(filter.target, 'contains');
-      }
-
-      return mapper(filter.value);
-    }
-
-    case 'gte': {
-      const mapper = mapperSet.gte;
-
-      if (!mapper) {
-        throw missingFilterOperatorMapper(filter.target, 'gte');
-      }
-
-      return mapper(filter.value);
-    }
-
-    case 'lte': {
-      const mapper = mapperSet.lte;
-
-      if (!mapper) {
-        throw missingFilterOperatorMapper(filter.target, 'lte');
-      }
-
-      return mapper(filter.value);
-    }
-
-    case 'in': {
-      const mapper = mapperSet.in;
-
-      if (!mapper) {
-        throw missingFilterOperatorMapper(filter.target, 'in');
-      }
-
-      return mapper(filter.value);
-    }
-  }
+  return mapper(filter.value) as TWhere;
 }
 
 /**
