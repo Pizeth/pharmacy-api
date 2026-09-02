@@ -366,6 +366,7 @@ model Session {
 
 model Account {
   id                    Int       @id @default(autoincrement())
+  issuer                String
   accountId             String    @map("account_id")
   providerId            String    @map("provider_id")
   userId                Int       @map("user_id")

@@ -137,6 +137,7 @@ export class UserSeeder {
               accountId: String(userId), // Standard Better-Auth structural convention for credential tracking
               password: hashedAdminPassword,
               providerId: 'credential',
+              issuer: 'local:credential', // 👈 Required field for credential provider types
             },
           },
           auditTrail: {
