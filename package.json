@@ -15,6 +15,7 @@
     "start:dev": "nest start --builder rspack --path tsconfig.build.json --rspackPath rspack.config.cjs --watch",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --seed",
+    "db:seed:permissions": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --permissions",
     "db:seed:translations": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --translations",
     "db:seed:dev": "tsx --watch --tsconfig tsconfig.seed.json prisma/seed.ts --seed",
     "db:clear": "tsx --tsconfig tsconfig.seed.json prisma/seed.ts --clear",

@@ -2,11 +2,13 @@
 
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserHasPermission } from '@thallesp/nestjs-better-auth';
+// import { UserHasPermission } from '@thallesp/nestjs-better-auth';
 import { dataTableQuerySchema } from 'common/data-table';
 import type { DataTableQuery } from 'common/data-table';
 import type { TranslationKeyDataTableResult } from '../data-table';
 import { I18nService } from '../services/i18n.service';
+import { AppAction, AppSubject } from 'modules/authorization/casl/app-ability';
+import { RequirePermission } from 'decorators/permissions.decorator';
 
 /**
  * Administrative translation endpoints.
@@ -71,13 +73,16 @@ export class I18nAdminController {
    */
   @Post('keys/query')
   @HttpCode(HttpStatus.OK)
-  @UserHasPermission({
-    permission: {
-      translation: ['read'],
-    },
-  })
+  // @UserHasPermission({
+  //   permission: {
+  //     translation: ['read'],
+  //   },
+  // })
+  @RequirePermission(AppAction.Read, AppSubject.TranslationKey)
   @ApiOperation({
-    summary: 'Query translation keys for the admin DataTable',
+    summary: 'Query translation keys for the administrative DataTable',
+    description:
+      'Queries TranslationKey records using validated server-side pagination, sorting, filtering, and global search.',
   })
   queryTranslationKeys(
     /**

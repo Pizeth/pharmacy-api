@@ -55,6 +55,10 @@ function resolveCommand(): SeedCommand | undefined {
     return 'translations';
   }
 
+  if (process.argv.includes('--permissions')) {
+    return 'permissions';
+  }
+
   if (process.argv.includes('--seed')) {
     return 'seed';
   }
@@ -89,7 +93,7 @@ async function bootstrap(): Promise<void> {
 
     if (!command) {
       logger.warn(
-        'No command specified. Use --seed, --translations, or --clear.',
+        'No command specified. Use --seed, --permissions, --translations, or --clear.',
       );
 
       return;

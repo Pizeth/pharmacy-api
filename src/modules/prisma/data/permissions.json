@@ -1,0 +1,141 @@
+{
+  "permissions": [
+    {
+      "action": "manage",
+      "subject": "all"
+    },
+
+    {
+      "action": "create",
+      "subject": "TranslationKey"
+    },
+    {
+      "action": "read",
+      "subject": "TranslationKey"
+    },
+    {
+      "action": "update",
+      "subject": "TranslationKey"
+    },
+    {
+      "action": "delete",
+      "subject": "TranslationKey"
+    },
+
+    {
+      "action": "read",
+      "subject": "TranslationCategory"
+    },
+
+    {
+      "action": "create",
+      "subject": "Translation"
+    },
+    {
+      "action": "read",
+      "subject": "Translation"
+    },
+    {
+      "action": "update",
+      "subject": "Translation"
+    },
+    {
+      "action": "delete",
+      "subject": "Translation"
+    }
+  ],
+
+  "roles": [
+    {
+      "role": "SUPER_ADMIN",
+      "permissions": [
+        {
+          "action": "manage",
+          "subject": "all"
+        }
+      ]
+    },
+
+    {
+      "role": "ADMIN",
+      "permissions": [
+        {
+          "action": "create",
+          "subject": "TranslationKey"
+        },
+        {
+          "action": "read",
+          "subject": "TranslationKey"
+        },
+        {
+          "action": "update",
+          "subject": "TranslationKey"
+        },
+        {
+          "action": "delete",
+          "subject": "TranslationKey"
+        },
+
+        {
+          "action": "read",
+          "subject": "TranslationCategory"
+        },
+
+        {
+          "action": "create",
+          "subject": "Translation"
+        },
+        {
+          "action": "read",
+          "subject": "Translation"
+        },
+        {
+          "action": "update",
+          "subject": "Translation"
+        },
+        {
+          "action": "delete",
+          "subject": "Translation"
+        }
+      ]
+    },
+
+    {
+      "role": "EDITOR",
+      "permissions": [
+        {
+          "action": "read",
+          "subject": "TranslationKey"
+        },
+        {
+          "action": "update",
+          "subject": "TranslationKey"
+        },
+
+        {
+          "action": "read",
+          "subject": "TranslationCategory"
+        },
+
+        {
+          "action": "read",
+          "subject": "Translation"
+        },
+        {
+          "action": "update",
+          "subject": "Translation"
+        }
+      ]
+    },
+
+    {
+      "role": "USER",
+      "permissions": []
+    },
+
+    {
+      "role": "GUEST",
+      "permissions": []
+    }
+  ]
+}

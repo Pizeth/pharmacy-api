@@ -147,11 +147,12 @@ import { PrismaService } from '../services/prisma.service';
 import { RoleSeeder } from './role.seeder';
 import { TranslationSeeder } from './translation.seeder';
 import { UserSeeder } from './user.seeder';
+import { PermissionSeeder } from './permission.seeder';
 
 /**
  * Commands understood by the standalone Prisma seed runner.
  */
-export type SeedCommand = 'seed' | 'translations' | 'clear';
+export type SeedCommand = 'seed' | 'permissions' | 'translations' | 'clear';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -164,6 +165,8 @@ export class Seeder implements OnModuleInit {
     @Inject(RoleSeeder) private readonly roleSeeder: RoleSeeder,
     @Inject(TranslationSeeder)
     private readonly translationSeeder: TranslationSeeder,
+    @Inject(PermissionSeeder)
+    private readonly permissionSeeder: PermissionSeeder,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
@@ -212,6 +215,10 @@ export class Seeder implements OnModuleInit {
         await this.seedTranslations();
         return;
 
+      case 'permissions':
+        await this.seedPermissions();
+        return;
+
       case 'clear':
         await this.clearAll();
         return;
@@ -228,12 +235,6 @@ export class Seeder implements OnModuleInit {
     const nodeEnv = this.config
       .get<string>('NODE_ENV', 'development')
       .toLowerCase();
-
-    // console.log(
-    //   this.config
-    //     .get<string>('ALLOW_PRODUCTION_SEEDING', 'false')
-    //     .toLowerCase(),
-    // );
 
     const allowProductionSeeding =
       this.config.get<boolean>('ALLOW_PRODUCTION_SEEDING', false) === true;
@@ -276,6 +277,14 @@ export class Seeder implements OnModuleInit {
         const roles = await this.roleSeeder.seed(tx);
 
         /**
+         * 2. Role Permission
+         */
+
+        this.logger.log('🔐 Seeding authorization permissions...');
+
+        const permissions = await this.permissionSeeder.seed(roles, tx);
+
+        /**
          * ------------------------------------------------------
          * 2. Administrative baseline
          * ------------------------------------------------------
@@ -293,7 +302,7 @@ export class Seeder implements OnModuleInit {
 
         const translations = await this.translationSeeder.seed(tx);
 
-        return { roles, user, translations };
+        return { roles, permissions, user, translations };
       },
 
       /**
@@ -312,6 +321,30 @@ export class Seeder implements OnModuleInit {
       `✅ Complete database seed finished 📊: ${result.roles.length} roles, super-admin verified, ${result.translations.keys} translation keys.`,
     );
     return result;
+  }
+
+  private async seedPermissions(): Promise<void> {
+    this.logger.log('🔐 Beginning authorization-only seed...');
+
+    const result = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        /**
+         * Ensure baseline roles exist first.
+         */
+        const roles = await this.roleSeeder.seed(tx);
+
+        return this.permissionSeeder.seed(roles, tx);
+      },
+
+      {
+        maxWait: 10_000,
+        timeout: 60_000,
+      },
+    );
+
+    this.logger.log(
+      `✅ Authorization-only seed finished: ${result.permissions} permissions, ${result.assignments} assignments.`,
+    );
   }
 
   /**
@@ -376,6 +409,10 @@ export class Seeder implements OnModuleInit {
       this.prisma.account.deleteMany(),
 
       this.prisma.user.deleteMany(),
+
+      this.prisma.rolePermission.deleteMany(),
+
+      this.prisma.permission.deleteMany(),
 
       this.prisma.role.deleteMany(),
     ]);

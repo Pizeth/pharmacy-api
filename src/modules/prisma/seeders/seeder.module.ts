@@ -10,6 +10,7 @@ import { Seeder } from './seeder';
 import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
 import { TranslationSeeder } from './translation.seeder';
+import { PermissionSeeder } from './permission.seeder';
 
 @Module({
   imports: [
@@ -53,7 +54,13 @@ import { TranslationSeeder } from './translation.seeder';
       },
     }),
   ],
-  providers: [RoleSeeder, UserSeeder, TranslationSeeder, Seeder],
+  providers: [
+    RoleSeeder,
+    PermissionSeeder,
+    UserSeeder,
+    TranslationSeeder,
+    Seeder,
+  ],
   exports: [Seeder],
 })
 export class SeederModule {}

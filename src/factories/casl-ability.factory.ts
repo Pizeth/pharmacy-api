@@ -1,3 +1,5 @@
+// src/factories/casl-ability.factory.ts
+
 import { Injectable } from '@nestjs/common';
 import {
   AbilityBuilder,

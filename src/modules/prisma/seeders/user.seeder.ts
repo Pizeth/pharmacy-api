@@ -114,15 +114,39 @@ export class UserSeeder {
       console.log('superAdmin', superAdmin);
 
       // Locate the newly generated audit trail entry using targetId placeholder mapping
-      const targetingAudit = superAdmin.auditTrail.find(
-        (audit) => audit.targetId === '0',
-      );
+      // const targetingAudit = superAdmin.auditTrail.find(
+      //   (audit) => audit.targetId === '0',
+      // );
 
-      if (!targetingAudit) {
-        throw new Error(
-          'Crucial system seeding audit tracking trail entry missing.',
+      // if (!targetingAudit) {
+      //   throw new Error(
+      //     'Crucial system seeding audit tracking trail entry missing.',
+      //   );
+      // }
+
+      // Find the temporary '0' audit entry if newly created, OR grab the most recent seed audit entry
+      const targetingAudit =
+        superAdmin.auditTrail.find((audit) => audit.targetId === '0') ||
+        superAdmin.auditTrail.find(
+          (audit) => audit.description === 'DEFAULT_SUPER_ADMIN_INITIAL_SEED',
         );
+
+      // Only attempt updating the audit entry if an unlinked temporary one exists
+      if (targetingAudit && targetingAudit.targetId === '0') {
+        await prismaClient.auditTrail.update({
+          where: { id: targetingAudit.id },
+          data: {
+            targetId: String(userId),
+            oldValues: superAdmin,
+            sessionId: uuid7(),
+          },
+        });
       }
+
+      // Check if the account already exists before creating
+      const existingAccount = await prismaClient.account.findFirst({
+        where: { userId, providerId: 'credential' },
+      });
 
       // Step 3: Fix placeholder properties with the authentic autoincremented entity userID
       const updatedSuperAdmin = await prismaClient.user.update({
@@ -136,27 +160,30 @@ export class UserSeeder {
               updatedBy: userId,
             },
           },
-          // ✅ CREATE THE ACCOUNT HERE NATIVELY
-          accounts: {
-            create: {
-              accountId: String(userId), // Standard Better-Auth structural convention for credential tracking
-              password: hashedAdminPassword,
-              providerId: 'credential',
-              issuer: 'local:credential', // 👈 Required field for credential provider types
-            },
-          },
-          auditTrail: {
-            update: {
-              where: {
-                id: targetingAudit.id,
-              },
-              data: {
-                targetId: String(userId),
-                oldValues: superAdmin,
-                sessionId: uuid7(),
+          // Only create account if it doesn't already exist
+          ...(!existingAccount && {
+            // ✅ CREATE THE ACCOUNT HERE NATIVELY
+            accounts: {
+              create: {
+                accountId: String(userId), // Standard Better-Auth structural convention for credential tracking
+                password: hashedAdminPassword,
+                providerId: 'credential',
+                issuer: 'local:credential', // 👈 Required field for credential provider types
               },
             },
-          },
+          }),
+          // auditTrail: {
+          //   update: {
+          //     where: {
+          //       id: targetingAudit.id,
+          //     },
+          //     data: {
+          //       targetId: String(userId),
+          //       oldValues: superAdmin,
+          //       sessionId: uuid7(),
+          //     },
+          //   },
+          // },
         },
         include: {
           userRole: true,

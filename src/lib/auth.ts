@@ -29,6 +29,10 @@ import {
 import { ResendService } from 'modules/email/services/resend.service';
 // import { Request } from 'express';
 import { Email } from 'types/email';
+import {
+  authAccessControl,
+  authRoles,
+} from 'modules/auth/access-control/auth-access-control';
 
 export const options = (prisma: PrismaClient, emailService: ResendService) =>
   ({
@@ -207,7 +211,22 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       apiKey(),
       // admin() kept ONLY for utilities: ban user, list users, impersonate
       // Its `role` string field on User is ignored — CASL handles authorization
-      admin(),
+      admin({
+        /**
+         * Application-level access control.
+         */
+        ac: authAccessControl,
+
+        /**
+         * These keys are the actual strings stored in User.role.
+         */
+        roles: authRoles,
+
+        /**
+         * New ordinary accounts default here.
+         */
+        defaultRole: 'user',
+      }),
       username({ minUsernameLength: 3, maxUsernameLength: 50 }),
       oneTap(),
       twoFactor({
