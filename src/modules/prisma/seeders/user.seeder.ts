@@ -41,8 +41,11 @@ export class UserSeeder {
       const superAdmin = await prismaClient.user.upsert({
         where: { email: superAdminData.email },
         update: {
-          roleId: superAdminData.roleId,
+          // roleId: superAdminData.roleId,
           role: 'sys-admin', // Sync string fallback for Better-Auth admin utilities
+          userRole: {
+            connect: { id: superAdminData.roleId },
+          },
         },
         create: {
           name: superAdminData.profile.firstName.concat(
@@ -53,7 +56,9 @@ export class UserSeeder {
           email: superAdminData.email,
           image: superAdminData.avatar,
           role: 'sys-admin', // Kept for default admin() plugin compliance
-          roleId: superAdminData.roleId,
+          userRole: {
+            connect: { id: superAdminData.roleId }, // Connects via relation safely
+          },
           emailVerified: true,
           isActivated: true,
           profileComplete: true,
@@ -83,7 +88,7 @@ export class UserSeeder {
             },
           },
           createdBy: 0, // Placeholder.
-          updatedBy: 0, // Placeholder.
+          lastUpdatedBy: 0, // Placeholder.
           auditTrail: {
             create: {
               action: AuditActionType.CREATE,
@@ -124,7 +129,7 @@ export class UserSeeder {
         where: { id: userId },
         data: {
           createdBy: userId,
-          updatedBy: userId,
+          lastUpdatedBy: userId,
           profile: {
             update: {
               createdBy: userId,
