@@ -42,19 +42,40 @@ export class PermissionSeeder {
       const permissionIds = new Map<string, number>();
 
       for (const permission of seedData.permissions) {
-        const record = await prismaClient.permission.upsert({
+        // const record = await prismaClient.permission.upsert({
+        //   where: {
+        //     action_subject: {
+        //       action: permission.action,
+        //       subject: permission.subject,
+        //     },
+        //   },
+        //   update: {},
+        //   create: {
+        //     action: permission.action,
+        //     subject: permission.subject,
+        //   },
+        // });
+
+        const existingPermission = await prismaClient.permission.findUnique({
           where: {
             action_subject: {
               action: permission.action,
               subject: permission.subject,
             },
           },
-          update: {},
-          create: {
-            action: permission.action,
-            subject: permission.subject,
+          select: {
+            id: true,
           },
         });
+
+        const record =
+          existingPermission ??
+          (await prismaClient.permission.create({
+            data: {
+              action: permission.action,
+              subject: permission.subject,
+            },
+          }));
 
         permissionIds.set(
           `${permission.action}:${permission.subject}`,

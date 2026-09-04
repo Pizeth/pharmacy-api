@@ -21,12 +21,37 @@ export class RoleSeeder {
     const prismaClient = tx || this.prisma; // Use the provided tx or the default client
     const roles = this.getRolesFromData();
     try {
+      // for (const roleData of roles) {
+      //   await prismaClient.role.upsert({
+      //     where: { name: roleData.name },
+      //     update: {},
+      //     create: roleData,
+      //   });
+      // }
+
       for (const roleData of roles) {
-        await prismaClient.role.upsert({
+        const existingRole = await prismaClient.role.findUnique({
           where: { name: roleData.name },
-          update: {},
-          create: roleData,
+          select: { id: true },
         });
+
+        /**
+         * Existing behavior used:
+         *
+         *   update: {}
+         *
+         * so we intentionally do not modify an existing role here.
+         */
+        if (existingRole) {
+          await prismaClient.role.update({
+            where: { id: existingRole.id },
+            data: roleData,
+          });
+        } else {
+          await prismaClient.role.create({
+            data: roleData,
+          });
+        }
       }
 
       this.logger.log(

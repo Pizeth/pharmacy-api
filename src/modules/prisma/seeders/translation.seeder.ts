@@ -1,17 +1,11 @@
 // src/modules/prisma/seeders/translation.seeder.ts
 
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
-
 import type { Prisma } from 'generated/prisma/client';
-
 import { AppError } from 'exceptions/app.exception';
-
 import data from '../data/translations.json';
-
 import { PrismaService } from '../services/prisma.service';
-
 import { parseTranslationSeedData } from './schemas/translation-seed.schema';
-
 import type { TranslationSeedData } from './schemas/translation-seed.schema';
 
 /**
@@ -103,28 +97,74 @@ export class TranslationSeeder {
       const categoryIds = new Map<string, number>();
 
       for (const categoryData of seedData.categories) {
-        const category = await prismaClient.translationCategory.upsert({
-          /**
-           * TranslationCategory.name is unique.
-           */
-          where: {
-            name: categoryData.name,
-          },
+        // const category = await prismaClient.translationCategory.upsert({
+        //   /**
+        //    * TranslationCategory.name is unique.
+        //    */
+        //   where: {
+        //     name: categoryData.name,
+        //   },
 
-          /**
-           * Unlike static role initialization, translation
-           * metadata should remain synchronized with the seed
-           * source.
-           */
-          update: {
-            description: categoryData.description ?? null,
-          },
+        //   /**
+        //    * Unlike static role initialization, translation
+        //    * metadata should remain synchronized with the seed
+        //    * source.
+        //    */
+        //   update: {
+        //     description: categoryData.description ?? null,
+        //   },
 
-          create: {
-            name: categoryData.name,
-            description: categoryData.description ?? null,
-          },
-        });
+        //   create: {
+        //     name: categoryData.name,
+        //     description: categoryData.description ?? null,
+        //   },
+        // });
+
+        /**
+         * IMPORTANT:
+         *
+         * Do not use Prisma upsert() here.
+         *
+         * PostgreSQL may consume an autoincrement sequence value before
+         * detecting an ON CONFLICT match.
+         *
+         * Repeated seed executions would therefore leave the data unchanged
+         * while continuously advancing TranslationCategory.id.
+         */
+        const existingCategory =
+          await prismaClient.translationCategory.findUnique({
+            /**
+             * TranslationCategory.name is unique.
+             */
+            where: {
+              name: categoryData.name,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        const category = existingCategory
+          ? await prismaClient.translationCategory.update({
+              where: {
+                id: existingCategory.id,
+              },
+
+              /**
+               * Unlike static role initialization, translation
+               * metadata should remain synchronized with the seed
+               * source.
+               */
+              data: {
+                description: categoryData.description ?? null,
+              },
+            })
+          : await prismaClient.translationCategory.create({
+              data: {
+                name: categoryData.name,
+                description: categoryData.description ?? null,
+              },
+            });
 
         categoryIds.set(category.name, category.id);
       }
@@ -156,35 +196,84 @@ export class TranslationSeeder {
           );
         }
 
-        const translationKey = await prismaClient.translationKey.upsert({
-          /**
-           * TranslationKey.key is globally unique.
-           */
-          where: {
-            key: keyData.key,
-          },
+        // const translationKey = await prismaClient.translationKey.upsert({
+        //   /**
+        //    * TranslationKey.key is globally unique.
+        //    */
+        //   where: {
+        //     key: keyData.key,
+        //   },
 
-          /**
-           * Seed changes are intentionally propagated.
-           *
-           * Unlike RoleSeeder's update: {}, translation seed
-           * descriptions/category assignments should stay in
-           * sync with the source file.
-           *
-           * Allow edits to translations.json to update existing
-           * seed rows.
-           */
-          update: {
-            description: keyData.description ?? null,
-            categoryId,
-          },
+        //   /**
+        //    * Seed changes are intentionally propagated.
+        //    *
+        //    * Unlike RoleSeeder's update: {}, translation seed
+        //    * descriptions/category assignments should stay in
+        //    * sync with the source file.
+        //    *
+        //    * Allow edits to translations.json to update existing
+        //    * seed rows.
+        //    */
+        //   update: {
+        //     description: keyData.description ?? null,
+        //     categoryId,
+        //   },
 
-          create: {
-            key: keyData.key,
-            description: keyData.description ?? null,
-            categoryId,
-          },
-        });
+        //   create: {
+        //     key: keyData.key,
+        //     description: keyData.description ?? null,
+        //     categoryId,
+        //   },
+        // });
+
+        /**
+         * See the TranslationCategory note above.
+         *
+         * Existing seeded keys must take the UPDATE path without ever
+         * executing an INSERT attempt, otherwise PostgreSQL burns sequence
+         * values on every seed run.
+         */
+        const existingTranslationKey =
+          await prismaClient.translationKey.findUnique({
+            /**
+             * TranslationKey.key is globally unique.
+             */
+            where: {
+              key: keyData.key,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        const translationKey = existingTranslationKey
+          ? await prismaClient.translationKey.update({
+              where: {
+                id: existingTranslationKey.id,
+              },
+
+              /**
+               * Seed changes are intentionally propagated.
+               *
+               * Unlike RoleSeeder's update: {}, translation seed
+               * descriptions/category assignments should stay in
+               * sync with the source file.
+               *
+               * Allow edits to translations.json to update existing
+               * seed rows.
+               */
+              data: {
+                description: keyData.description ?? null,
+                categoryId,
+              },
+            })
+          : await prismaClient.translationKey.create({
+              data: {
+                key: keyData.key,
+                description: keyData.description ?? null,
+                categoryId,
+              },
+            });
 
         /**
          * ----------------------------------------------------------
@@ -202,27 +291,64 @@ export class TranslationSeeder {
          * which gives us the ideal compound upsert key.
          */
         for (const [locale, value] of Object.entries(keyData.translations)) {
-          await prismaClient.translation.upsert({
-            where: {
-              keyId_locale: {
-                keyId: translationKey.id,
-                locale,
+          // await prismaClient.translation.upsert({
+          //   where: {
+          //     keyId_locale: {
+          //       keyId: translationKey.id,
+          //       locale,
+          //     },
+          //   },
+
+          //   /**
+          //    * Seed file becomes the baseline source of truth.
+          //    */
+          //   update: {
+          //     value,
+          //   },
+
+          //   create: {
+          //     keyId: translationKey.id,
+          //     locale,
+          //     value,
+          //   },
+          // });
+
+          const existingTranslation = await prismaClient.translation.findUnique(
+            {
+              where: {
+                keyId_locale: {
+                  keyId: translationKey.id,
+                  locale,
+                },
+              },
+              select: {
+                id: true,
               },
             },
+          );
 
-            /**
-             * Seed file becomes the baseline source of truth.
-             */
-            update: {
-              value,
-            },
+          if (existingTranslation) {
+            await prismaClient.translation.update({
+              where: {
+                id: existingTranslation.id,
+              },
 
-            create: {
-              keyId: translationKey.id,
-              locale,
-              value,
-            },
-          });
+              /**
+               * Seed file becomes the baseline source of truth.
+               */
+              data: {
+                value,
+              },
+            });
+          } else {
+            await prismaClient.translation.create({
+              data: {
+                keyId: translationKey.id,
+                locale,
+                value,
+              },
+            });
+          }
 
           translationCount += 1;
         }

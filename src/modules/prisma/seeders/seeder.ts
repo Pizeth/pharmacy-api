@@ -152,7 +152,8 @@ import { PermissionSeeder } from './permission.seeder';
 /**
  * Commands understood by the standalone Prisma seed runner.
  */
-export type SeedCommand = 'seed' | 'permissions' | 'translations' | 'clear';
+export type SeedCommand =
+  'seed' | 'permissions' | 'translations' | 'repair-sequences' | 'clear';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -217,6 +218,10 @@ export class Seeder implements OnModuleInit {
 
       case 'permissions':
         await this.seedPermissions();
+        return;
+
+      case 'repair-sequences':
+        await this.repairSequences();
         return;
 
       case 'clear':
@@ -371,6 +376,160 @@ export class Seeder implements OnModuleInit {
     this.logger.log(
       `✅ Translation-only seed finished: ${result.categories} categories, ${result.keys} keys, ${result.translations} locale values.`,
     );
+  }
+
+  /**
+   * ----------------------------------------------------------------
+   * Repair PostgreSQL autoincrement sequences
+   * ----------------------------------------------------------------
+   *
+   * This is an EXPLICIT maintenance command.
+   *
+   * It must NOT run automatically after every seed.
+   *
+   * Why?
+   *
+   * PostgreSQL sequences are intentionally independent from row
+   * transaction semantics, and resetting them while normal concurrent
+   * writes are occurring can create race conditions.
+   *
+   * This command is intended primarily for development/database
+   * maintenance after legacy seed code consumed sequence values through
+   * repeated UPSERT conflict paths.
+   */
+  private async repairSequences(): Promise<void> {
+    const nodeEnv = this.config
+      .get<string>('NODE_ENV', 'development')
+      .toLowerCase();
+
+    /**
+     * Be stricter than ordinary seeding here.
+     *
+     * Sequence rewinding should never become routine production
+     * behavior.
+     */
+    if (nodeEnv === 'production') {
+      throw new Error('Sequence repair is disabled in production.');
+    }
+
+    this.logger.warn('🔢 Repairing PostgreSQL autoincrement sequences...');
+
+    /**
+     * setval(sequence, maxId, true)
+     *
+     * means:
+     *
+     *   next nextval() → maxId + 1
+     *
+     * For an empty table:
+     *
+     *   setval(sequence, 1, false)
+     *
+     * means:
+     *
+     *   next nextval() → 1
+     */
+
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        'translation_category',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "translation_category"
+  `;
+
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        'translation_keys',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "translation_keys"
+  `;
+
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        'translations',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "translations"
+  `;
+
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        'roles',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "roles"
+  `;
+
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        'permissions',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "permissions"
+  `;
+
+    /**
+     * "user" is a PostgreSQL keyword-ish identifier and your Prisma
+     * schema maps the model explicitly to:
+     *
+     *   @@map("user")
+     *
+     * The quoted table name must therefore also be supplied to
+     * pg_get_serial_sequence().
+     */
+    await this.prisma.$queryRaw`
+    SELECT setval(
+      pg_get_serial_sequence(
+        '"user"',
+        'id'
+      )::regclass,
+      COALESCE(
+        MAX(id),
+        1
+      ),
+      COUNT(*) > 0
+    )
+    FROM "user"
+  `;
+
+    this.logger.log('✅ PostgreSQL autoincrement sequences repaired.');
   }
 
   /**

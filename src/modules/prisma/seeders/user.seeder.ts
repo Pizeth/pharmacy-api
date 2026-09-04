@@ -38,75 +38,161 @@ export class UserSeeder {
 
     try {
       // Step 1: Upsert the super admin baseline configuration
-      const superAdmin = await prismaClient.user.upsert({
+      // const superAdmin = await prismaClient.user.upsert({
+      //   where: { email: superAdminData.email },
+      //   update: {
+      //     // roleId: superAdminData.roleId,
+      //     role: 'sys-admin', // Sync string fallback for Better-Auth admin utilities
+      //     userRole: {
+      //       connect: { id: superAdminData.roleId },
+      //     },
+      //   },
+      //   create: {
+      //     name: superAdminData.profile.firstName.concat(
+      //       ' ',
+      //       superAdminData.profile.lastName,
+      //     ),
+      //     username: superAdminData.username, // 👈 add this
+      //     email: superAdminData.email,
+      //     image: superAdminData.avatar,
+      //     role: 'sys-admin', // Kept for default admin() plugin compliance
+      //     userRole: {
+      //       connect: { id: superAdminData.roleId }, // Connects via relation safely
+      //     },
+      //     emailVerified: true,
+      //     isActivated: true,
+      //     profileComplete: true,
+      //     isLinked: true,
+      //     mustChangePassword: true, // Force change on login
+      //     // Using nested writes for related data.
+      //     profile: {
+      //       create: {
+      //         officialId: superAdminData.profile.officialId,
+      //         nationalId: superAdminData.profile.nationalId,
+      //         firstName: superAdminData.profile.firstName,
+      //         lastName: superAdminData.profile.lastName,
+      //         sex: superAdminData.profile.sex,
+      //         dob: new Date(superAdminData.profile.dob),
+      //         pob: superAdminData.profile.pob,
+      //         nationality: superAdminData.profile.nationality,
+      //         email: superAdminData.email,
+      //         address: superAdminData.profile.address,
+      //         phone: superAdminData.profile.phone,
+      //         married: superAdminData.profile.married,
+      //         bio: superAdminData.profile.bio || '',
+      //         status: superAdminData.profile.status,
+      //         entryDate: new Date(superAdminData.profile.entryDate),
+      //         retirementAge: superAdminData.profile.retirementAge,
+      //         createdBy: 0, // Placeholder for audit field.
+      //         updatedBy: 0, // Placeholder (will be replaced).
+      //       },
+      //     },
+      //     createdBy: 0, // Placeholder.
+      //     lastUpdatedBy: 0, // Placeholder.
+      //     auditTrail: {
+      //       create: {
+      //         action: AuditActionType.CREATE,
+      //         targetType: AuditTargetType.User,
+      //         targetId: '0', // Placeholder.
+      //         userAgent: 'SYSTEM',
+      //         timestamp: new Date(),
+      //         ipAddress: 'LOCALHOST',
+      //         description: 'DEFAULT_SUPER_ADMIN_INITIAL_SEED',
+      //       },
+      //     },
+      //   },
+      //   include: {
+      //     userRole: true,
+      //     profile: true,
+      //     auditTrail: true,
+      //   },
+      // });
+
+      const existingSuperAdmin = await prismaClient.user.findUnique({
         where: { email: superAdminData.email },
-        update: {
-          // roleId: superAdminData.roleId,
-          role: 'sys-admin', // Sync string fallback for Better-Auth admin utilities
-          userRole: {
-            connect: { id: superAdminData.roleId },
-          },
-        },
-        create: {
-          name: superAdminData.profile.firstName.concat(
-            ' ',
-            superAdminData.profile.lastName,
-          ),
-          username: superAdminData.username, // 👈 add this
-          email: superAdminData.email,
-          image: superAdminData.avatar,
-          role: 'sys-admin', // Kept for default admin() plugin compliance
-          userRole: {
-            connect: { id: superAdminData.roleId }, // Connects via relation safely
-          },
-          emailVerified: true,
-          isActivated: true,
-          profileComplete: true,
-          isLinked: true,
-          mustChangePassword: true, // Force change on login
-          // Using nested writes for related data.
-          profile: {
-            create: {
-              officialId: superAdminData.profile.officialId,
-              nationalId: superAdminData.profile.nationalId,
-              firstName: superAdminData.profile.firstName,
-              lastName: superAdminData.profile.lastName,
-              sex: superAdminData.profile.sex,
-              dob: new Date(superAdminData.profile.dob),
-              pob: superAdminData.profile.pob,
-              nationality: superAdminData.profile.nationality,
-              email: superAdminData.email,
-              address: superAdminData.profile.address,
-              phone: superAdminData.profile.phone,
-              married: superAdminData.profile.married,
-              bio: superAdminData.profile.bio || '',
-              status: superAdminData.profile.status,
-              entryDate: new Date(superAdminData.profile.entryDate),
-              retirementAge: superAdminData.profile.retirementAge,
-              createdBy: 0, // Placeholder for audit field.
-              updatedBy: 0, // Placeholder (will be replaced).
-            },
-          },
-          createdBy: 0, // Placeholder.
-          lastUpdatedBy: 0, // Placeholder.
-          auditTrail: {
-            create: {
-              action: AuditActionType.CREATE,
-              targetType: AuditTargetType.User,
-              targetId: '0', // Placeholder.
-              userAgent: 'SYSTEM',
-              timestamp: new Date(),
-              ipAddress: 'LOCALHOST',
-              description: 'DEFAULT_SUPER_ADMIN_INITIAL_SEED',
-            },
-          },
-        },
         include: {
           userRole: true,
           profile: true,
           auditTrail: true,
         },
       });
+
+      const superAdmin = existingSuperAdmin
+        ? await prismaClient.user.update({
+            where: { id: existingSuperAdmin.id },
+            data: {
+              role: 'sys-admin', // Sync string fallback for Better-Auth admin utilities
+              userRole: {
+                connect: { id: superAdminData.roleId },
+              },
+            },
+            include: {
+              userRole: true,
+              profile: true,
+              auditTrail: true,
+            },
+          })
+        : await prismaClient.user.create({
+            data: {
+              name: superAdminData.profile.firstName.concat(
+                ' ',
+                superAdminData.profile.lastName,
+              ),
+              username: superAdminData.username,
+              email: superAdminData.email,
+              image: superAdminData.avatar,
+              role: 'sys-admin', // Kept for default admin() plugin compliance
+              userRole: {
+                connect: { id: superAdminData.roleId },
+              },
+              emailVerified: true,
+              isActivated: true,
+              profileComplete: true,
+              isLinked: true,
+              mustChangePassword: true, // Force change on login
+              // Using nested writes for related data.
+              profile: {
+                create: {
+                  officialId: superAdminData.profile.officialId,
+                  nationalId: superAdminData.profile.nationalId,
+                  firstName: superAdminData.profile.firstName,
+                  lastName: superAdminData.profile.lastName,
+                  sex: superAdminData.profile.sex,
+                  dob: new Date(superAdminData.profile.dob),
+                  pob: superAdminData.profile.pob,
+                  nationality: superAdminData.profile.nationality,
+                  email: superAdminData.email,
+                  address: superAdminData.profile.address,
+                  phone: superAdminData.profile.phone,
+                  married: superAdminData.profile.married,
+                  bio: superAdminData.profile.bio || '',
+                  status: superAdminData.profile.status,
+                  entryDate: new Date(superAdminData.profile.entryDate),
+                  retirementAge: superAdminData.profile.retirementAge,
+                  createdBy: 0, // Placeholder for audit field.
+                  updatedBy: 0, // Placeholder (will be replaced).
+                },
+              },
+              createdBy: 0, // Placeholder.
+              lastUpdatedBy: 0, // Placeholder.
+              auditTrail: {
+                create: {
+                  action: AuditActionType.CREATE,
+                  targetType: AuditTargetType.User,
+                  targetId: '0',
+                  userAgent: 'SYSTEM',
+                  timestamp: new Date(),
+                  ipAddress: 'LOCALHOST',
+                  description: 'DEFAULT_SUPER_ADMIN_INITIAL_SEED',
+                },
+              },
+            },
+            include: {
+              userRole: true,
+              profile: true,
+              auditTrail: true,
+            },
+          });
 
       // Step 2: Update the just created user with its own id for audit fields.
       const userId = superAdmin.id;

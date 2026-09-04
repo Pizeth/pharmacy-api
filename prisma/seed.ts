@@ -59,6 +59,10 @@ function resolveCommand(): SeedCommand | undefined {
     return 'permissions';
   }
 
+  if (process.argv.includes('--repair-sequences')) {
+    return 'repair-sequences';
+  }
+
   if (process.argv.includes('--seed')) {
     return 'seed';
   }
@@ -93,7 +97,7 @@ async function bootstrap(): Promise<void> {
 
     if (!command) {
       logger.warn(
-        'No command specified. Use --seed, --permissions, --translations, or --clear.',
+        'No command specified. Use --seed, --permissions, --translations, --repair-sequences, or --clear.',
       );
 
       return;
