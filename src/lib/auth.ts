@@ -22,7 +22,7 @@ import {
 import { passkey } from '@better-auth/passkey';
 import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
-import { dash } from '@better-auth/infra';
+import { dash, sentinel } from '@better-auth/infra';
 import {
   getSocialProvidersConfig,
   getGenericProvidersConfig,
@@ -229,6 +229,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
         defaultRole: 'user',
       }),
       dash(),
+      sentinel(),
       username({ minUsernameLength: 3, maxUsernameLength: 50 }),
       oneTap(),
       twoFactor({
