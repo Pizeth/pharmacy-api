@@ -4,7 +4,6 @@
 // -----------------------------------------------------------------
 // This DTO validates all the optional query parameters you can pass to the API.
 
-import { createZodDto } from 'nestjs-zod';
 import { AvailableFonts } from 'types/commons.enum';
 import { z } from 'zod';
 
@@ -117,4 +116,4 @@ export const imageOptionsSchema = z
     z.preprocess(preprocessStringOrArray, z.array(z.string()).optional()),
   );
 
-export class ImageOptionsDto extends createZodDto(imageOptionsSchema) {}
+export type ImageOptionsDto = z.output<typeof imageOptionsSchema>;

@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { DBHelper } from 'modules/helpers/services/db-helper';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
-import { CreateProfileDto } from '../dto/create-profile.dto';
-import { UpdateProfileDto } from '../dto/update-profile.dt';
+import type { CreateProfileDto } from '../dto/create-profile.dto';
+import type { UpdateProfileDto } from '../dto/update-profile.dt';
 import { Prisma, Profile } from 'generated/prisma/client';
 import { AppError } from 'exceptions/app.exception';
 import { PaginatedDataResult } from 'types/types';

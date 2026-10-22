@@ -1,9 +1,8 @@
 // -----------------------------------------------------------------
-// Define your DTO using Zod and `createZodDto`
+// Define the schema and infer the native NestJS request type from Zod
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
 import { EmploymentStatus } from 'generated/prisma/enums';
-import { createZodDto } from 'nestjs-zod';
 import { Sex } from 'types/commons.enum';
 import { z } from 'zod';
 
@@ -123,6 +122,4 @@ export const createProfileSchema = z.object({
   objectVersionId: z.coerce.number().int().default(1),
 });
 
-// **THE MAGIC STEP**: Generate a DTO class from the schema.
-// This class can be used by NestJS for type hinting and by @nestjs/swagger for documentation.
-export class CreateProfileDto extends createZodDto(createProfileSchema) {}
+export type CreateProfileDto = z.output<typeof createProfileSchema>;

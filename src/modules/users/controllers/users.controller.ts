@@ -14,7 +14,8 @@ import type { Prisma, User, User as UserModel } from 'generated/prisma/client';
 import { PaginatedDataResult } from 'types/types';
 import { UsersService } from '../services/users.service';
 import { ApiCreatedResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
-import { CreateUserDto } from '../dto/create-user.dto';
+import { createUserSchema } from '../dto/create-user.dto';
+import type { CreateUserDto } from '../dto/create-user.dto';
 import { ValidateFile } from 'decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from 'decorators/public.decorator';
@@ -70,9 +71,9 @@ export class UserController {
   //   });
   // }
 
-  // The controller is now incredibly clean.
-  // The global pipe handles validation automatically.
-  // Swagger knows about CreateUserDto because it's a class with generated decorators.
+  // The route attaches the Zod schema directly. The global
+  // StandardSchemaValidationPipe validates/transforms it and Swagger reads the
+  // same Standard Schema metadata.
   @Post()
   @Roles(['admin'])
   // Tell Swagger to expect a multipart/form-data request
@@ -82,7 +83,7 @@ export class UserController {
   })
   @UseInterceptors(FileInterceptor('avatar'))
   async create(
-    @Body()
+    @Body({ schema: createUserSchema })
     createUserDto: CreateUserDto,
     // Your clean, custom @ValidateFile decorator is now applied to the parameter.
     @ValidateFile({

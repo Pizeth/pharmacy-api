@@ -1,9 +1,8 @@
 // -----------------------------------------------------------------
-// Define your DTO using Zod and `createZodDto`
+// Define the schema and infer the native NestJS request type from Zod
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
 // import { AuthMethod } from 'generated/prisma/client';
-import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 const usernameRegex = /^(?=.{5,50}$)[a-zA-Z](?!.*([_.])\1)[a-zA-Z0-9_.]*$/;
@@ -168,6 +167,4 @@ export const createUserSchema = z.object({
 //   path: ['repassword'],
 // });
 
-// **THE MAGIC STEP**: Generate a DTO class from the schema.
-// This class can be used by NestJS for type hinting and by @nestjs/swagger for documentation.
-export class CreateUserDto extends createZodDto(createUserSchema) {}
+export type CreateUserDto = z.output<typeof createUserSchema>;

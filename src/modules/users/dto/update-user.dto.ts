@@ -1,4 +1,6 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateUserDto } from './create-user.dto';
+import { z } from 'zod';
+import { createUserSchema } from './create-user.dto';
 
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
+export const updateUserSchema = createUserSchema.partial();
+
+export type UpdateUserDto = z.output<typeof updateUserSchema>;
