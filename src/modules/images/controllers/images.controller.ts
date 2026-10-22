@@ -17,7 +17,8 @@ import {
 import { ApiTags, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ImagesService } from '../services/images.service';
-import { ImageOptionsDto } from '../dto/image-options.dto';
+import { imageOptionsSchema } from '../dto/image-options.dto';
+import type { ImageOptionsDto } from '../dto/image-options.dto';
 import {
   // AvailableFonts,
   // DiceBearStyle,
@@ -118,7 +119,7 @@ export class ImagesController {
     // 3. Swap ParseEnumPipe with your custom dynamic array tracking pipe
     @Param('style', ParseDiceBearStylePipe) style: DiceBearStyleType,
     @Param('format', new ParseEnumPipe(ImageFormat)) format: ImageFormat,
-    @Query() options: ImageOptionsDto,
+    @Query({ schema: imageOptionsSchema }) options: ImageOptionsDto,
     @Res() res: Response,
   ) {
     // Delegate the core logic to a shared private method to avoid duplication.
@@ -135,7 +136,7 @@ export class ImagesController {
   async getAvatarWithoutFormat(
     // @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
     @Param('style', ParseDiceBearStylePipe) style: DiceBearStyleType,
-    @Query() options: ImageOptionsDto,
+    @Query({ schema: imageOptionsSchema }) options: ImageOptionsDto,
     @Res() res: Response,
   ) {
     this.logger.log(
@@ -150,7 +151,7 @@ export class ImagesController {
   @ApiQuery({ name: 'seed', type: 'string', required: false })
   async getAvatar(
     // @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
-    @Query() options: ImageOptionsDto,
+    @Query({ schema: imageOptionsSchema }) options: ImageOptionsDto,
     @Res() res: Response,
   ) {
     this.logger.log(

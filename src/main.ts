@@ -1,8 +1,3 @@
-// **CRITICAL STEP**: The import of the patch file MUST be the very first line.
-// import './zod-patch'; // <-- This executes the patch immediately.
-// import * as dotenv from 'dotenv';
-// dotenv.config(); // 👈 MUST be line 1 before importing any services/auth modules!
-
 /**
  * Must execute before application modules that may read process.env
  * during module initialization.
@@ -138,9 +133,6 @@ async function bootstrap() {
      */
     credentials: true, // ⚠️ CRITICAL: Must be true so Better Auth cookies can be sent across domains!
   });
-
-  // 1. Use the global ZodValidationPipe from `nestjs-zod`
-  // app.useGlobalPipes(new ZodValidationPipe());
 
   /**
    * --------------------------------------------------------------

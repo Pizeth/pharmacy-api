@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 import { LoggerService } from './services/logger.service';
 import { ExceptionService } from './services/exception.service';
-import { APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from 'filters/http-exception.filter';
 import { TransformInterceptor } from 'interceptors/transform.interceptor';
 import { QrCodeServicce } from 'common/configs/qr-code.service';
 import { FileModule } from 'modules/files/file.module';
-import { ZodValidationPipe } from 'nestjs-zod';
 import { ImagesModule } from 'modules/images/image.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -43,10 +42,6 @@ import { CryptoService } from './services/crypto.service';
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
-    },
-    {
-      provide: APP_PIPE,
-      useClass: ZodValidationPipe,
     },
   ],
   exports: [

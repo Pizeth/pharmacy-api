@@ -23,7 +23,6 @@ import { v7 as uuidv7 } from 'uuid';
 import { Request } from 'express';
 import { AuthModule } from './modules/auth/auth.module';
 import { TimeParserModule } from './modules/time-parser/time-parser.module';
-import { ZodValidationPipe } from 'nestjs-zod';
 import { ValidationError } from './exceptions/zod-validatoin.exception';
 import { ProfileModule } from './modules/profiles/profile.module';
 import { AppController } from 'app.controller';
@@ -205,27 +204,6 @@ const i18nPath =
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
-    },
-
-    /**
-     * --------------------------------------------------------------
-     * Transitional compatibility for existing routes that still use
-     * nestjs-zod DTOs.
-     * --------------------------------------------------------------
-     *
-     * Keep this temporarily for existing routes that still use:
-     *
-     *   createZodDto(...)
-     *
-     * and the nestjs-zod DTO integration.
-     *
-     * Once those routes have migrated to NestJS 12 native
-     * Standard Schema metadata, this provider and the nestjs-zod
-     * package can be removed.
-     */
-    {
-      provide: APP_PIPE,
-      useClass: ZodValidationPipe,
     },
 
     /**

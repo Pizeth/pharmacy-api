@@ -162,7 +162,7 @@ import {
   OptionsDescriptor,
   StyleOptions,
 } from '@dicebear/core';
-import { ImageOptionsDto } from '../dto/image-options.dto';
+import type { ImageOptionsDto } from '../dto/image-options.dto';
 import { AvailableFonts, ImageFormat } from 'types/commons.enum';
 import type { AvatarResult } from 'types/file';
 import {

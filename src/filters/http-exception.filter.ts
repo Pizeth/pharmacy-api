@@ -56,7 +56,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       correlationId: this.cls.get('correlationId'), // <-- Enrich response with correlationId
       message,
       userAgent: parser.getResult(),
-      // Include validation errors from class-validator or nestjs-zod if they exist
+      // Include structured validation errors when an exception exposes them
       // Conditionally add the 'errors' field only if it exists and is an object.
       ...(errors && typeof errors === 'object' ? { errors } : {}),
     };
