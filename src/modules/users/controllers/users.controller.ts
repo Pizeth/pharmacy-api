@@ -71,9 +71,9 @@ export class UserController {
   //   });
   // }
 
-  // The controller is now incredibly clean.
-  // The global pipe handles validation automatically.
-  // Swagger knows about CreateUserDto because it's a class with generated decorators.
+  // The route attaches the Zod schema directly. The global
+  // StandardSchemaValidationPipe validates/transforms it and Swagger reads the
+  // same Standard Schema metadata.
   @Post()
   @Roles(['admin'])
   // Tell Swagger to expect a multipart/form-data request
