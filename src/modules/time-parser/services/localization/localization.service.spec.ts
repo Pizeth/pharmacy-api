@@ -1,18 +1,29 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { LocalizationService } from './localization.service';
+import { CacheService } from 'modules/cache/services/cache.service';
+import timeParserConfig from '../../configs/time-parser.config';
 
 describe('LocalizationService', () => {
-  let service: LocalizationService;
+  it('returns the configured default localization from the cache', () => {
+    const config = timeParserConfig();
+    const cache = Object.create(CacheService.prototype) as CacheService;
+    const set = jest.spyOn(cache, 'set').mockImplementation(() => {});
+    jest.spyOn(cache, 'has').mockReturnValue(false);
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [LocalizationService],
-    }).compile();
+    const service = new LocalizationService(
+      config.localesPath,
+      config.localizationConfig,
+      config.maxCacheSize,
+      cache,
+    );
 
-    service = module.get<LocalizationService>(LocalizationService);
-  });
-
-  it('should be defined', () => {
     expect(service).toBeDefined();
+    expect(set).toHaveBeenCalledWith(
+      'LOCALIZATION_CACHE',
+      config.localizationConfig.locale,
+      config.localizationConfig,
+    );
+    expect(service.get('nonexistent-locale')).toEqual(
+      config.localizationConfig,
+    );
   });
 });
