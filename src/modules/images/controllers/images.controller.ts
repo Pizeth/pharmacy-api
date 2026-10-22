@@ -89,7 +89,7 @@ export class ImagesController {
   //   @Param('style', new ParseEnumPipe(DiceBearStyle)) style: DiceBearStyle,
   //   @Param('format', new ParseEnumPipe(ImageFormat, { optional: true }))
   //   format: ImageFormat = ImageFormat.SVG,
-  //   // The global ZodValidationPipe will validate these options
+  //   // The global StandardSchemaValidationPipe validates schema metadata.
   //   @Query() options: ImageOptionsDto,
   //   @Res({ passthrough: true }) res: Response,
   // ) {
