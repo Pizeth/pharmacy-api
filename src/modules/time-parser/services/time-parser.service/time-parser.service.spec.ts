@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TimeParserService } from './time-parser.service';
 // import { TimeParserService } from './time-parser.service';

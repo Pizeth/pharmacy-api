@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { LocalizationService } from './localization.service';
 import { CacheService } from 'modules/cache/services/cache.service';
 import timeParserConfig from '../../configs/time-parser.config';

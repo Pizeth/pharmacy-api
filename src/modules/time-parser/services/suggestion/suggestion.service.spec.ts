@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SuggestionService1 } from 'modules/suggestion/services/suggestion.service';
 
