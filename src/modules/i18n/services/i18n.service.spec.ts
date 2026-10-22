@@ -7,7 +7,12 @@ describe('I18nService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [I18nService],
-    }).compile();
+    })
+      .useMocker(() => ({
+        get: jest.fn(() => 'test'),
+        set: jest.fn(),
+      }))
+      .compile();
 
     service = module.get<I18nService>(I18nService);
   });
