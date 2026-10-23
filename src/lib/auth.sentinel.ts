@@ -25,8 +25,8 @@ export function getSentinelOptions(
         cooldownSeconds: 900,
       },
       botBlocking: { action: 'challenge' },
-      // Challenge suspicious IPs; the confirmed false-positive IP has been allowlisted.
-      suspiciousIpBlocking: { action: 'challenge' },
+      // Temporary: hosted Sentinel blocks password login for an allowlisted IP even with challenge configured.
+      suspiciousIpBlocking: { action: 'log' },
       // Shared office IPs and VPNs can generate false positives: observe first.
       impossibleTravel: { enabled: true, maxSpeedKmh: 1000, action: 'log' },
       velocity: {
