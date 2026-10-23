@@ -25,7 +25,8 @@ export function getSentinelOptions(
         cooldownSeconds: 900,
       },
       botBlocking: { action: 'challenge' },
-      suspiciousIpBlocking: { action: 'challenge' },
+      // Temporary: observe false-positive IP classifications while investigating hosted policy enforcement.
+      suspiciousIpBlocking: { action: 'log' },
       // Shared office IPs and VPNs can generate false positives: observe first.
       impossibleTravel: { enabled: true, maxSpeedKmh: 1000, action: 'log' },
       velocity: {
