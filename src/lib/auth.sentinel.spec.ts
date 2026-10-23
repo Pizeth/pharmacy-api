@@ -22,7 +22,7 @@ describe('Sentinel configuration', () => {
       enabled: true, action: 'challenge', thresholds: { challenge: 3, block: 10 },
     });
     expect(security?.botBlocking).toEqual({ action: 'challenge' });
-    expect(security?.suspiciousIpBlocking).toEqual({ action: 'log' });
+    expect(security?.suspiciousIpBlocking).toEqual({ action: 'challenge' });
     expect(security?.unknownDeviceNotification).toBe(true);
     expect(security?.geoBlocking).toEqual({ denyList: ['TH'], action: 'block' });
     expect(security?.freeTrialAbuse).toMatchObject({
