@@ -121,11 +121,20 @@ async function bootstrap() {
       .split(',')
       .map((origin) => origin.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-captcha-response'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-captcha-response',
+      'X-Visitor-Id',
+      'X-Request-Id',
+      'X-PoW-Solution',
+    ],
     exposedHeaders: [
       'set-auth-token', // 👈 expose Bearer token header
       'set-auth-jwt', // 👈 expose JWT header (used by getSession)
       'Authorization',
+      'X-PoW-Challenge',
+      'X-PoW-Reason',
     ],
 
     /**

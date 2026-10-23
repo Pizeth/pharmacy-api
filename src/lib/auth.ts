@@ -23,6 +23,7 @@ import { passkey } from '@better-auth/passkey';
 import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
 import { dash, sentinel } from '@better-auth/infra';
+import { getSentinelOptions } from './auth.sentinel';
 import {
   getSocialProvidersConfig,
   getGenericProvidersConfig,
@@ -228,8 +229,10 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
          */
         defaultRole: 'user',
       }),
-      dash(),
-      sentinel(),
+      dash({
+        activityTracking: { enabled: true, updateInterval: 300_000 },
+      }),
+      sentinel(getSentinelOptions()),
       username({ minUsernameLength: 3, maxUsernameLength: 50 }),
       oneTap(),
       twoFactor({
