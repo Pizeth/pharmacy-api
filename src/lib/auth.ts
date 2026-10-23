@@ -25,6 +25,11 @@ import { i18n } from '@better-auth/i18n';
 import { dash, sentinel } from '@better-auth/infra';
 import { getSentinelOptions } from './auth.sentinel';
 import {
+  AUTH_TOKEN_STORAGE,
+  getAuthErrorURL,
+  getAuthIpAddressOptions,
+} from './auth.security';
+import {
   getSocialProvidersConfig,
   getGenericProvidersConfig,
 } from './auth.provider';
@@ -39,6 +44,7 @@ import {
 export const options = (prisma: PrismaClient, emailService: ResendService) =>
   ({
     appName: 'Razeth',
+    onAPIError: { errorURL: getAuthErrorURL() },
     baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
     database: prismaAdapter(prisma, {
       provider: 'postgresql',
@@ -53,6 +59,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     // FIX: Explicitly initialize the hooks block so the NestJS module can attach to it
     hooks: {},
     advanced: {
+      ipAddress: getAuthIpAddressOptions(),
       database: {
         generateId: 'serial' as const, // 👈 Prevent string-widening
         joins: true,
@@ -207,7 +214,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       },
     },
     account: {
-      skipStateCookieCheck: process.env.NODE_ENV !== 'production',
+      skipStateCookieCheck: false,
     },
     plugins: [
       apiKey(),
@@ -239,6 +246,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
         issuer: 'Razeth', // Issuer name displayed in authenticator apps (TOTP)
         // OTP Email integration
         otpOptions: {
+          storeOTP: AUTH_TOKEN_STORAGE,
           async sendOTP({ user, otp }, _ctx) {
             await emailService.sendTwoFactorOtp(
               user.email,
@@ -260,12 +268,14 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
         secretKey: process.env.TURNSTILE_SECRET_KEY!,
       }),
       magicLink({
+        storeToken: AUTH_TOKEN_STORAGE,
         sendMagicLink: async ({ email, token, url, metadata }, _ctx) => {
           // send email to user
           await emailService.sendMagicLink(email, url, token, metadata);
         },
       }),
       emailOTP({
+        storeOTP: AUTH_TOKEN_STORAGE,
         async sendVerificationOTP({ email, otp, type }, _ctx) {
           await emailService.sendVerificationOTP(email, otp, type);
 
