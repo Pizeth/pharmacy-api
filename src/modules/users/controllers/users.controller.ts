@@ -144,6 +144,11 @@ export class UserController {
   //   };
   // }
 
+  @Get('contact/super-admin')
+  async getSuperAdminContact() {
+    return this.service.getSuperAdminContact();
+  }
+
   @Get(':id')
   async getUserById(@Param('id') id: string): Promise<UserModel | null> {
     return this.service.getOne({ id: Number(id) });

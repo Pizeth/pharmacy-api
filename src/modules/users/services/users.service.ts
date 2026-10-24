@@ -24,6 +24,15 @@ import { DiceBearStyle } from 'dicebear-styles.map';
 
 @Injectable()
 export class UsersService {
+  async getSuperAdminContact() {
+    const user = await this.prisma.user.findFirst({
+      where: { userRole: { name: 'SUPER_ADMIN' }, isEnabled: true, deletedAt: null, banned: false },
+      orderBy: { id: 'asc' },
+      select: { name: true, email: true, phoneNumber: true, telegram: true, profile: { select: { phone: true } } },
+    });
+    return user ? { name: user.name, email: user.email, phone: user.phoneNumber || user.profile?.phone || null, telegram: user.telegram } : null;
+  }
+
   private readonly context = UsersService.name;
   private readonly logger = new Logger(this.context);
   constructor(

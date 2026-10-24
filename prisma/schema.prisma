@@ -319,6 +319,7 @@ model User {
   twoFactorEnabled    Boolean?    @default(false) @map("two_factor_enabled")
   lastLoginMethod     String?     @map("last_login_method")
   phoneNumber         String?     @map("phone_number")
+  telegram            String?
   phoneNumberVerified Boolean?    @map("phone_number_verified")
   roleId              Int?        @map("role_id")     
   // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
