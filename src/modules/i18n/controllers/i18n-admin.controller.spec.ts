@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { I18nAdminController } from './i18n-admin.controller.js';
 
@@ -7,7 +8,13 @@ describe('I18nAdminController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [I18nAdminController],
-    }).compile();
+    })
+      .useMocker(() => ({
+        // Isolate this generated smoke test from unrelated infrastructure.
+        get: jest.fn(() => 'test'),
+        set: jest.fn(),
+      }))
+      .compile();
 
     controller = module.get<I18nAdminController>(I18nAdminController);
   });

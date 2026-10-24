@@ -318,6 +318,7 @@ model User {
   displayUsername     String?     @map("display_name")
   twoFactorEnabled    Boolean?    @default(false) @map("two_factor_enabled")
   lastLoginMethod     String?     @map("last_login_method")
+  lastActiveAt        DateTime?   @map("last_active_at")
   phoneNumber         String?     @map("phone_number")
   telegram            String?
   phoneNumberVerified Boolean?    @map("phone_number_verified")
@@ -367,7 +368,7 @@ model Session {
 
 model Account {
   id                    Int       @id @default(autoincrement())
-  issuer                String
+  issuer                String?
   accountId             String    @map("account_id")
   providerId            String    @map("provider_id")
   userId                Int       @map("user_id")

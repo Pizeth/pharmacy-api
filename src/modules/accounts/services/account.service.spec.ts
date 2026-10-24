@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AccountService } from './account.service';
 
@@ -7,7 +8,12 @@ describe('AccountService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [AccountService],
-    }).compile();
+    })
+      .useMocker(() => ({
+        get: jest.fn(() => 'test'),
+        set: jest.fn(),
+      }))
+      .compile();
 
     service = module.get<AccountService>(AccountService);
   });

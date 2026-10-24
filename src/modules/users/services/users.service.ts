@@ -9,7 +9,7 @@ import {
 import { DBHelper } from '../../helpers/services/db-helper';
 import { PaginatedDataResult } from '../../../types/types';
 // import { PasswordUtils } from 'commons/services/password-utils.service';
-import { CreateUserDto } from '../dto/create-user.dto';
+import type { CreateUserDto } from '../dto/create-user.dto';
 import { R2Service } from 'modules/files/services/cloudflare-r2.service';
 import { AppError } from 'exceptions/app.exception';
 import { FileUtil } from 'utils/file.util';
@@ -18,7 +18,7 @@ import { ClsService } from 'nestjs-cls';
 import { type } from 'types/commons.enum';
 import { ImagesService } from 'modules/images/services/images.service';
 import { UserDetail } from 'types/dto';
-import { UpdateUserDto } from '../dto/update-user.dto';
+import type { UpdateUserDto } from '../dto/update-user.dto';
 import { USER_DETAIL_INCLUDE } from '../consts/user.const';
 import { DiceBearStyle } from 'dicebear-styles.map';
 

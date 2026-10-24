@@ -28,7 +28,6 @@ COPY package.json package-lock.json ./
 #   @nestjs/throttler
 #   nestjs-cls
 #   @thallesp/nestjs-better-auth
-#   nestjs-zod
 #
 # Remove this when those packages officially support Nest 12.
 RUN npm ci --legacy-peer-deps

@@ -1,8 +1,7 @@
 // -----------------------------------------------------------------
-// Define your DTO using Zod and `createZodDto`
+// Define the schema and infer the native NestJS request type from Zod
 // Location: src/users/dto/create-user.dto.ts
 // -----------------------------------------------------------------
-import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 // Define Zod schema the validation schema
@@ -23,6 +22,4 @@ export const signInSchema = z.object({
   }),
 });
 
-// **THE MAGIC STEP**: Generate a DTO class from the schema.
-// This class can be used by NestJS for type hinting and by @nestjs/swagger for documentation.
-export class SignInDto extends createZodDto(signInSchema) {}
+export type SignInDto = z.output<typeof signInSchema>;

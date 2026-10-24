@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TimeParserService } from './time-parser.service';
 // import { TimeParserService } from './time-parser.service';
@@ -8,7 +9,12 @@ describe('TimeParserServiceService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [TimeParserService],
-    }).compile();
+    })
+      .useMocker(() => ({
+        get: jest.fn(() => 'test'),
+        set: jest.fn(),
+      }))
+      .compile();
 
     service = module.get<TimeParserService>(TimeParserService);
   });

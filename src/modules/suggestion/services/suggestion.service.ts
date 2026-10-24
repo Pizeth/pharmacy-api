@@ -89,7 +89,7 @@ import * as CBOR from 'cbor';
 
 @Injectable()
 export class SuggestionService1 implements OnModuleInit {
-  private readonly logger = new Logger(SuggestionService.name);
+  private readonly logger = new Logger(SuggestionService1.name);
   private queryStats = new Map<string, { count: number; timestamp: number }>();
   private popularQueries: string[] = [];
   // private cache = new Map<string, string[]>();

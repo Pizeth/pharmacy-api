@@ -1,16 +1,11 @@
-import { Body, applyDecorators } from '@nestjs/common';
-import { ZodValidationPipe } from 'nestjs-zod';
-// import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe';
-import { ZodObject } from 'zod';
-// import { ZodValidationPipe } from '../pipes/zod-validation.pipe'; // Adjust path as needed
+import { Body } from '@nestjs/common';
+import type { ZodType } from 'zod';
 
 /**
- * A custom parameter decorator that combines @Body() with ZodValidationPipe.
- * This simplifies applying Zod validation to incoming request bodies.
- * @param schema The Zod schema to validate against.
+ * Native NestJS 12 Standard Schema body decorator.
+ *
+ * Zod 4 implements Standard Schema, so Nest can consume the schema directly.
+ * Validation is performed by the global StandardSchemaValidationPipe.
  */
-export const ZodBody = (schema: ZodObject<any>) => {
-  // applyDecorators is a helper function that combines multiple decorators.
-  // Here, it's just applying the @Body decorator with our custom pipe.
-  return Body(new ZodValidationPipe(schema));
-};
+export const ZodBody = <TSchema extends ZodType>(schema: TSchema) =>
+  Body({ schema });
