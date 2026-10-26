@@ -1,4 +1,11 @@
 import {
+  officeSelect,
+  workIdentityAt,
+  handlerIdentity,
+  officeIdentity,
+  organizationOptions,
+} from './tracking-organization';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -31,16 +38,7 @@ const person = {
   name: true,
   image: true,
 } satisfies Prisma.UserSelect;
-const department = {
-  id: true,
-  code: true,
-  Versions: {
-    where: { effectiveTo: null },
-    orderBy: { effectiveFrom: 'desc' },
-    take: 1,
-    select: { nameKh: true, nameEn: true },
-  },
-} satisfies Prisma.DepartmentSelect;
+const department = officeSelect;
 const include = {
   category: { select: { id: true, name: true } },
   type: { select: { id: true, name: true } },
@@ -113,9 +111,7 @@ export class DocumentTrackingService {
   private format<T extends RecordRow>(record: T, actor: TrackingActor) {
     const current = record.steps.find((step) => step.status === 'ACTIVE');
     const name = (value: RecordRow['responsibleDepartment']) =>
-      value
-        ? value.Versions[0]?.nameKh || value.Versions[0]?.nameEn || value.code
-        : null;
+      officeIdentity(value).departmentName;
     return {
       ...record,
       responsibleDepartmentName: name(record.responsibleDepartment),
@@ -168,7 +164,7 @@ export class DocumentTrackingService {
             deletedAt: null,
           },
           orderBy: { name: 'asc' },
-          select: person,
+          select: workIdentityAt(),
         }),
         this.prisma.department.findMany({
           where: { isEnabled: true },
@@ -185,11 +181,8 @@ export class DocumentTrackingService {
       workflow,
       categories,
       types,
-      handlers,
-      departments: departments.map((item) => ({
-        id: item.id,
-        name: item.Versions[0]?.nameKh || item.Versions[0]?.nameEn || item.code,
-      })),
+      handlers: handlers.map((person) => handlerIdentity(person)),
+      departments: organizationOptions(departments),
     };
   }
   async query(userId: number, input: DataTableQuery) {
@@ -250,7 +243,7 @@ export class DocumentTrackingService {
     const row = await tx.user.findUnique({
       where: { id },
       select: {
-        ...person,
+        ...workIdentityAt(),
         banned: true,
         isEnabled: true,
         isLocked: true,
@@ -269,7 +262,7 @@ export class DocumentTrackingService {
       row.userRole?.isEnabled === false
     )
       throw new BadRequestException('Choose an active receiving handler.');
-    return row;
+    return { ...row, ...handlerIdentity(row) };
   }
   private async office(
     tx: Prisma.TransactionClient,
@@ -283,6 +276,33 @@ export class DocumentTrackingService {
       }))
     )
       throw new BadRequestException('Choose an active responsible office.');
+  }
+  private async receiptContext(
+    tx: Prisma.TransactionClient,
+    receiver: Awaited<ReturnType<DocumentTrackingService['handler']>>,
+    requestedId?: number | null,
+    fallbackId?: number | null,
+  ) {
+    const id = requestedId ?? receiver?.departmentId ?? fallbackId ?? null;
+    await this.office(tx, id);
+    const office =
+      id == null
+        ? null
+        : await tx.department.findUnique({
+            where: { id },
+            select: officeSelect,
+          });
+    const context = officeIdentity(office);
+    return {
+      departmentId: id,
+      event: {
+        recipientDepartmentVersionId: context.departmentVersionId,
+        recipientEmploymentId: receiver?.employmentId ?? null,
+        recipientOfficeName: context.departmentName,
+        recipientMinistryName: context.ministryName,
+        recipientPositionTitle: receiver?.positionTitle ?? null,
+      },
+    };
   }
   private async catalogs(tx: Prisma.TransactionClient, input: DocumentInput) {
     const [category, type] = await Promise.all([
@@ -353,6 +373,7 @@ export class DocumentTrackingService {
       await this.catalogs(tx, input);
       const handler = await this.handler(tx, input.assignedToId ?? actor.id),
         storage = await this.storage(tx, input.storageLocationCode);
+      const receipt = await this.receiptContext(tx, handler);
       const workflow = await tx.trackingWorkflow.findUnique({
         where: { key: 'shared-document-route' },
         include: { steps: { orderBy: { position: 'asc' } } },
@@ -376,7 +397,12 @@ export class DocumentTrackingService {
               position: step.position,
               status: index === 0 ? 'ACTIVE' : 'PENDING',
               assignedToId: index === 0 ? handler?.id : null,
-              departmentId: index === 1 ? input.responsibleDepartmentId : null,
+              departmentId:
+                index === 0
+                  ? receipt.departmentId
+                  : index === 1
+                    ? input.responsibleDepartmentId
+                    : null,
               startedAt: index === 0 ? new Date(input.receivedAt) : null,
             })),
           },
@@ -391,6 +417,7 @@ export class DocumentTrackingService {
           actorName: actor.name,
           recipientId: handler?.id,
           recipientName: handler?.name,
+          ...receipt.event,
           toStage: workflow.steps[0].name,
           note: 'Document registered.',
         },
@@ -444,7 +471,19 @@ export class DocumentTrackingService {
       const receiver = handingOff
         ? await this.handler(tx, input.assignedToId)
         : null;
-      if (handingOff) await this.office(tx, input.departmentId);
+      const receipt =
+        handingOff && receiver
+          ? await this.receiptContext(
+              tx,
+              receiver,
+              input.departmentId,
+              plan.target
+                ? document.steps.find((step) => step.id === plan.target!.id)
+                    ?.departmentId
+                : document.steps.find((step) => step.id === plan.current.id)
+                    ?.departmentId,
+            )
+          : null;
       if (
         !handingOff &&
         (input.assignedToId != null || input.departmentId != null)
@@ -489,9 +528,7 @@ export class DocumentTrackingService {
               startedAt: now,
               completedAt: null,
               assignedToId: receiver!.id,
-              ...(input.departmentId !== undefined
-                ? { departmentId: input.departmentId }
-                : {}),
+              ...(receipt ? { departmentId: receipt.departmentId } : {}),
             },
           });
       }
@@ -506,9 +543,7 @@ export class DocumentTrackingService {
             status: 'ACTIVE',
             startedAt: now,
             assignedToId: receiver!.id,
-            ...(input.departmentId !== undefined
-              ? { departmentId: input.departmentId }
-              : {}),
+            ...(receipt ? { departmentId: receipt.departmentId } : {}),
           },
         });
       }
@@ -517,9 +552,7 @@ export class DocumentTrackingService {
           where: { id: plan.current.id },
           data: {
             assignedToId: receiver!.id,
-            ...(input.departmentId !== undefined
-              ? { departmentId: input.departmentId }
-              : {}),
+            ...(receipt ? { departmentId: receipt.departmentId } : {}),
           },
         });
       const updates: Prisma.TrackedDocumentUpdateInput = {
@@ -573,6 +606,7 @@ export class DocumentTrackingService {
           actorName: actor.name,
           recipientId: receiver?.id,
           recipientName: receiver?.name,
+          ...(receipt?.event ?? {}),
           fromStage: plan.current.name,
           toStage: plan.target?.name ?? plan.current.name,
           note: input.note || null,

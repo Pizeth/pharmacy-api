@@ -673,6 +673,8 @@ model DepartmentVersion {
 
   Employments EmploymentHistory[]
 
+  trackingReceipts DocumentTrackingEvent[] @relation("EventDepartmentVersion")
+
   OutgoingTransitions DepartmentTransition[] @relation("TransitionFrom")
 
   IncomingTransitions DepartmentTransition[] @relation("TransitionTo")
@@ -752,6 +754,7 @@ model EmploymentHistory {
 
   DepartmentVersion DepartmentVersion @relation(fields: [departmentVersionId], references: [id])
   profiles          Profile[]         @relation("CurrentEmployment")
+  trackingReceipts DocumentTrackingEvent[] @relation("EventEmployment")
 
   @@index([profileId, endDate])
   @@index([departmentVersionId])
@@ -1828,6 +1831,13 @@ model DocumentTrackingEvent {
   actorName     String            @map("actor_name") @db.VarChar(255)
   recipientId   Int?              @map("recipient_id")
   recipientName String?           @map("recipient_name") @db.VarChar(255)
+  recipientDepartmentVersionId Int? @map("recipient_department_version_id")
+  recipientEmploymentId Int? @map("recipient_employment_id")
+  recipientOfficeName String? @map("recipient_office_name") @db.VarChar(255)
+  recipientPositionTitle String? @map("recipient_position_title") @db.VarChar(150)
+  recipientMinistryName String? @map("recipient_ministry_name") @db.VarChar(255)
+  recipientDepartmentVersion DepartmentVersion? @relation("EventDepartmentVersion", fields: [recipientDepartmentVersionId], references: [id], onDelete: SetNull)
+  recipientEmployment EmploymentHistory? @relation("EventEmployment", fields: [recipientEmploymentId], references: [id], onDelete: SetNull)
   fromStage     String?           @map("from_stage") @db.VarChar(160)
   toStage       String?           @map("to_stage") @db.VarChar(160)
   note          String?           @db.VarChar(4000)
@@ -1841,6 +1851,8 @@ model DocumentTrackingEvent {
   @@index([stepId])
   @@index([actorId])
   @@index([recipientId])
+  @@index([recipientDepartmentVersionId])
+  @@index([recipientEmploymentId])
   @@map("document_tracking_events")
 }
 

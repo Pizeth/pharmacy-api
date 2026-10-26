@@ -43,7 +43,75 @@ try {
           banned: false,
         },
       });
+      // Reuse the real organization and HR models; all these fixtures roll back too.
+      const ministry = await tx.ministry.create({
+        data: { code: 'SMK-' + randomUUID().slice(0, 8), createdBy: admin.id },
+      });
+      const ministryVersion = await tx.ministryVersion.create({
+        data: {
+          ministryId: ministry.id,
+          code: ministry.code,
+          nameKh: 'Smoke ministry',
+          nameEn: 'Smoke ministry',
+          effectiveFrom: new Date('2026-01-01'),
+        },
+      });
+      const office = await tx.department.create({
+        data: { code: 'SMK-' + randomUUID().slice(0, 8), createdBy: admin.id },
+      });
+      const officeVersion = await tx.departmentVersion.create({
+        data: {
+          departmentId: office.id,
+          ministryVersionId: ministryVersion.id,
+          code: office.code,
+          nameKh: 'Smoke specialist office',
+          nameEn: 'Smoke specialist office',
+          effectiveFrom: new Date('2026-01-01'),
+          createdBy: admin.id,
+        },
+      });
+      const profile = await tx.profile.create({
+        data: {
+          officialId: randomUUID().replaceAll('-', '').slice(0, 10),
+          firstName: 'Smoke',
+          lastName: 'Handler',
+          sex: 'Male',
+          dob: new Date('1990-01-01'),
+          entryDate: new Date('2020-01-01'),
+          createdBy: admin.id,
+          updatedBy: admin.id,
+          userId: handler.id,
+        },
+      });
+      const employment = await tx.employmentHistory.create({
+        data: {
+          profileId: profile.id,
+          ministryVersionId: ministryVersion.id,
+          departmentVersionId: officeVersion.id,
+          assignmentType: 'INITIAL_APPOINTMENT',
+          status: 'ACTIVE',
+          startDate: new Date('2026-01-01'),
+          positionTitle: 'Document officer',
+        },
+      });
+      await tx.profile.update({
+        where: { id: profile.id },
+        data: { currentEmploymentId: employment.id },
+      });
       const metadata = await service.metadata(admin.id);
+      assert.equal(
+        metadata.handlers.find((p) => p.id === handler.id)?.departmentId,
+        office.id,
+      );
+      assert.equal(
+        metadata.handlers.find((p) => p.id === handler.id)?.positionTitle,
+        'Document officer',
+      );
+      assert(
+        metadata.departments.some(
+          (p) => p.id === office.id && p.name.includes('Smoke ministry'),
+        ),
+      );
       assert.equal(metadata.workflow.steps.length, 7);
       assert(metadata.handlers.some((p) => p.id === handler.id));
       let doc = await service.create(admin.id, {
@@ -71,6 +139,47 @@ try {
         assignedToId: handler.id,
         note: 'Hand over to specialist',
       });
+      assert.equal(
+        doc.steps.find((step) => step.status === 'ACTIVE')?.departmentId,
+        office.id,
+      );
+      assert.equal(doc.events.at(-1)?.recipientEmploymentId, employment.id);
+      assert.equal(
+        doc.events.at(-1)?.recipientDepartmentVersionId,
+        officeVersion.id,
+      );
+      assert.equal(
+        doc.events.at(-1)?.recipientOfficeName,
+        'Smoke specialist office',
+      );
+      await tx.departmentVersion.update({
+        where: { id: officeVersion.id },
+        data: { effectiveTo: new Date() },
+      });
+      await tx.departmentVersion.create({
+        data: {
+          departmentId: office.id,
+          ministryVersionId: ministryVersion.id,
+          code: office.code,
+          nameKh: 'Renamed smoke office',
+          nameEn: 'Renamed smoke office',
+          effectiveFrom: new Date(),
+          createdBy: admin.id,
+        },
+      });
+      const afterRename = await service.get(admin.id, doc.id);
+      assert.equal(
+        afterRename.events.at(-1)?.recipientOfficeName,
+        'Smoke specialist office',
+      );
+      assert.equal(
+        afterRename.steps.find((step) => step.status === 'ACTIVE')
+          ?.departmentName,
+        'Renamed smoke office',
+      );
+      console.log(
+        'PASS: HR-derived receiving office, employment/version references and historical snapshots survive an office rename.',
+      );
       await assert.rejects(
         () =>
           service.progress(admin.id, doc.id, {
