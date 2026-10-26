@@ -320,7 +320,7 @@ model User {
   lastLoginMethod     String?     @map("last_login_method")
   lastActiveAt        DateTime?   @map("last_active_at")
   phoneNumber         String?     @map("phone_number")
-  telegram            String?
+  socialProfiles      UserSocialProfile[]
   phoneNumberVerified Boolean?    @map("phone_number_verified")
   roleId              Int?        @map("role_id")     
   // 2. FIX: Rename this relation tracker field to bypass Better-Auth's 'role' collision
@@ -347,6 +347,36 @@ model User {
   @@unique([username])
   @@unique([phoneNumber])
   @@map("user")
+}
+
+model SocialProvider {
+  id             Int                 @id @default(autoincrement())
+  key            String              @unique @db.VarChar(50)
+  name           String              @db.VarChar(100)
+  websiteUrl     String?             @map("website_url") @db.VarChar(2048)
+  icon           String?             @db.VarChar(255)
+  isEnabled      Boolean             @default(true) @map("is_enabled")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  socialProfiles UserSocialProfile[]
+
+  @@map("social_providers")
+}
+
+model UserSocialProfile {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId Int    @map("provider_id")
+  provider   SocialProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  handle    String
+  url       String?  @db.VarChar(2048)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, providerId, handle])
+  @@index([providerId])
+  @@map("user_social_profiles")
 }
 
 model Session {

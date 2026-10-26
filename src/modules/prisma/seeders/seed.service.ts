@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../services/prisma.service';
 import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
+import { SocialProviderSeeder } from './social-provider.seeder';
 // import { ModuleRef } from '@nestjs/core';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class SeedService {
     private readonly userSeeder: UserSeeder,
     @Inject(forwardRef(() => RoleSeeder))
     private readonly roleSeeder: RoleSeeder,
+    private readonly socialProviderSeeder: SocialProviderSeeder,
     // private readonly moduleRef: ModuleRef,
   ) {
     this.logger.debug('SeedService initialized');
@@ -44,6 +46,7 @@ export class SeedService {
     const roles = await this.roleSeeder.seed();
 
     this.logger.log('👤 Seeding users...');
+    await this.socialProviderSeeder.seed();
     await this.userSeeder.seed(roles);
 
     // Add more seeders here
@@ -79,6 +82,7 @@ export class SeedService {
       // this.prisma.refreshToken.deleteMany(),
       this.prisma.profile.deleteMany(),
       this.prisma.user.deleteMany(),
+      this.prisma.socialProvider.deleteMany(),
       // Add other cleanup as needed
     ]);
 

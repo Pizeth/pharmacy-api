@@ -11,6 +11,7 @@ import { UserSeeder } from './user.seeder';
 import { RoleSeeder } from './role.seeder';
 import { TranslationSeeder } from './translation.seeder';
 import { PermissionSeeder } from './permission.seeder';
+import { SocialProviderSeeder } from './social-provider.seeder';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PermissionSeeder } from './permission.seeder';
     }),
   ],
   providers: [
+    SocialProviderSeeder,
     RoleSeeder,
     PermissionSeeder,
     UserSeeder,

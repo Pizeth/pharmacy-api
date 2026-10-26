@@ -47,6 +47,9 @@ process.on('uncaughtException', (error: Error) => {
  *   --clear
  */
 function resolveCommand(): SeedCommand | undefined {
+  if (process.argv.includes('--social-providers')) {
+    return 'social-providers';
+  }
   if (process.argv.includes('--clear')) {
     return 'clear';
   }
@@ -97,7 +100,7 @@ async function bootstrap(): Promise<void> {
 
     if (!command) {
       logger.warn(
-        'No command specified. Use --seed, --permissions, --translations, --repair-sequences, or --clear.',
+        'No command specified. Use --seed, --permissions, --translations, --social-providers, --repair-sequences, or --clear.',
       );
 
       return;

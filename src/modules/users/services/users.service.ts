@@ -26,11 +26,29 @@ import { DiceBearStyle } from 'dicebear-styles.map';
 export class UsersService {
   async getSuperAdminContact() {
     const user = await this.prisma.user.findFirst({
-      where: { userRole: { name: 'SUPER_ADMIN' }, isEnabled: true, deletedAt: null, banned: false },
+      where: {
+        userRole: { name: 'SUPER_ADMIN' },
+        isEnabled: true,
+        deletedAt: null,
+        banned: false,
+      },
       orderBy: { id: 'asc' },
-      select: { name: true, email: true, phoneNumber: true, telegram: true, profile: { select: { phone: true } } },
+      select: {
+        name: true,
+        email: true,
+        phoneNumber: true,
+        socialProfiles: { include: { provider: true }, orderBy: { id: 'asc' } },
+        profile: { select: { phone: true } },
+      },
     });
-    return user ? { name: user.name, email: user.email, phone: user.phoneNumber || user.profile?.phone || null, telegram: user.telegram } : null;
+    return user
+      ? {
+          name: user.name,
+          email: user.email,
+          phone: user.phoneNumber || user.profile?.phone || null,
+          socialProfiles: user.socialProfiles,
+        }
+      : null;
   }
 
   private readonly context = UsersService.name;
@@ -131,6 +149,16 @@ export class UsersService {
       where,
       orderBy,
       select,
+      ...(!select
+        ? {
+            include: {
+              socialProfiles: {
+                include: { provider: true },
+                orderBy: { id: 'asc' as const },
+              },
+            },
+          }
+        : {}),
     });
   }
 

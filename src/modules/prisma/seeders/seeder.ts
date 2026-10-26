@@ -148,12 +148,18 @@ import { RoleSeeder } from './role.seeder';
 import { TranslationSeeder } from './translation.seeder';
 import { UserSeeder } from './user.seeder';
 import { PermissionSeeder } from './permission.seeder';
+import { SocialProviderSeeder } from './social-provider.seeder';
 
 /**
  * Commands understood by the standalone Prisma seed runner.
  */
 export type SeedCommand =
-  'seed' | 'permissions' | 'translations' | 'repair-sequences' | 'clear';
+  | 'seed'
+  | 'permissions'
+  | 'translations'
+  | 'social-providers'
+  | 'repair-sequences'
+  | 'clear';
 
 @Injectable()
 export class Seeder implements OnModuleInit {
@@ -168,6 +174,8 @@ export class Seeder implements OnModuleInit {
     private readonly translationSeeder: TranslationSeeder,
     @Inject(PermissionSeeder)
     private readonly permissionSeeder: PermissionSeeder,
+    @Inject(SocialProviderSeeder)
+    private readonly socialProviderSeeder: SocialProviderSeeder,
   ) {
     // Add some debugging to see what's being injected
     this.logger.debug(`${this.constructor.name} initialized`);
@@ -208,6 +216,9 @@ export class Seeder implements OnModuleInit {
     this.assertDatabaseMutationAllowed();
 
     switch (command) {
+      case 'social-providers':
+        await this.socialProviderSeeder.seed();
+        return;
       case 'seed':
         await this.seedAll();
         return;
@@ -296,6 +307,7 @@ export class Seeder implements OnModuleInit {
          */
         this.logger.log('👤 Seeding users...');
 
+        await this.socialProviderSeeder.seed(tx);
         const user = await this.userSeeder.seed(roles, tx);
 
         /**
@@ -568,6 +580,8 @@ export class Seeder implements OnModuleInit {
       this.prisma.account.deleteMany(),
 
       this.prisma.user.deleteMany(),
+
+      this.prisma.socialProvider.deleteMany(),
 
       this.prisma.rolePermission.deleteMany(),
 

@@ -235,6 +235,33 @@ export class UserSeeder {
       });
 
       // Step 3: Fix placeholder properties with the authentic autoincremented entity userID
+      for (const key of ['telegram', 'facebook'] as const) {
+        const provider = await prismaClient.socialProvider.findUniqueOrThrow({
+          where: { key },
+        });
+        const handle = this.config.get<string>(
+          `SEED_ADMIN_${key.toUpperCase()}_HANDLE`,
+          superAdminData.username,
+        );
+        const url = this.config.get<string>(
+          `SEED_ADMIN_${key.toUpperCase()}_URL`,
+          key === 'telegram'
+            ? `https://t.me/${handle.replace(/^@/, '')}`
+            : `https://www.facebook.com/${handle}`,
+        );
+        await prismaClient.userSocialProfile.upsert({
+          where: {
+            userId_providerId_handle: {
+              userId,
+              providerId: provider.id,
+              handle,
+            },
+          },
+          create: { userId, providerId: provider.id, handle, url },
+          update: {},
+        });
+      }
+
       const updatedSuperAdmin = await prismaClient.user.update({
         where: { id: userId },
         data: {
@@ -275,6 +302,7 @@ export class UserSeeder {
           userRole: true,
           profile: true,
           accounts: true,
+          socialProfiles: { include: { provider: true } },
           auditTrail: true,
         },
       });
@@ -289,7 +317,7 @@ export class UserSeeder {
         id: updatedSuperAdmin.id,
         email: updatedSuperAdmin.email,
         userRole: updatedSuperAdmin.userRole,
-        accounts: updatedSuperAdmin.accounts,
+        socialProfiles: updatedSuperAdmin.socialProfiles,
         profile: updatedSuperAdmin.profile,
         // Be careful logging tokens, even in seeds
       });

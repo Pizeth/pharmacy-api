@@ -6,10 +6,19 @@ import { CommonModule } from 'common/common.module';
 import { PasswordUtils } from 'common/services/password-utils.service';
 // import { TokenService } from 'commons/services/token.service';
 import { ConfigModule } from '@nestjs/config';
+import { SocialProfilesController } from './controllers/social-profiles.controller';
+import { SocialProfilesService } from './services/social-profiles.service';
+import { SocialProvidersController } from './controllers/social-providers.controller';
+import { SocialProvidersService } from './services/social-providers.service';
 
 @Module({
   imports: [DBHelperModule, CommonModule, ConfigModule],
-  providers: [UsersService, PasswordUtils /*, TokenService*/],
+  providers: [
+    UsersService,
+    SocialProfilesService,
+    SocialProvidersService,
+    PasswordUtils /*, TokenService*/,
+  ],
   exports: [
     UsersService,
     PasswordUtils,
@@ -17,6 +26,10 @@ import { ConfigModule } from '@nestjs/config';
     CommonModule,
     DBHelperModule,
   ],
-  controllers: [UserController],
+  controllers: [
+    UserController,
+    SocialProfilesController,
+    SocialProvidersController,
+  ],
 })
 export class UserModule {}

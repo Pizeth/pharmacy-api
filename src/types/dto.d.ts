@@ -4,6 +4,8 @@ import {
   // RefreshToken,
   Role,
   User,
+  UserSocialProfile,
+  SocialProvider,
   Translation,
   TranslationKey,
   // UserIdentity,
@@ -16,6 +18,7 @@ import {
 // }
 
 export interface UserDetail extends User {
+  socialProfiles: (UserSocialProfile & { provider: SocialProvider })[];
   userRole: Role;
   // identities: UserIdentityDetail[];
   profile: Profile | null;
