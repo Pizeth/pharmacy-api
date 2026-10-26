@@ -5,6 +5,7 @@ import {
   Post,
   Body,
   Logger,
+  ParseIntPipe,
   UseInterceptors,
   //   Put,
   //   Delete,
@@ -144,6 +145,18 @@ export class UserController {
   //     fileName: avatarFile?.originalname,
   //   };
   // }
+
+  @Get('admin-roles')
+  @Roles(['admin'])
+  async getAdminDisplayRoles() {
+    return this.service.getAdminDisplayRoles();
+  }
+
+  @Get(':id/admin-detail')
+  @Roles(['admin'])
+  async getAdminDisplayDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getAdminDisplayDetail(id);
+  }
 
   @Get('contact/super-admin')
   async getSuperAdminContact() {

@@ -146,6 +146,8 @@ model LoginAttempt {
 
 model Role {
   id          Int     @id @default(autoincrement())
+  icon        String? @db.VarChar(64)
+  color       String? @db.VarChar(7)
   name        String  @unique @db.VarChar(50)
   description String? @db.VarChar(255)
 

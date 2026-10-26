@@ -24,6 +24,27 @@ import { DiceBearStyle } from 'dicebear-styles.map';
 
 @Injectable()
 export class UsersService {
+  /** Display-only projection; never expose account credentials or tokens. */
+  async getAdminDisplayRoles() {
+    return this.prisma.role.findMany({
+      select: { id: true, name: true, description: true, icon: true, color: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getAdminDisplayDetail(id: number) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, name: true, email: true, username: true, image: true,
+        role: true, banned: true, emailVerified: true,
+        userRole: { select: { id: true, name: true, description: true, icon: true, color: true } },
+        profile: { select: { firstName: true, lastName: true, phone: true, email: true, bio: true } },
+        accounts: { select: { id: true, providerId: true, createdAt: true } },
+      },
+    });
+  }
+
   async getSuperAdminContact() {
     const user = await this.prisma.user.findFirst({
       where: {
