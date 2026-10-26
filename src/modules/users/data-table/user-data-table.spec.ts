@@ -1,5 +1,5 @@
 import { dataTableQuerySchema } from 'common/data-table';
-import { resolveDataTableQueryForHttp } from 'common/data-table/http';
+import { resolveDataTableQuery } from 'common/data-table';
 import {
   userDataTablePolicy,
   userDataTableTranslator,
@@ -16,7 +16,7 @@ it('combines name, role and active-status filters with search and pagination', (
     search: { term: 'example.com' },
   });
   const result = userDataTableTranslator.translate(
-    resolveDataTableQueryForHttp(userDataTablePolicy, query),
+    resolveDataTableQuery(userDataTablePolicy, query),
   );
   expect(result.skip).toBe(25);
   expect(result.take).toBe(25);
@@ -29,7 +29,7 @@ it('combines name, role and active-status filters with search and pagination', (
 });
 it('rejects fields and operators outside the user query policy', () => {
   expect(() =>
-    resolveDataTableQueryForHttp(
+    resolveDataTableQuery(
       userDataTablePolicy,
       dataTableQuerySchema.parse({
         filters: [{ field: 'password', operator: 'contains', value: 'secret' }],
@@ -37,7 +37,7 @@ it('rejects fields and operators outside the user query policy', () => {
     ),
   ).toThrow();
   expect(() =>
-    resolveDataTableQueryForHttp(
+    resolveDataTableQuery(
       userDataTablePolicy,
       dataTableQuerySchema.parse({
         filters: [{ field: 'role', operator: 'equals', value: 'admin' }],
