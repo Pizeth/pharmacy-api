@@ -20,14 +20,49 @@ import { ImagesService } from 'modules/images/services/images.service';
 import { UserDetail } from 'types/dto';
 import type { UpdateUserDto } from '../dto/update-user.dto';
 import { USER_DETAIL_INCLUDE } from '../consts/user.const';
+import type { DataTableQuery } from 'common/data-table';
+import { resolveDataTableQueryForHttp } from 'common/data-table/http';
+import {
+  userDataTablePolicy,
+  userDataTableTranslator,
+  USER_TABLE_SELECT,
+} from '../data-table/user-data-table';
 import { DiceBearStyle } from 'dicebear-styles.map';
 
 @Injectable()
 export class UsersService {
+  async queryAdminUsers(query: DataTableQuery) {
+    const resolved = resolveDataTableQueryForHttp(userDataTablePolicy, query);
+    const prismaQuery = userDataTableTranslator.translate(resolved);
+    const result = await this.dbHelper.getDataTablePage({
+      query: prismaQuery,
+      defaultOrderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      operations: {
+        findMany: ({ skip, take, where, orderBy }) =>
+          this.prisma.user.findMany({
+            skip,
+            take,
+            ...(where ? { where } : {}),
+            orderBy: [...orderBy],
+            select: USER_TABLE_SELECT,
+          }),
+        count: ({ where }) =>
+          where ? this.prisma.user.count({ where }) : this.prisma.user.count(),
+      },
+    });
+    return { users: result.data, total: result.metadata.totalItems };
+  }
+
   /** Display-only projection; never expose account credentials or tokens. */
   async getAdminDisplayRoles() {
     return this.prisma.role.findMany({
-      select: { id: true, name: true, description: true, icon: true, color: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        icon: true,
+        color: true,
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -36,10 +71,32 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, name: true, email: true, username: true, image: true,
-        role: true, banned: true, emailVerified: true,
-        userRole: { select: { id: true, name: true, description: true, icon: true, color: true } },
-        profile: { select: { firstName: true, lastName: true, phone: true, email: true, bio: true } },
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        image: true,
+        role: true,
+        banned: true,
+        emailVerified: true,
+        userRole: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            icon: true,
+            color: true,
+          },
+        },
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            bio: true,
+          },
+        },
         accounts: { select: { id: true, providerId: true, createdAt: true } },
       },
     });

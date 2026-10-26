@@ -6,6 +6,9 @@ import {
   Body,
   Logger,
   ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
   UseInterceptors,
   //   Put,
   //   Delete,
@@ -20,6 +23,9 @@ import type { CreateUserDto } from '../dto/create-user.dto';
 import { ValidateFile } from 'decorators/validate-upload.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from 'decorators/public.decorator';
+import { AuthGuard, UserHasPermission } from '@thallesp/nestjs-better-auth';
+import { dataTableQuerySchema } from 'common/data-table';
+import type { DataTableQuery } from 'common/data-table';
 import { Roles } from 'decorators/roles.decorator';
 // import { PaginatedDataResult } from './types/types';
 @ApiTags('Users') // Swagger tag for grouping endpoints
@@ -145,6 +151,16 @@ export class UserController {
   //     fileName: avatarFile?.originalname,
   //   };
   // }
+
+  @Post('query')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard)
+  @UserHasPermission({ permission: { user: ['list'] } })
+  queryAdminUsers(
+    @Body({ schema: dataTableQuerySchema }) query: DataTableQuery,
+  ) {
+    return this.service.queryAdminUsers(query);
+  }
 
   @Get('admin-roles')
   @Roles(['admin'])
