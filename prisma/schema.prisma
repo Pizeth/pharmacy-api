@@ -322,6 +322,11 @@ model User {
   lastLoginMethod     String?     @map("last_login_method")
   lastActiveAt        DateTime?   @map("last_active_at")
   phoneNumber         String?     @map("phone_number")
+  trackingDocuments TrackedDocument[] @relation("DocumentCreator")
+  trackingSteps DocumentStep[] @relation("StepAssignee")
+  trackingEvents DocumentTrackingEvent[] @relation("EventActor")
+  trackingRecipients DocumentTrackingEvent[] @relation("EventRecipient")
+  trackingAttachments DocumentAttachment[] @relation("AttachmentCreator")
   socialProfiles      UserSocialProfile[]
   phoneNumberVerified Boolean?    @map("phone_number_verified")
   roleId              Int?        @map("role_id")     
@@ -625,7 +630,8 @@ model Department {
   Versions DepartmentVersion[]
   // WorkRecords WorkRecord[] // Tracks historical assignments to this department
 
-  // Documents model can safely link here: Documents Document[]
+  trackingDocuments TrackedDocument[] @relation("DocumentResponsibleDepartment")
+  trackingSteps DocumentStep[] @relation("StepDepartment")
   ministries Ministry[]
 
   @@map("departments")
@@ -1640,4 +1646,216 @@ enum CashierType {
   OWNER
 
   @@map("cashier_type_enum")
+}
+
+// Document handling is private to the authenticated backend (Better Auth users).
+enum DocumentLifecycle {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentPriority {
+  NORMAL
+  URGENT
+}
+
+enum DocumentStepStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+enum DocumentEventKind {
+  REGISTERED
+  UPDATED
+  ASSIGNED
+  FORWARDED
+  RETURNED
+  HELD
+  RESUMED
+  COMPLETED
+  CANCELLED
+  COMMENTED
+  ARCHIVED
+}
+
+enum DocumentAttachmentKind {
+  INCOMING
+  OUTGOING
+  SUPPORTING
+}
+
+model TrackingWorkflow {
+  id        String                 @id @default(uuid()) @db.Uuid
+  key       String                 @unique @db.VarChar(80)
+  name      String                 @db.VarChar(160)
+  isEnabled Boolean                @default(true) @map("is_enabled")
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  steps     TrackingWorkflowStep[]
+  documents TrackedDocument[]
+
+  @@map("tracking_workflows")
+}
+
+model TrackingWorkflowStep {
+  id         String           @id @default(uuid()) @db.Uuid
+  workflowId String           @map("workflow_id") @db.Uuid
+  key        String           @db.VarChar(50)
+  name       String           @db.VarChar(160)
+  nameKh     String           @map("name_kh") @db.VarChar(160)
+  position   Int
+  workflow   TrackingWorkflow @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  instances  DocumentStep[]
+
+  @@unique([workflowId, position])
+  @@unique([workflowId, key])
+  @@map("tracking_workflow_steps")
+}
+
+model DocumentCategory {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String            @unique @db.VarChar(160)
+  isEnabled Boolean           @default(true) @map("is_enabled")
+  documents TrackedDocument[]
+
+  @@map("document_categories")
+}
+
+model DocumentType {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String            @unique @db.VarChar(160)
+  isEnabled Boolean           @default(true) @map("is_enabled")
+  documents TrackedDocument[]
+
+  @@map("document_types")
+}
+
+model DocumentStorageLocation {
+  id        String            @id @default(uuid()) @db.Uuid
+  code      String            @unique @db.VarChar(100)
+  name      String            @db.VarChar(160)
+  documents TrackedDocument[]
+
+  @@map("document_storage_locations")
+}
+
+model TrackedDocument {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  registrationNumber      Int                      @unique @default(autoincrement()) @map("registration_number")
+  title                   String                   @db.VarChar(500)
+  categoryId              String                   @map("category_id") @db.Uuid
+  typeId                  String                   @map("type_id") @db.Uuid
+  subtype                 String?                  @db.VarChar(160)
+  priority                DocumentPriority         @default(NORMAL)
+  status                  DocumentLifecycle        @default(ACTIVE)
+  workflowId              String                   @map("workflow_id") @db.Uuid
+  responsibleDepartmentId Int?                     @map("responsible_department_id")
+  incomingNumber          String?                  @map("incoming_number") @db.VarChar(120)
+  outgoingNumber          String?                  @map("outgoing_number") @db.VarChar(120)
+  receivedAt              DateTime                 @map("received_at") @db.Timestamptz(6)
+  dueAt                   DateTime?                @map("due_at") @db.Timestamptz(6)
+  stampedAt               DateTime?                @map("stamped_at") @db.Timestamptz(6)
+  dispatchedAt            DateTime?                @map("dispatched_at") @db.Timestamptz(6)
+  completedAt             DateTime?                @map("completed_at") @db.Timestamptz(6)
+  storageLocationId       String?                  @map("storage_location_id") @db.Uuid
+  chronologicalCode       String?                  @map("chronological_code") @db.VarChar(100)
+  archiveSequence         Int?                     @map("archive_sequence")
+  notes                   String?                  @db.VarChar(4000)
+  createdById             Int?                     @map("created_by_id")
+  version                 Int                      @default(1)
+  sourceSystem            String?                  @map("source_system") @db.VarChar(60)
+  sourceRecordId          String?                  @map("source_record_id") @db.VarChar(160)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt              DateTime?                @map("archived_at") @db.Timestamptz(6)
+  category                DocumentCategory         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  type                    DocumentType             @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  workflow                TrackingWorkflow         @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  responsibleDepartment   Department?              @relation("DocumentResponsibleDepartment", fields: [responsibleDepartmentId], references: [id], onDelete: SetNull)
+  storageLocation         DocumentStorageLocation? @relation(fields: [storageLocationId], references: [id], onDelete: Restrict)
+  createdBy               User?                    @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  steps                   DocumentStep[]
+  events                  DocumentTrackingEvent[]
+  attachments             DocumentAttachment[]
+
+  @@unique([sourceSystem, sourceRecordId])
+  @@index([categoryId])
+  @@index([typeId])
+  @@index([workflowId])
+  @@index([responsibleDepartmentId])
+  @@index([storageLocationId])
+  @@index([createdById])
+  @@index([archivedAt, status, receivedAt])
+  @@index([priority, dueAt])
+  @@map("tracked_documents")
+}
+
+model DocumentStep {
+  id             String                  @id @default(uuid()) @db.Uuid
+  documentId     String                  @map("document_id") @db.Uuid
+  workflowStepId String                  @map("workflow_step_id") @db.Uuid
+  key            String                  @db.VarChar(50)
+  name           String                  @db.VarChar(160)
+  nameKh         String                  @map("name_kh") @db.VarChar(160)
+  position       Int
+  status         DocumentStepStatus      @default(PENDING)
+  assignedToId   Int?                    @map("assigned_to_id")
+  departmentId   Int?                    @map("department_id")
+  startedAt      DateTime?               @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?               @map("completed_at") @db.Timestamptz(6)
+  document       TrackedDocument         @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  workflowStep   TrackingWorkflowStep    @relation(fields: [workflowStepId], references: [id], onDelete: Restrict)
+  assignedTo     User?                   @relation("StepAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  department     Department?             @relation("StepDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  events         DocumentTrackingEvent[]
+
+  @@unique([documentId, position])
+  @@index([workflowStepId])
+  @@index([assignedToId, status])
+  @@index([departmentId])
+  @@map("document_steps")
+}
+
+model DocumentTrackingEvent {
+  id            String            @id @default(uuid()) @db.Uuid
+  documentId    String            @map("document_id") @db.Uuid
+  sequence      Int
+  stepId        String?           @map("step_id") @db.Uuid
+  kind          DocumentEventKind
+  actorId       Int?              @map("actor_id")
+  actorName     String            @map("actor_name") @db.VarChar(255)
+  recipientId   Int?              @map("recipient_id")
+  recipientName String?           @map("recipient_name") @db.VarChar(255)
+  fromStage     String?           @map("from_stage") @db.VarChar(160)
+  toStage       String?           @map("to_stage") @db.VarChar(160)
+  note          String?           @db.VarChar(4000)
+  occurredAt    DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  document      TrackedDocument   @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  step          DocumentStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  actor         User?             @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  recipient     User?             @relation("EventRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, sequence])
+  @@index([stepId])
+  @@index([actorId])
+  @@index([recipientId])
+  @@map("document_tracking_events")
+}
+
+model DocumentAttachment {
+  id          String                 @id @default(uuid()) @db.Uuid
+  documentId  String                 @map("document_id") @db.Uuid
+  name        String                 @db.VarChar(255)
+  url         String                 @db.VarChar(2048)
+  kind        DocumentAttachmentKind @default(SUPPORTING)
+  createdById Int?                   @map("created_by_id")
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  document    TrackedDocument        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  createdBy   User?                  @relation("AttachmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([createdById])
+  @@map("document_attachments")
 }

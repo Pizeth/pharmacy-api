@@ -17,6 +17,7 @@ import {
 } from 'nestjs-i18n';
 import * as path from 'path';
 import { configurationSchema } from './validation/configuration.schema';
+import { DocumentTrackingModule } from './modules/document-tracking/document-tracking.module';
 import { FileModule } from './modules/files/file.module';
 import { ClsModule } from 'nestjs-cls';
 import { v7 as uuidv7 } from 'uuid';
@@ -72,6 +73,7 @@ const i18nPath =
 
 @Module({
   imports: [
+    DocumentTrackingModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
