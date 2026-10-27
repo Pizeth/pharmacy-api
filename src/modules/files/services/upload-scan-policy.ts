@@ -44,7 +44,7 @@ export async function prepareUpload(file: Express.Multer.File): Promise<{
       );
       const active =
         /<\s*(?:!doctype|html|script|svg|iframe|object|\?xml|\?php)\b|^\s*(?:#!|MZ)|EICAR-STANDARD-ANTIVIRUS-TEST-FILE/im;
-      const documentContent = /%PDF-|%!PS-Adobe|^\s*\{\\rtf\d/im.test(text);
+      const documentContent = /%PDF-|%!|^\s*\{\\rtf\d/im.test(text);
       let hasControls = false;
       for (let index = 0; index < text.length; index++) {
         const code = text.charCodeAt(index);

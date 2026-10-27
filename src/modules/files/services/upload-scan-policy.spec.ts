@@ -30,6 +30,8 @@ it.each([
     '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF',
   ],
   ['notes.txt', 'text/plain', '%!PS-Adobe-3.0'],
+  ['notes.txt', 'text/plain', '%!\n72 72 moveto (Hello) show showpage'],
+  ['notes.txt', 'text/plain', '  %!\n72 72 moveto (Hello) show showpage'],
   ['notes.txt', 'text/plain', '{\\rtf1 document}'],
   ['notes.txt', 'application/octet-stream', 'plain'],
   ['image.png', 'image/png', 'MZ executable'],
