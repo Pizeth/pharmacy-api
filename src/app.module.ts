@@ -1,3 +1,4 @@
+import { RolesModule } from './modules/roles/roles.module';
 import {
   Module,
   StandardSchemaValidationPipe,
@@ -73,6 +74,7 @@ const i18nPath =
 
 @Module({
   imports: [
+    RolesModule,
     DocumentTrackingModule,
     ConfigModule.forRoot({
       isGlobal: true,
