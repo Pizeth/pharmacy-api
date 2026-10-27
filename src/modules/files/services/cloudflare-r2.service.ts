@@ -321,14 +321,7 @@ export class R2Service implements OnModuleInit {
         Key: fileName,
         Body: file.buffer, // Use file.buffer directly
         ContentType: file.mimetype,
-        ContentDisposition: [
-          'image/png',
-          'image/jpeg',
-          'image/webp',
-          'image/gif',
-        ].includes(file.mimetype)
-          ? undefined
-          : 'attachment',
+        ContentDisposition: prepared.inlineImage ? undefined : 'attachment',
         // You can add ACL or other parameters if needed, e.g., ACL: 'public-read'
         // For Cloudflare R2, public access is typically managed at the bucket level or via signed URLs.
       };

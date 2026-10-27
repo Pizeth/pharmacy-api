@@ -3,9 +3,11 @@ import { TextDecoder } from 'node:util';
 import { extname } from 'node:path';
 
 /** Only decoded/re-encoded raster images and inert UTF-8 text bypass VirusTotal. */
-export async function prepareUpload(
-  file: Express.Multer.File,
-): Promise<{ file: Express.Multer.File; requiresScan: boolean }> {
+export async function prepareUpload(file: Express.Multer.File): Promise<{
+  file: Express.Multer.File;
+  requiresScan: boolean;
+  inlineImage?: true;
+}> {
   const extension = extname(file.originalname).toLowerCase();
   const riskyName =
     /\.(?:exe|dll|com|bat|cmd|ps1|sh|js|mjs|html?|svg|xml|php|jar|msi|scr|vbs)(?:\.|$)/i.test(
@@ -29,6 +31,7 @@ export async function prepareUpload(
       return {
         file: { ...file, buffer, size: buffer.length },
         requiresScan: false,
+        inlineImage: true,
       };
     } catch {
       return { file, requiresScan: true };
@@ -41,6 +44,7 @@ export async function prepareUpload(
       );
       const active =
         /<\s*(?:!doctype|html|script|svg|iframe|object|\?xml|\?php)\b|^\s*(?:#!|MZ)|EICAR-STANDARD-ANTIVIRUS-TEST-FILE/im;
+      const documentContent = /%PDF-|%!PS-Adobe|^\s*\{\\rtf\d/im.test(text);
       let hasControls = false;
       for (let index = 0; index < text.length; index++) {
         const code = text.charCodeAt(index);
@@ -49,7 +53,7 @@ export async function prepareUpload(
           break;
         }
       }
-      if (!hasControls && !active.test(text))
+      if (!hasControls && !active.test(text) && !documentContent)
         return { file, requiresScan: false };
     } catch {
       /* Binary or invalid UTF-8 remains on the scanned path. */

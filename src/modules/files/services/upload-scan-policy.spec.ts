@@ -24,6 +24,13 @@ it.each([
   ['notes.txt', 'text/plain', 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE'],
   ['image.svg', 'image/svg+xml', '<svg/>'],
   ['file.pdf', 'application/pdf', '%PDF'],
+  [
+    'letter.txt',
+    'text/plain',
+    '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF',
+  ],
+  ['notes.txt', 'text/plain', '%!PS-Adobe-3.0'],
+  ['notes.txt', 'text/plain', '{\\rtf1 document}'],
   ['notes.txt', 'application/octet-stream', 'plain'],
   ['image.png', 'image/png', 'MZ executable'],
 ])('keeps %s on the scanned path', async (name, mime, text) => {
@@ -40,6 +47,7 @@ it('fully decodes and re-encodes raster images before skipping scans', async () 
   const source = Buffer.concat([png, Buffer.from('trailing payload')]);
   const result = await prepareUpload(file('photo.png', 'image/png', source));
   expect(result.requiresScan).toBe(false);
+  expect(result.inlineImage).toBe(true);
   expect(result.file.buffer.includes(Buffer.from('trailing payload'))).toBe(
     false,
   );

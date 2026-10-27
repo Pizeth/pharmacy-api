@@ -1,3 +1,5 @@
+import type { PutObjectCommand } from '@aws-sdk/client-s3';
+import sharp from 'sharp';
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { R2Service } from './cloudflare-r2.service';
@@ -49,4 +51,45 @@ it('fails closed if scanning is unavailable', async () => {
     service.uploadFile(file('letter.pdf', 'application/pdf', '%PDF')),
   ).rejects.toThrow('Scanner unavailable');
   expect(send).not.toHaveBeenCalled();
+});
+
+it('scans an ASCII PDF disguised as text before storage', async () => {
+  const { service, scanBuffer, send } = setup();
+  scanBuffer.mockResolvedValue(true);
+  const pdf = file(
+    'letter.txt',
+    'text/plain',
+    '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF',
+  );
+  await service.uploadFile(pdf);
+  expect(scanBuffer).toHaveBeenCalledWith(pdf.buffer);
+  expect(
+    (send.mock.calls[0][0] as PutObjectCommand).input.ContentDisposition,
+  ).toBe('attachment');
+});
+it('forces download for clean scanned content masquerading as an image', async () => {
+  const { service, scanBuffer, send } = setup();
+  scanBuffer.mockResolvedValue(true);
+  await service.uploadFile(file('photo.png', 'image/png', '%PDF-1.7\n%%EOF'));
+  expect(scanBuffer).toHaveBeenCalledTimes(1);
+  expect(
+    (send.mock.calls[0][0] as PutObjectCommand).input.ContentDisposition,
+  ).toBe('attachment');
+});
+it('allows inline delivery only for a fully decoded and re-encoded raster', async () => {
+  const { service, scanBuffer, send } = setup();
+  const buffer = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: 'red' },
+  })
+    .png()
+    .toBuffer();
+  await service.uploadFile({
+    ...file('photo.png', 'image/png', ''),
+    buffer,
+    size: buffer.length,
+  });
+  expect(scanBuffer).not.toHaveBeenCalled();
+  expect(
+    (send.mock.calls[0][0] as PutObjectCommand).input.ContentDisposition,
+  ).toBe(undefined);
 });
