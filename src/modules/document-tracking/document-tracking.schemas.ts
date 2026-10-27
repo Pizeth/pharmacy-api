@@ -80,3 +80,8 @@ export type DocumentInput = z.infer<typeof documentInputSchema>;
 export type UpdateDocumentInput = z.infer<typeof updateDocumentSchema>;
 export type ProgressInput = z.infer<typeof progressSchema>;
 export type AttachmentInput = z.infer<typeof attachmentSchema>;
+
+export const uploadAttachmentSchema = attachmentSchema
+  .omit({ url: true })
+  .extend({ version: z.coerce.number().int().positive() });
+export type UploadAttachmentInput = z.infer<typeof uploadAttachmentSchema>;

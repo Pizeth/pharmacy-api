@@ -1,3 +1,8 @@
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  uploadAttachmentSchema,
+  type UploadAttachmentInput,
+} from './document-tracking.schemas';
 import {
   Body,
   Controller,
@@ -10,6 +15,8 @@ import {
   Post,
   UnauthorizedException,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -97,5 +104,19 @@ export class DocumentTrackingController {
     @Body({ schema: attachmentSchema }) input: AttachmentInput,
   ) {
     return this.service.attach(this.user(session), id, input);
+  }
+  @Post(':id/attachments/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 32 * 1024 * 1024, files: 1, fields: 3 },
+    }),
+  )
+  uploadAttachment(
+    @Session() session: UserSession<Auth>,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body({ schema: uploadAttachmentSchema }) input: UploadAttachmentInput,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.uploadAttachment(this.user(session), id, input, file);
   }
 }

@@ -117,5 +117,5 @@ export function planProgress(
           : kind === 'COMPLETED'
             ? 'COMPLETED'
             : document.status;
-  return { current, target, kind, status };
+  return { current, target, kind, status } as const;
 }

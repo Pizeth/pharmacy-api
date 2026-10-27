@@ -1,3 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
+import { R2Service } from 'modules/files/services/cloudflare-r2.service';
+import { type as ResponseType } from 'types/commons.enum';
+import { HttpException, Logger } from '@nestjs/common';
+import type { UploadAttachmentInput } from './document-tracking.schemas';
 import {
   officeSelect,
   workIdentityAt,
@@ -63,6 +69,7 @@ export class DocumentTrackingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly db: DBHelper,
+    private readonly files?: R2Service,
   ) {}
   private async actor(userId: number): Promise<TrackingActor> {
     const user = await this.prisma.user.findUnique({
@@ -670,5 +677,51 @@ export class DocumentTrackingService {
       });
       return this.format(await this.read(tx, id, actor), actor);
     });
+  }
+  async uploadAttachment(
+    userId: number,
+    id: string,
+    input: UploadAttachmentInput,
+    file: Express.Multer.File,
+  ) {
+    const document = await this.get(userId, id);
+    if (!document.permissions.canUpdateProgress)
+      throw new ForbiddenException(
+        'Only the assigned handler or an administrator may attach files.',
+      );
+    if (document.version !== input.version)
+      throw new ConflictException(
+        'This document changed. Reload before uploading.',
+      );
+    if (!file?.buffer?.length)
+      throw new BadRequestException('Choose a non-empty file to upload.');
+    if (file.buffer.length > 32 * 1024 * 1024)
+      throw new BadRequestException('Files must be 32 MB or smaller.');
+    if (!this.files) throw new Error('File storage is unavailable.');
+    const extension = extname(file.originalname).toLowerCase();
+    if (!/^\.[a-z0-9]{1,10}$/.test(extension))
+      throw new BadRequestException('Choose a file with a valid extension.');
+    const key = `tracking-${id}-${randomUUID()}${extension}`;
+    const uploaded = await this.files.uploadFile(file, key);
+    if (uploaded.type !== ResponseType.Upload)
+      throw new HttpException(uploaded.message, uploaded.status);
+    try {
+      return await this.attach(userId, id, { ...input, url: uploaded.url });
+    } catch (error) {
+      try {
+        const cleanup = await this.files.deleteFile(key);
+        if (cleanup.type === ResponseType.Error)
+          Logger.error(
+            `Could not remove unlinked tracking upload ${key}`,
+            DocumentTrackingService.name,
+          );
+      } catch {
+        Logger.error(
+          `Could not remove unlinked tracking upload ${key}`,
+          DocumentTrackingService.name,
+        );
+      }
+      throw error;
+    }
   }
 }
