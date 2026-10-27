@@ -23,6 +23,7 @@ import { VirusScanService } from 'common/services/virus-scan.service';
 // import { LoggerService } from 'src/commons/services/logger.service';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from 'exceptions/app.exception';
+import { prepareUpload } from './upload-scan-policy';
 import { type } from 'types/commons.enum';
 
 @Injectable()
@@ -273,7 +274,17 @@ export class R2Service implements OnModuleInit {
     }
 
     // Virus scanning with VirusTotal
-    const isClean = await this.virusScanService.scanBuffer(file.buffer);
+    const prepared = await prepareUpload(file);
+    file = prepared.file;
+    if (file.size > this.MAX_FILE_SIZE)
+      throw new AppError(
+        'Processed file exceeds the upload size limit.',
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        R2Service.name,
+      );
+    const isClean =
+      !prepared.requiresScan ||
+      (await this.virusScanService.scanBuffer(file.buffer));
     // if (!isClean) throw new Error('File contains malware');
 
     if (!isClean) {
@@ -309,7 +320,15 @@ export class R2Service implements OnModuleInit {
         Bucket: this.bucketName,
         Key: fileName,
         Body: file.buffer, // Use file.buffer directly
-        ContentType: file.mimetype, // Use file.mimetype directly
+        ContentType: file.mimetype,
+        ContentDisposition: [
+          'image/png',
+          'image/jpeg',
+          'image/webp',
+          'image/gif',
+        ].includes(file.mimetype)
+          ? undefined
+          : 'attachment',
         // You can add ACL or other parameters if needed, e.g., ACL: 'public-read'
         // For Cloudflare R2, public access is typically managed at the bucket level or via signed URLs.
       };
