@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   isTrackingAdmin,
+  hasDocumentManagementPermission,
   planProgress,
   type TrackingActor,
   type TrackingState,
@@ -202,3 +203,22 @@ it.each([
     ),
   ).toThrow(),
 );
+
+it('accepts only the explicit tracked-document management grant', () => {
+  expect(
+    hasDocumentManagementPermission([
+      { action: 'manage', subject: 'TrackedDocument' },
+    ]),
+  ).toBe(true);
+  expect(
+    hasDocumentManagementPermission([
+      { action: 'read', subject: 'TrackedDocument' },
+    ]),
+  ).toBe(false);
+  expect(
+    hasDocumentManagementPermission([
+      { action: 'manage', subject: 'TranslationKey' },
+    ]),
+  ).toBe(false);
+  expect(hasDocumentManagementPermission([])).toBe(false);
+});

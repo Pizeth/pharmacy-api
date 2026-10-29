@@ -4,7 +4,6 @@
       "action": "manage",
       "subject": "all"
     },
-
     {
       "action": "create",
       "subject": "TranslationKey"
@@ -21,12 +20,10 @@
       "action": "delete",
       "subject": "TranslationKey"
     },
-
     {
       "action": "read",
       "subject": "TranslationCategory"
     },
-
     {
       "action": "create",
       "subject": "Translation"
@@ -42,9 +39,12 @@
     {
       "action": "delete",
       "subject": "Translation"
+    },
+    {
+      "action": "manage",
+      "subject": "TrackedDocument"
     }
   ],
-
   "roles": [
     {
       "role": "SUPER_ADMIN",
@@ -55,7 +55,6 @@
         }
       ]
     },
-
     {
       "role": "ADMIN",
       "permissions": [
@@ -75,12 +74,10 @@
           "action": "delete",
           "subject": "TranslationKey"
         },
-
         {
           "action": "read",
           "subject": "TranslationCategory"
         },
-
         {
           "action": "create",
           "subject": "Translation"
@@ -99,7 +96,6 @@
         }
       ]
     },
-
     {
       "role": "EDITOR",
       "permissions": [
@@ -111,12 +107,10 @@
           "action": "update",
           "subject": "TranslationKey"
         },
-
         {
           "action": "read",
           "subject": "TranslationCategory"
         },
-
         {
           "action": "read",
           "subject": "Translation"
@@ -127,12 +121,10 @@
         }
       ]
     },
-
     {
       "role": "USER",
       "permissions": []
     },
-
     {
       "role": "GUEST",
       "permissions": []

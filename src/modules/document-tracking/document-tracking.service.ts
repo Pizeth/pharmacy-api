@@ -30,6 +30,7 @@ import {
 } from './document-tracking.query';
 import {
   isTrackingAdmin,
+  hasDocumentManagementPermission,
   planProgress,
   type TrackingActor,
 } from './tracking-policy';
@@ -83,7 +84,17 @@ export class DocumentTrackingService {
         isLocked: true,
         isActivated: true,
         deletedAt: true,
-        userRole: { select: { name: true, isEnabled: true } },
+        userRole: {
+          select: {
+            name: true,
+            isEnabled: true,
+            permissions: {
+              select: {
+                permission: { select: { action: true, subject: true } },
+              },
+            },
+          },
+        },
       },
     });
     if (!user) throw new UnauthorizedException('Sign in to track documents.');
@@ -101,7 +112,11 @@ export class DocumentTrackingService {
     return {
       id: user.id,
       name: user.name,
-      isAdmin: isTrackingAdmin([user.role, user.userRole?.name]),
+      isAdmin:
+        isTrackingAdmin([user.role, user.userRole?.name]) ||
+        hasDocumentManagementPermission(
+          (user.userRole?.permissions ?? []).map((item) => item.permission),
+        ),
     };
   }
   private scope(actor: TrackingActor): Prisma.TrackedDocumentWhereInput {

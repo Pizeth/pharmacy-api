@@ -119,3 +119,14 @@ export function planProgress(
             : document.status;
   return { current, target, kind, status } as const;
 }
+
+/** Only the explicit full-management grant is offered for document tracking. */
+export function hasDocumentManagementPermission(
+  permissions: readonly { action: string; subject: string }[],
+) {
+  return permissions.some(
+    (permission) =>
+      permission.action === 'manage' &&
+      permission.subject === 'TrackedDocument',
+  );
+}

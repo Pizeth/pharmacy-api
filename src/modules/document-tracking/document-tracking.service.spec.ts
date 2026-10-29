@@ -221,3 +221,26 @@ it('rejects former handler progress even on a readable record', async () => {
   ).rejects.toBeInstanceOf(ForbiddenException);
   expect(tx.trackedDocument.updateMany).not.toHaveBeenCalled();
 });
+
+it('honors a delegated document manager without assigning that user a global admin role', async () => {
+  const { tx, service } = setup();
+  tx.user.findUnique.mockResolvedValue({
+    id: 2,
+    name: 'Manager',
+    role: 'user',
+    userRole: {
+      name: 'DOCUMENT_MANAGER',
+      isEnabled: true,
+      permissions: [
+        { permission: { action: 'manage', subject: 'TrackedDocument' } },
+      ],
+    },
+  });
+  tx.trackedDocument.findFirst.mockResolvedValue(null);
+  await expect(service.get(2, 'document')).rejects.toBeInstanceOf(
+    NotFoundException,
+  );
+  expect(tx.trackedDocument.findFirst).toHaveBeenCalledWith(
+    expect.objectContaining({ where: { id: 'document' } }),
+  );
+});

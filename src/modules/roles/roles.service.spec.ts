@@ -238,3 +238,12 @@ it('normalizes role names and rejects unsafe display metadata and duplicate gran
     supportedPermission({ action: 'read', subject: 'TranslationKey' }),
   ).toBe(true);
 });
+
+it('supports document management without advertising unenforced partial grants', () => {
+  expect(
+    supportedPermission({ action: 'manage', subject: 'TrackedDocument' }),
+  ).toBe(true);
+  expect(
+    supportedPermission({ action: 'read', subject: 'TrackedDocument' }),
+  ).toBe(false);
+});
