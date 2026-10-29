@@ -109,11 +109,13 @@ export class DocumentTrackingService {
       throw new ForbiddenException(
         'Your account cannot access document tracking.',
       );
+    const trackingAdmin = isTrackingAdmin([user.role, user.userRole?.name]);
     return {
       id: user.id,
+      isTrackingAdmin: trackingAdmin,
       name: user.name,
       isAdmin:
-        isTrackingAdmin([user.role, user.userRole?.name]) ||
+        trackingAdmin ||
         hasDocumentManagementPermission(
           (user.userRole?.permissions ?? []).map((item) => item.permission),
         ),
@@ -146,7 +148,7 @@ export class DocumentTrackingService {
         canUpdateProgress:
           !record.archivedAt &&
           record.status !== 'CANCELLED' &&
-          (actor.isAdmin ||
+          ((actor.isTrackingAdmin ?? actor.isAdmin) ||
             Boolean(current && current.assignedToId === actor.id)),
       },
     };
