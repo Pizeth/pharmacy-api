@@ -54,6 +54,7 @@ export const AppAction = {
 export const APP_SUBJECTS = [
   'all',
 
+  'TrackedDocument',
   'TranslationKey',
   'Translation',
   'TranslationCategory',
@@ -71,6 +72,7 @@ export type AppSubject = z.output<typeof appSubjectSchema>;
 
 export const AppSubject = {
   All: 'all',
+  TrackedDocument: 'TrackedDocument',
   TranslationKey: 'TranslationKey',
   Translation: 'Translation',
   TranslationCategory: 'TranslationCategory',

@@ -7,7 +7,10 @@ import type { ProgressInput } from './document-tracking.schemas';
 export interface TrackingActor {
   id: number;
   name: string;
+  /** Document-management access, including delegated role grants. */
   isAdmin: boolean;
+  /** Actual administrator authority for progress overrides. */
+  isTrackingAdmin?: boolean;
 }
 export interface TrackingStep {
   id: string;
@@ -47,11 +50,12 @@ export function planProgress(
   const current =
     steps.find((step) => step.status === 'ACTIVE') ?? steps.at(-1);
   if (!current) throw new ConflictException('Document route is missing.');
-  if (!actor.isAdmin && current.assignedToId !== actor.id)
+  const trackingAdmin = actor.isTrackingAdmin ?? actor.isAdmin;
+  if (!trackingAdmin && current.assignedToId !== actor.id)
     throw new ForbiddenException(
       'Only an administrator or the currently assigned handler may update progress.',
     );
-  if (!actor.isAdmin && document.status === 'COMPLETED')
+  if (!trackingAdmin && document.status === 'COMPLETED')
     throw new ForbiddenException(
       'Only an administrator may reopen a completed document.',
     );
@@ -59,7 +63,7 @@ export function planProgress(
     throw new ConflictException(
       'Cancelled documents retain their history and cannot progress.',
     );
-  if (input.action === 'CANCEL' && !actor.isAdmin)
+  if (input.action === 'CANCEL' && !trackingAdmin)
     throw new ForbiddenException('Only administrators may cancel documents.');
   if (
     document.status === 'COMPLETED' &&
@@ -118,4 +122,15 @@ export function planProgress(
             ? 'COMPLETED'
             : document.status;
   return { current, target, kind, status } as const;
+}
+
+/** Only the explicit full-management grant is offered for document tracking. */
+export function hasDocumentManagementPermission(
+  permissions: readonly { action: string; subject: string }[],
+) {
+  return permissions.some(
+    (permission) =>
+      permission.action === 'manage' &&
+      permission.subject === 'TrackedDocument',
+  );
 }

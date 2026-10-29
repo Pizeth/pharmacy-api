@@ -221,3 +221,59 @@ it('rejects former handler progress even on a readable record', async () => {
   ).rejects.toBeInstanceOf(ForbiddenException);
   expect(tx.trackedDocument.updateMany).not.toHaveBeenCalled();
 });
+
+it('honors a delegated document manager without assigning that user a global admin role', async () => {
+  const { tx, service } = setup();
+  tx.user.findUnique.mockResolvedValue({
+    id: 2,
+    name: 'Manager',
+    role: 'user',
+    userRole: {
+      name: 'DOCUMENT_MANAGER',
+      isEnabled: true,
+      permissions: [
+        { permission: { action: 'manage', subject: 'TrackedDocument' } },
+      ],
+    },
+  });
+  tx.trackedDocument.findFirst.mockResolvedValue(null);
+  await expect(service.get(2, 'document')).rejects.toBeInstanceOf(
+    NotFoundException,
+  );
+  expect(tx.trackedDocument.findFirst).toHaveBeenCalledWith(
+    expect.objectContaining({ where: { id: 'document' } }),
+  );
+});
+
+it('does not let a delegated manager update another handler progress', async () => {
+  const { tx, service } = setup();
+  tx.user.findUnique.mockResolvedValue({
+    id: 2,
+    name: 'Manager',
+    role: 'user',
+    userRole: {
+      name: 'DOCUMENT_MANAGER',
+      isEnabled: true,
+      permissions: [
+        { permission: { action: 'manage', subject: 'TrackedDocument' } },
+      ],
+    },
+  });
+  tx.trackedDocument.findFirst.mockResolvedValue({
+    ...record(),
+    steps: record().steps.map((step) => ({ ...step, assignedToId: 99 })),
+  });
+  const result = await service.get(2, 'document');
+  expect(result.permissions).toMatchObject({
+    canManage: true,
+    canUpdateProgress: false,
+  });
+  await expect(
+    service.progress(2, 'document', {
+      version: 3,
+      action: 'COMMENT',
+      note: 'Manager',
+    }),
+  ).rejects.toBeInstanceOf(ForbiddenException);
+  expect(tx.trackedDocument.updateMany).not.toHaveBeenCalled();
+});

@@ -29,6 +29,8 @@ export const supportedPermission = (permission: {
   action: string;
   subject: string;
 }) =>
+  (permission.subject !== 'TrackedDocument' ||
+    permission.action === 'manage') &&
   appActionSchema.safeParse(permission.action).success &&
   appSubjectSchema.safeParse(permission.subject).success;
 @Injectable()
