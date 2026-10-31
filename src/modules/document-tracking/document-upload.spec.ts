@@ -164,7 +164,10 @@ it.each(['disabled', 'revoked', 'reassigned', 'stale'])(
           isEnabled: false,
         });
       if (change === 'revoked')
-        db.user.findUnique.mockResolvedValue(person('handler'));
+        db.user.findUnique.mockResolvedValue({
+          ...person('manager'),
+          userRole: { name: 'MANAGER', isEnabled: true, permissions: [] },
+        });
       if (change === 'reassigned')
         db.trackedDocument.findFirst.mockResolvedValue(document(99));
       if (change === 'stale')
@@ -185,6 +188,8 @@ it.each(['disabled', 'revoked', 'reassigned', 'stale'])(
       files.uploadFile.mock.calls[0][1],
     );
     expect(db.documentAttachment.create).not.toHaveBeenCalled();
+    if (change === 'revoked')
+      expect(db.user.findUnique).toHaveBeenCalledTimes(2);
   },
 );
 it('preserves the original conflict when cleanup fails', async () => {

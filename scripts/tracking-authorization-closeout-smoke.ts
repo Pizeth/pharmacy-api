@@ -85,9 +85,12 @@ try {
         },
       });
       const keys = new Set<string>();
+      const deletedKeys: string[] = [];
+      let afterStore: (() => Promise<void>) | undefined;
       const storage = {
         uploadFile: async (_file: unknown, key: string) => {
           keys.add(key);
+          await afterStore?.();
           return {
             type: ResponseType.Upload,
             status: 201,
@@ -96,6 +99,7 @@ try {
         },
         deleteFile: async (key: string) => {
           keys.delete(key);
+          deletedKeys.push(key);
           return { type: ResponseType.Delete, status: 200 };
         },
       };
@@ -213,6 +217,36 @@ try {
           }),
         );
         checks++;
+        const linkedKeys = [...keys];
+        afterStore = async () => {
+          afterStore = undefined;
+          await tx.trackedDocument.update({
+            where: { id: doc.id },
+            data: { version: { increment: 1 } },
+          });
+        };
+        await rejects(
+          () =>
+            api.uploadAttachment(
+              doc.id,
+              doc.version,
+              { name: 'Post-storage race', kind: 'SUPPORTING' },
+              new File(['inert race'], 'race.txt', { type: 'text/plain' }),
+            ),
+          409,
+        );
+        assert.equal(
+          deletedKeys.length,
+          1,
+          'Failed linking must delete its uploaded object',
+        );
+        assert.deepEqual(
+          [...keys],
+          linkedKeys,
+          'Unlinked upload must be removed before teardown',
+        );
+        checks++;
+        doc = await api.get(doc.id);
         await rejects(
           () =>
             api.progress(doc.id, {
@@ -315,7 +349,12 @@ try {
         );
       } finally {
         globalThis.fetch = nativeFetch;
-        keys.clear();
+        for (const key of [...keys]) await storage.deleteFile(key);
+        assert.equal(
+          keys.size,
+          0,
+          'Mock storage must be empty before closing the app',
+        );
         await app.close();
       }
       throw rollback;
