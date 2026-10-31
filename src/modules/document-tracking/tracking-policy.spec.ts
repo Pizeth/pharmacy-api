@@ -20,8 +20,18 @@ import {
   trackingQueryPolicy,
   trackingTranslator,
 } from './document-tracking.query';
-const handler: TrackingActor = { id: 2, name: 'Handler', isAdmin: false },
-  admin: TrackingActor = { id: 1, name: 'Admin', isAdmin: true };
+const handler: TrackingActor = {
+    id: 2,
+    name: 'Handler',
+    isAdmin: false,
+    isTrackingAdmin: false,
+  },
+  admin: TrackingActor = {
+    id: 1,
+    name: 'Admin',
+    isAdmin: true,
+    isTrackingAdmin: true,
+  };
 const state = (): TrackingState => ({
   version: 3,
   status: 'ACTIVE',
@@ -241,4 +251,15 @@ it('keeps delegated management separate from administrator progress overrides', 
   expect(planProgress(state(), command('COMMENT'), manager)).toMatchObject({
     kind: 'COMMENTED',
   });
+});
+
+it('does not derive progress overrides from a missing administrator flag', () => {
+  const legacy = {
+    id: 99,
+    name: 'Legacy manager',
+    isAdmin: true,
+  } as TrackingActor;
+  expect(() => planProgress(state(), command('COMMENT'), legacy)).toThrow(
+    ForbiddenException,
+  );
 });

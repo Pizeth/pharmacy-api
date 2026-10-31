@@ -10,7 +10,7 @@ export interface TrackingActor {
   /** Document-management access, including delegated role grants. */
   isAdmin: boolean;
   /** Actual administrator authority for progress overrides. */
-  isTrackingAdmin?: boolean;
+  isTrackingAdmin: boolean;
 }
 export interface TrackingStep {
   id: string;
@@ -50,7 +50,7 @@ export function planProgress(
   const current =
     steps.find((step) => step.status === 'ACTIVE') ?? steps.at(-1);
   if (!current) throw new ConflictException('Document route is missing.');
-  const trackingAdmin = actor.isTrackingAdmin ?? actor.isAdmin;
+  const trackingAdmin = actor.isTrackingAdmin;
   if (!trackingAdmin && current.assignedToId !== actor.id)
     throw new ForbiddenException(
       'Only an administrator or the currently assigned handler may update progress.',
@@ -132,5 +132,19 @@ export function hasDocumentManagementPermission(
     (permission) =>
       permission.action === 'manage' &&
       permission.subject === 'TrackedDocument',
+  );
+}
+
+/** Attachment authority is independent of progress overrides. */
+export function canAttachDocument(
+  document: Pick<TrackingState, 'archivedAt' | 'steps'>,
+  actor: TrackingActor,
+): boolean {
+  return (
+    !document.archivedAt &&
+    (actor.isAdmin ||
+      document.steps.some(
+        (step) => step.status === 'ACTIVE' && step.assignedToId === actor.id,
+      ))
   );
 }
