@@ -157,7 +157,7 @@ it.each(['disabled', 'revoked', 'reassigned', 'stale'])(
   async (change) => {
     const { run, db, files } =
       change === 'reassigned' ? setup('handler', 2) : setup('manager', 99);
-    files.uploadFile.mockImplementation(async () => {
+    files.uploadFile.mockImplementation(() => {
       if (change === 'disabled')
         db.user.findUnique.mockResolvedValue({
           ...person('manager'),
@@ -172,11 +172,11 @@ it.each(['disabled', 'revoked', 'reassigned', 'stale'])(
           ...document(99),
           version: 4,
         });
-      return {
+      return Promise.resolve({
         type: ResponseType.Upload,
         status: 201,
         url: 'https://files.example/letter.pdf',
-      };
+      });
     });
     await expect(run('upload')).rejects.toBeInstanceOf(
       change === 'stale' ? ConflictException : ForbiddenException,
@@ -212,10 +212,10 @@ it('uses a generated storage key and links the stored URL', async () => {
     file,
     expect.stringMatching(/^tracking-document-[\da-f-]+\.pdf$/),
   );
-  expect(db.documentAttachment.create).toHaveBeenCalledWith({
-    data: expect.objectContaining({
+  expect(db.documentAttachment.create.mock.calls[0][0]).toMatchObject({
+    data: {
       url: 'https://files.example/letter.pdf',
       createdById: 2,
-    }),
+    },
   });
 });
