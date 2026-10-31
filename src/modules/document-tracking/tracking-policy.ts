@@ -134,3 +134,17 @@ export function hasDocumentManagementPermission(
       permission.subject === 'TrackedDocument',
   );
 }
+
+/** Attachment authority is independent of progress overrides. */
+export function canAttachDocument(
+  document: Pick<TrackingState, 'archivedAt' | 'steps'>,
+  actor: TrackingActor,
+): boolean {
+  return (
+    !document.archivedAt &&
+    (actor.isAdmin ||
+      document.steps.some(
+        (step) => step.status === 'ACTIVE' && step.assignedToId === actor.id,
+      ))
+  );
+}
