@@ -153,9 +153,8 @@ export class DocumentTrackingService {
         canUpdateProgress:
           !record.archivedAt &&
           record.status !== 'CANCELLED' &&
-          (record.status !== 'COMPLETED' ||
-            (actor.isTrackingAdmin ?? actor.isAdmin)) &&
-          ((actor.isTrackingAdmin ?? actor.isAdmin) ||
+          (record.status !== 'COMPLETED' || actor.isTrackingAdmin) &&
+          (actor.isTrackingAdmin ||
             Boolean(current && current.assignedToId === actor.id)),
       },
     };
