@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@thallesp/nestjs-better-auth';
 import type { Request, Response } from 'express';
+import { Subscription } from 'rxjs';
 import { RealtimeAccess } from './realtime-access.service';
 import { RealtimeBus } from './realtime-bus.service';
 import { resyncEvent, type RealtimeEvent } from './realtime.contract';
@@ -35,20 +36,21 @@ export class RealtimeController {
       throw new ForbiddenException();
     await this.access.assertRead(request.headers);
     if (response.destroyed) return;
-    response.status(200).set({
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
-    });
-    response.flushHeaders();
+    if (!this.bus.enabled || !this.bus.ready)
+      throw new ServiceUnavailableException('Realtime is not available.');
     let closed = false;
     let pending = 0;
     let queue = Promise.resolve();
+    const timers: {
+      heartbeat?: ReturnType<typeof setInterval>;
+      lifetime?: ReturnType<typeof setTimeout>;
+    } = {};
+    const subscription = new Subscription();
     const close = () => {
       if (closed) return;
       closed = true;
-      clearInterval(heartbeat);
-      clearTimeout(lifetime);
+      clearInterval(timers.heartbeat);
+      clearTimeout(timers.lifetime);
       subscription.unsubscribe();
       response.end();
     };
@@ -78,13 +80,22 @@ export class RealtimeController {
           pending--;
         });
     };
-    const subscription = this.bus.notifications.subscribe({
-      next: send,
-      complete: () => close(),
-    });
-    const heartbeat = setInterval(() => send(), 15000);
-    const lifetime = setTimeout(close, 5 * 60000);
     response.once('close', close);
+    response.status(200).set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    });
+    response.flushHeaders();
+    if (closed) return;
+    timers.heartbeat = setInterval(() => send(), 15000);
+    timers.lifetime = setTimeout(close, 5 * 60000);
+    subscription.add(
+      this.bus.notifications.subscribe({
+        next: send,
+        complete: () => close(),
+      }),
+    );
     send(resyncEvent());
   }
 }

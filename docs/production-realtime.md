@@ -70,3 +70,20 @@ AuthService. A real Nest module-graph regression wraps that configured module
 without re-exporting it, imports RealtimeModule first (as AppModule does), and
 resolves/calls RealtimeAccess through the real library provider. Auth wiring is
 unchanged. This is a DI proof, not a live session/database acceptance claim.
+
+## Post-merge Qodo reliability follow-up
+
+Two later findings on PR #6 are addressed on a separate feature branch. SSE
+setup rechecks bus readiness after opening authorization, initializes cleanup
+ownership before subscribing, and handles synchronous bus completion safely.
+The database harness waits for every bounded connection attempt, never queues
+SQL on a never-connected writer, always attempts every client shutdown, and
+preserves the primary failure if cleanup also fails. PASS is printed only after
+successful cleanup. Runtime packaging includes its cleanup helper.
+
+Follow-up validation: 43 suites / 278 tests, typecheck, changed-file lint and
+production build pass. Local Infisical injection works after login. The real
+database proof failed before schema creation with a hostname-resolution error;
+no database delivery PASS is claimed. No test schema was created by that run.
+Deployment is paused at the user's request following their Northflank security
+notice; this follow-up must not be merged/deployed while master triggers it.
