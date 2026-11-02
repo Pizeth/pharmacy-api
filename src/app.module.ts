@@ -1,4 +1,5 @@
 import { RolesModule } from './modules/roles/roles.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import {
   Module,
   StandardSchemaValidationPipe,
@@ -74,6 +75,7 @@ const i18nPath =
 
 @Module({
   imports: [
+    RealtimeModule,
     RolesModule,
     DocumentTrackingModule,
     ConfigModule.forRoot({
