@@ -26,11 +26,22 @@ if (!url) {
     b = new Client(config);
   let schemaCreationAttempted = false;
   let failure;
+  let connectionFailure;
+  for (const client of [writer, a, b]) {
+    client.on('error', (error) => {
+      connectionFailure ??= { error };
+    });
+  }
+  const assertConnectionsHealthy = () => {
+    if (connectionFailure) throw connectionFailure.error;
+  };
   const receivedA = [],
     receivedB = [];
   const wait = async (predicate) => {
     const until = Date.now() + 3000;
-    while (!predicate()) {
+    while (true) {
+      assertConnectionsHealthy();
+      if (predicate()) return;
       if (Date.now() > until) throw new Error('Notification deadline exceeded');
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
@@ -45,10 +56,12 @@ if (!url) {
     ]);
     const failed = connections.find((result) => result.status === 'rejected');
     if (failed) throw failed.reason;
+    assertConnectionsHealthy();
     // A timeout/lost response does not prove CREATE rolled back. The writer is
     // connected here, so cleanup must attempt removal even if this call rejects.
     schemaCreationAttempted = true;
     await writer.query(`CREATE SCHEMA ${schema}`);
+    assertConnectionsHealthy();
     // Minimal disposable relations; production data and schema are untouched.
     await writer.query(`CREATE TABLE ${schema}.translation_keys (id int PRIMARY KEY, key text);
       CREATE TABLE ${schema}.translations (id int PRIMARY KEY, key_id int, value text);
@@ -104,16 +117,17 @@ if (!url) {
     assert.equal(JSON.stringify(receivedA).includes('secret'), false);
     assert.equal(new Set(receivedA.map((event) => event.eventId)).size, 5);
   } catch (error) {
-    failure = { error };
+    failure = connectionFailure ?? { error };
   } finally {
     await finishPostgresAcceptance({
       writer,
       clients: [a, b, writer],
       schema,
       schemaCreationAttempted,
-      failure,
+      failure: failure ?? connectionFailure,
     });
   }
+  assertConnectionsHealthy();
   console.log(
     'PASS: two independent PostgreSQL listeners, commit/rollback, key/value/category events and identity-only payloads.',
   );

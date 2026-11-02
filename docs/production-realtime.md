@@ -81,7 +81,7 @@ SQL on a never-connected writer, always attempts every client shutdown, and
 preserves the primary failure if cleanup also fails. PASS is printed only after
 successful cleanup. Runtime packaging includes its cleanup helper.
 
-Follow-up validation: 44 suites / 280 tests, typecheck, changed-file lint and
+Follow-up validation: 44 suites / 284 tests, typecheck, changed-file lint and
 production build pass. Local Infisical injection works after login. The real
 database proof failed before schema creation with a hostname-resolution error;
 no database delivery PASS is claimed. No test schema was created by that run.
@@ -94,3 +94,8 @@ connected, mark schema creation attempted before sending CREATE. Cleanup then
 attempts DROP even when CREATE rejects after a lost response. Actual harness
 entry-point tests verify both that path and a failed-connect path without real
 database access.
+
+Connected-client error events are captured before connection attempts and routed
+through the same failure/cleanup flow. Actual entry-point tests inject errors
+from each of the three clients after schema creation, and hold one connection
+pending while another fails to verify cleanup waits for all attempts to settle.
