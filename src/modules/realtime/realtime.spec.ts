@@ -267,3 +267,19 @@ it('closes active streams after database delivery loss; later clients must recon
   expect(f.response.end).toHaveBeenCalledTimes(1);
   expect(f.response.write).toHaveBeenCalledTimes(1);
 });
+
+it.each(['request', 'response', 'lifetime'] as const)(
+  'cleans up on %s closure',
+  async (path) => {
+    jest.useFakeTimers();
+    const f = setup();
+    await f.open();
+    await flush();
+    if (path === 'lifetime') jest.advanceTimersByTime(5 * 60000);
+    else f[path].emit('close');
+    await flush();
+    expect(f.events.observed).toBe(false);
+    expect(f.response.end).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  },
+);

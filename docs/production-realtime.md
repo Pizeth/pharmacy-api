@@ -39,7 +39,7 @@ enabling an incompatible feature. No deployment is claimed by these changes.
 
 ## Verification
 
-- Fresh install, Prisma generation, typecheck, 41 suites / 267 tests and backend
+- Fresh install, Prisma generation, typecheck, 41 suites / 271 tests and backend
   production build passed locally.
 - `node scripts/realtime-postgres-acceptance.mjs` requires an explicit
   `REALTIME_TEST_DATABASE_URL`. It creates and removes only a unique scratch
@@ -49,3 +49,10 @@ enabling an incompatible feature. No deployment is claimed by these changes.
   and rendered frontend tests do not substitute for production acceptance.
 - Production migration is not applied; feature gates remain off. No role grants,
   historical document data, auth configuration or document-progress rights change.
+
+Paired draft reviews: [API #6](https://github.com/Pizeth/pharmacy-api/pull/6) and
+[client #55](https://github.com/Pizeth/pharmacy-client/pull/55). Initial backend
+head `971f31e219662b211b68604d4b86da8b42f12208` passed
+[CI](https://github.com/Pizeth/pharmacy-api/actions/runs/41430120123).
+The review follow-up adds explicit request-close, response-close and lifetime
+cleanup assertions; all three release subscriptions/timers and end once.
