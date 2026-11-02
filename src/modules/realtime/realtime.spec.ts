@@ -268,7 +268,7 @@ it('closes active streams after database delivery loss; later clients must recon
   expect(f.response.write).toHaveBeenCalledTimes(1);
 });
 
-it.each(['request', 'response', 'lifetime'] as const)(
+it.each(['response', 'lifetime'] as const)(
   'cleans up on %s closure',
   async (path) => {
     jest.useFakeTimers();
@@ -283,3 +283,22 @@ it.each(['request', 'response', 'lifetime'] as const)(
     expect(jest.getTimerCount()).toBe(0);
   },
 );
+
+it('keeps the stream open when the incoming request completes normally', async () => {
+  jest.useFakeTimers();
+  const f = setup();
+  await f.open();
+  await flush();
+  f.request.emit('close');
+  await flush();
+  expect(f.response.end).not.toHaveBeenCalled();
+  expect(f.events.observed).toBe(true);
+  f.events.next(resyncEvent());
+  await flush();
+  expect(f.response.write).toHaveBeenCalledTimes(2);
+  f.response.emit('close');
+  await flush();
+  expect(f.response.end).toHaveBeenCalledTimes(1);
+  expect(f.events.observed).toBe(false);
+  expect(jest.getTimerCount()).toBe(0);
+});

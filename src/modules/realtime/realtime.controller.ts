@@ -84,7 +84,6 @@ export class RealtimeController {
     });
     const heartbeat = setInterval(() => send(), 15000);
     const lifetime = setTimeout(close, 5 * 60000);
-    request.once('close', close);
     response.once('close', close);
     send(resyncEvent());
   }

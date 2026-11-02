@@ -39,7 +39,7 @@ enabling an incompatible feature. No deployment is claimed by these changes.
 
 ## Verification
 
-- Fresh install, Prisma generation, typecheck, 41 suites / 271 tests and backend
+- Fresh install, Prisma generation, typecheck, 42 suites / 272 tests and backend
   production build passed locally.
 - `node scripts/realtime-postgres-acceptance.mjs` requires an explicit
   `REALTIME_TEST_DATABASE_URL`. It creates and removes only a unique scratch
@@ -60,4 +60,13 @@ Paired draft reviews: [API #6](https://github.com/Pizeth/pharmacy-api/pull/6) an
 head `971f31e219662b211b68604d4b86da8b42f12208` passed
 [CI](https://github.com/Pizeth/pharmacy-api/actions/runs/41430120123).
 The review follow-up adds explicit request-close, response-close and lifetime
-cleanup assertions; all three release subscriptions/timers and end once.
+coverage. Normal request completion must keep SSE open; response close and
+lifetime expiry release subscriptions/timers and end once. Readiness checks
+also match each trigger's table and exact notification function.
+
+The reported missing AuthService provider was not reproduced: installed
+nestJs-better-auth configures its async module globally by default and exports
+AuthService. A real Nest module-graph regression wraps that configured module
+without re-exporting it, imports RealtimeModule first (as AppModule does), and
+resolves/calls RealtimeAccess through the real library provider. Auth wiring is
+unchanged. This is a DI proof, not a live session/database acceptance claim.

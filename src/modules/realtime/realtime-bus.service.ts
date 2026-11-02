@@ -83,8 +83,12 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
         count: number;
       }>(`SELECT count(*)::int AS count FROM pg_trigger t
         JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled IN ('O', 'A') AND tgname IN
-        ('translation_keys_live_v1', 'translation_values_live_v1', 'translation_categories_live_v1')`);
+        WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled IN ('O', 'A')
+        AND t.tgfoid = to_regprocedure('public.notify_translation_table_live_v1()')
+        AND (t.tgname, c.relname) IN (
+          ('translation_keys_live_v1', 'translation_keys'),
+          ('translation_values_live_v1', 'translations'),
+          ('translation_categories_live_v1', 'translation_category'))`);
       if (triggers.rows[0]?.count !== 3)
         throw new Error('Realtime migration is not applied.');
       await client.query(`LISTEN ${REALTIME_CHANNEL}`);

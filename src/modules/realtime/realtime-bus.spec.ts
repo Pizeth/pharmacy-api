@@ -68,6 +68,14 @@ it('LISTENs once, rejects malformed messages, reconnects with resync, and cleans
   await bus.onModuleInit();
   expect(bus.ready).toBe(true);
   expect(clients[0].query).toHaveBeenCalledWith('LISTEN datatable_live_v1');
+  expect(clients[0].query).toHaveBeenCalledWith(
+    expect.stringContaining(
+      "to_regprocedure('public.notify_translation_table_live_v1()')",
+    ),
+  );
+  expect(clients[0].query).toHaveBeenCalledWith(
+    expect.stringContaining("('translation_values_live_v1', 'translations')"),
+  );
   const event = resyncEvent();
   clients[0].emit('notification', {
     channel: 'datatable_live_v1',
