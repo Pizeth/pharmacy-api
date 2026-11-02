@@ -44,6 +44,11 @@ enabling an incompatible feature. No deployment is claimed by these changes.
 - `node scripts/realtime-postgres-acceptance.mjs` requires an explicit
   `REALTIME_TEST_DATABASE_URL`. It creates and removes only a unique scratch
   schema/channel; it never reads production `.env` or falls back to DATABASE_URL.
+  The runtime image includes this script and its migration SQL so a separate
+  Northflank job can run it using the Infisical test secret. API startup never
+  invokes it or changes DATABASE_URL. That job verifies database delivery only;
+  authenticated browser acceptance still needs a backend test instance pointed
+  at a migrated disposable application database.
 - The database harness and two authenticated browser sessions remain BLOCKED
   without a disposable integration environment. Mocked authorization/SSE tests
   and rendered frontend tests do not substitute for production acceptance.
