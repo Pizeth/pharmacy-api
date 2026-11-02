@@ -81,9 +81,16 @@ SQL on a never-connected writer, always attempts every client shutdown, and
 preserves the primary failure if cleanup also fails. PASS is printed only after
 successful cleanup. Runtime packaging includes its cleanup helper.
 
-Follow-up validation: 43 suites / 278 tests, typecheck, changed-file lint and
+Follow-up validation: 44 suites / 280 tests, typecheck, changed-file lint and
 production build pass. Local Infisical injection works after login. The real
 database proof failed before schema creation with a hostname-resolution error;
 no database delivery PASS is claimed. No test schema was created by that run.
-Deployment is paused at the user's request following their Northflank security
-notice; this follow-up must not be merged/deployed while master triggers it.
+The user paused deployment following a Northflank security notice and later
+reported secret sync restored. This follow-up remains draft for review; no
+further Northflank deployment was performed during local validation.
+
+The final review also covers uncertain CREATE outcomes: after all clients have
+connected, mark schema creation attempted before sending CREATE. Cleanup then
+attempts DROP even when CREATE rejects after a lost response. Actual harness
+entry-point tests verify both that path and a failed-connect path without real
+database access.

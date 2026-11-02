@@ -1,12 +1,12 @@
 /**
  * Always close every client, including after failed connection/schema cleanup.
- * @param {{writer: {query: (sql: string) => Promise<unknown>}, clients: {end: () => Promise<unknown>}[], schema: string, schemaCreated: boolean, failure?: {error: unknown}}} options
+ * @param {{writer: {query: (sql: string) => Promise<unknown>}, clients: {end: () => Promise<unknown>}[], schema: string, schemaCreationAttempted: boolean, failure?: {error: unknown}}} options
  */
 export async function finishPostgresAcceptance(options) {
   const failures = [];
   try {
     // Never queue SQL on a client which may not have connected at all.
-    if (options.schemaCreated) {
+    if (options.schemaCreationAttempted) {
       try {
         await options.writer.query('ROLLBACK');
       } catch (error) {

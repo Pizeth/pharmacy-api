@@ -24,7 +24,7 @@ if (!url) {
   const writer = new Client(config);
   const a = new Client(config),
     b = new Client(config);
-  let schemaCreated = false;
+  let schemaCreationAttempted = false;
   let failure;
   const receivedA = [],
     receivedB = [];
@@ -45,8 +45,10 @@ if (!url) {
     ]);
     const failed = connections.find((result) => result.status === 'rejected');
     if (failed) throw failed.reason;
+    // A timeout/lost response does not prove CREATE rolled back. The writer is
+    // connected here, so cleanup must attempt removal even if this call rejects.
+    schemaCreationAttempted = true;
     await writer.query(`CREATE SCHEMA ${schema}`);
-    schemaCreated = true;
     // Minimal disposable relations; production data and schema are untouched.
     await writer.query(`CREATE TABLE ${schema}.translation_keys (id int PRIMARY KEY, key text);
       CREATE TABLE ${schema}.translations (id int PRIMARY KEY, key_id int, value text);
@@ -108,7 +110,7 @@ if (!url) {
       writer,
       clients: [a, b, writer],
       schema,
-      schemaCreated,
+      schemaCreationAttempted,
       failure,
     });
   }

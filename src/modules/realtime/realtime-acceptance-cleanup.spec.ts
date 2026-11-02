@@ -11,7 +11,7 @@ const setup = () => ({
     end: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   })),
   schema: 'live_test_disposable',
-  schemaCreated: true,
+  schemaCreationAttempted: true,
 });
 
 it('does not queue cleanup SQL on a never-connected client and closes all clients', async () => {
@@ -20,7 +20,7 @@ it('does not queue cleanup SQL on a never-connected client and closes all client
   await expect(
     finishPostgresAcceptance({
       ...f,
-      schemaCreated: false,
+      schemaCreationAttempted: false,
       failure: { error: original },
     }),
   ).rejects.toBe(original);
