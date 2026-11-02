@@ -118,6 +118,11 @@ COPY --from=builder /usr/src/app/dist ./dist
 # output location.
 COPY --from=builder /usr/src/app/src/generated/prisma ./src/generated/prisma
 
+# Explicit disposable-database acceptance job; never executed by API startup.
+# Uses the existing production pg dependency and Infisical-injected test URL.
+COPY --from=builder /usr/src/app/scripts/realtime-postgres-acceptance.mjs ./scripts/realtime-postgres-acceptance.mjs
+COPY --from=builder /usr/src/app/prisma/migrations/20261102000100_translation_realtime/migration.sql ./prisma/migrations/20261102000100_translation_realtime/migration.sql
+
 
 # ---------------------------------------------------------------
 # Networking

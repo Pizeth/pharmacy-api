@@ -1,0 +1,98 @@
+// Explicit opt-in only. Never reads DATABASE_URL or production .env files.
+import { Client } from 'pg';
+import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+
+const url = process.env.REALTIME_TEST_DATABASE_URL;
+if (!url) {
+  console.error(
+    'BLOCKED: set REALTIME_TEST_DATABASE_URL to a disposable PostgreSQL database.',
+  );
+  process.exitCode = 2;
+} else {
+  const suffix = randomUUID().replaceAll('-', '');
+  const schema = `live_test_${suffix}`,
+    channel = `live_${suffix}`;
+  const writer = new Client({ connectionString: url });
+  const a = new Client({ connectionString: url }),
+    b = new Client({ connectionString: url });
+  const receivedA = [],
+    receivedB = [];
+  const wait = async (predicate) => {
+    const until = Date.now() + 3000;
+    while (!predicate()) {
+      if (Date.now() > until) throw new Error('Notification deadline exceeded');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
+  try {
+    await Promise.all([writer.connect(), a.connect(), b.connect()]);
+    await writer.query(`CREATE SCHEMA ${schema}`);
+    // Minimal disposable relations; production data and schema are untouched.
+    await writer.query(`CREATE TABLE ${schema}.translation_keys (id int PRIMARY KEY, key text);
+      CREATE TABLE ${schema}.translations (id int PRIMARY KEY, key_id int, value text);
+      CREATE TABLE ${schema}.translation_category (id int PRIMARY KEY, name text);`);
+    const migration = await readFile(
+      new URL(
+        '../prisma/migrations/20261102000100_translation_realtime/migration.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    await writer.query(
+      migration
+        .replaceAll('public.', `${schema}.`)
+        .replaceAll('pg_catalog, public', `pg_catalog, ${schema}`)
+        .replaceAll('datatable_live_v1', channel),
+    );
+    a.on('notification', (message) =>
+      receivedA.push(JSON.parse(message.payload)),
+    );
+    b.on('notification', (message) =>
+      receivedB.push(JSON.parse(message.payload)),
+    );
+    await Promise.all([
+      a.query(`LISTEN ${channel}`),
+      b.query(`LISTEN ${channel}`),
+    ]);
+    await writer.query('BEGIN');
+    await writer.query(
+      `INSERT INTO ${schema}.translation_keys VALUES (1, 'disposable')`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(receivedA.length, 0, 'uncommitted data must not notify');
+    await writer.query('ROLLBACK');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(receivedA.length, 0, 'rollback must not notify');
+    await writer.query(
+      `INSERT INTO ${schema}.translation_keys VALUES (1, 'disposable')`,
+    );
+    await wait(() => receivedA.length === 1 && receivedB.length === 1);
+    assert.equal(receivedA[0].type, 'created');
+    assert.equal(receivedA[0].recordId, '1');
+    assert.equal(receivedA[0].eventId, receivedB[0].eventId);
+    await writer.query(`INSERT INTO ${schema}.translations VALUES (10, 1, 'secret never sent');
+      UPDATE ${schema}.translation_keys SET key = 'changed' WHERE id = 1;
+      DELETE FROM ${schema}.translation_keys WHERE id = 1;
+      INSERT INTO ${schema}.translation_category VALUES (1, 'category');`);
+    await wait(() => receivedA.length === 5 && receivedB.length === 5);
+    assert.deepEqual(
+      receivedA.map((event) => event.type),
+      ['created', 'updated', 'updated', 'deleted', 'invalidate'],
+    );
+    assert.equal(JSON.stringify(receivedA).includes('secret'), false);
+    assert.equal(new Set(receivedA.map((event) => event.eventId)).size, 5);
+    console.log(
+      'PASS: two independent PostgreSQL listeners, commit/rollback, key/value/category events and identity-only payloads.',
+    );
+    console.log(
+      'This is a database delivery proof, not authenticated browser cross-client acceptance.',
+    );
+  } finally {
+    await writer.query('ROLLBACK').catch(() => undefined);
+    await writer.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await Promise.all([a.end(), b.end(), writer.end()]);
+    console.log('Disposable acceptance schema removed.');
+  }
+}
