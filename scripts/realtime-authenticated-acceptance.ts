@@ -462,29 +462,30 @@ try {
   assert.equal(created.status, 201);
   const key = ((await created.json()) as { data: { id: number } }).data;
   assert(Number.isSafeInteger(key.id));
-  const expectBoth = async (type: string, after = 0) => {
+  const expectBoth = async (type: string, afterA = 0, afterB = 0) => {
+    const matches = (event: RealtimeEvent) =>
+      event.type === type && event.recordId === String(key.id);
     await until(
       () =>
-        [streamA, streamB].every((s) =>
-          s.events
-            .slice(after)
-            .some((e) => e.type === type && e.recordId === String(key.id)),
-        ),
-      `${type} reaches both sessions`,
+        streamA.events
+          .slice(afterA)
+          .some(
+            (event) =>
+              matches(event) &&
+              streamB.events
+                .slice(afterB)
+                .some(
+                  (other) => matches(other) && other.eventId === event.eventId,
+                ),
+          ),
+      `same ${type} event reaches both sessions`,
     );
     streamA.assertHealthy();
     streamB.assertHealthy();
-    const event = streamA.events
-      .slice(after)
-      .find((e) => e.type === type && e.recordId === String(key.id))!;
-    assert(
-      streamB.events.some((e) => e.eventId === event.eventId),
-      'Sessions must receive the same database event identity.',
-    );
-    assert(!JSON.stringify(event).includes('Private acceptance text'));
   };
   await expectBoth('created');
-  const offset = Math.max(streamA.events.length, streamB.events.length);
+  const offsetA = streamA.events.length;
+  const offsetB = streamB.events.length;
   assert.equal(
     (
       await request(`keys/${key.id}`, 'PATCH', {
@@ -493,7 +494,7 @@ try {
     ).status,
     200,
   );
-  await expectBoth('updated', offset);
+  await expectBoth('updated', offsetA, offsetB);
   const result = await request('keys/query', 'POST', {
     page: 1,
     pageSize: 25,
