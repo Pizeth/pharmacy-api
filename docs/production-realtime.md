@@ -99,3 +99,47 @@ Connected-client error events are captured before connection attempts and routed
 through the same failure/cleanup flow. Actual entry-point tests inject errors
 from each of the three clients after schema creation, and hold one connection
 pending while another fails to verify cleanup waits for all attempts to settle.
+
+## Updated test connection: database delivery verified
+
+After the test URL was updated in Infisical, the local CLI run passed using the
+Supabase session pooler on port 5432. Two independent PostgreSQL listeners
+received committed key, value and category changes; rolled-back writes emitted
+nothing, and payloads contained identities only. The disposable schema was
+removed and every client closed successfully. No credentials were printed.
+
+This supersedes the earlier local DNS/connectivity blocker. It does not certify
+authenticated browser-to-browser delivery, production migration status, proxy
+streaming or realtime activation. Those rollout checks remain outstanding.
+Backend PR #7 validation is 44 suites / 284 tests, typecheck, scoped lint and
+production build passing at e5c6f21583c222bd839acd86710dbc1650edc78f.
+
+## Local authenticated acceptance
+
+The loopback harness uses the production Nest controllers, PostgreSQL listener,
+Prisma adapter, Better Auth cookie sessions and CASL checks. Hosted Dash and
+Sentinel integrations and JWT issuance are excluded from this cookie test.
+The HTTP run verified shared event identities, canonical refetch, reconnect,
+rejected origins and actors, and stream closure after permission, account or
+session revocation. The browser run used the production frontend provider and
+DataTable controller in a local fixture. An edit in each session appeared in the
+other session's table or card without reloading, with the selected row preserved.
+
+The test database was provisioned from the current Prisma schema with RLS
+enabled and the realtime migration applied. Temporary records were removed
+and application record counts returned to baseline. Production migration and
+proxy streaming verification remain rollout gates.
+
+Run the backend acceptance script from the API checkout under Infisical with
+the explicit disposable REALTIME_TEST_DATABASE_URL:
+
+```powershell
+infisical run -- node --use-system-ca node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.seed.json scripts/realtime-authenticated-acceptance.ts
+```
+
+Set REALTIME_TEST_ALLOW_SCHEMA_SETUP=true only to provision an empty test
+database. For browser mode, run `node scripts/build-realtime-acceptance.mjs`
+in the client checkout, then set REALTIME_TEST_BROWSER_BUNDLE to the absolute
+path of the resulting bundle before starting the backend harness. Open the two
+loopback URLs it prints, edit from each session and check the receiving view.
+Use Finish and clean up to remove the fixtures and stop the server.
