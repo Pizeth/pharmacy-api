@@ -302,3 +302,34 @@ it('keeps the stream open when the incoming request completes normally', async (
   expect(f.events.observed).toBe(false);
   expect(jest.getTimerCount()).toBe(0);
 });
+
+it('rejects before opening SSE if shutdown occurs during initial authorization', async () => {
+  jest.useFakeTimers();
+  const f = setup();
+  let finish!: () => void;
+  f.access.assertRead.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const opening = f.open();
+  f.bus.ready = false;
+  f.events.complete();
+  finish();
+  await expect(opening).rejects.toMatchObject({ status: 503 });
+  expect(f.response.flushHeaders).not.toHaveBeenCalled();
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+it('handles synchronous bus completion during subscription without stranding a response', async () => {
+  jest.useFakeTimers();
+  const f = setup();
+  f.events.complete();
+  await f.open();
+  await flush();
+  expect(f.response.end).toHaveBeenCalledTimes(1);
+  expect(f.response.write).not.toHaveBeenCalled();
+  expect(f.events.observed).toBe(false);
+  expect(jest.getTimerCount()).toBe(0);
+});

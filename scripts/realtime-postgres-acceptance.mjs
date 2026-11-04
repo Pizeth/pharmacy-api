@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { finishPostgresAcceptance } from './realtime-postgres-cleanup.mjs';
 
 const url = process.env.REALTIME_TEST_DATABASE_URL;
 if (!url) {
@@ -14,21 +15,53 @@ if (!url) {
   const suffix = randomUUID().replaceAll('-', '');
   const schema = `live_test_${suffix}`,
     channel = `live_${suffix}`;
-  const writer = new Client({ connectionString: url });
-  const a = new Client({ connectionString: url }),
-    b = new Client({ connectionString: url });
+  const config = {
+    connectionString: url,
+    connectionTimeoutMillis: 10000,
+    query_timeout: 10000,
+    statement_timeout: 10000,
+  };
+  const writer = new Client(config);
+  const a = new Client(config),
+    b = new Client(config);
+  let schemaCreationAttempted = false;
+  let failure;
+  let connectionFailure;
+  for (const client of [writer, a, b]) {
+    client.on('error', (error) => {
+      connectionFailure ??= { error };
+    });
+  }
+  const assertConnectionsHealthy = () => {
+    if (connectionFailure) throw connectionFailure.error;
+  };
   const receivedA = [],
     receivedB = [];
   const wait = async (predicate) => {
     const until = Date.now() + 3000;
-    while (!predicate()) {
+    while (true) {
+      assertConnectionsHealthy();
+      if (predicate()) return;
       if (Date.now() > until) throw new Error('Notification deadline exceeded');
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   };
   try {
-    await Promise.all([writer.connect(), a.connect(), b.connect()]);
+    // Wait for every connect attempt before cleanup; one early rejection must
+    // not strand another client's still-opening socket.
+    const connections = await Promise.allSettled([
+      writer.connect(),
+      a.connect(),
+      b.connect(),
+    ]);
+    const failed = connections.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
+    assertConnectionsHealthy();
+    // A timeout/lost response does not prove CREATE rolled back. The writer is
+    // connected here, so cleanup must attempt removal even if this call rejects.
+    schemaCreationAttempted = true;
     await writer.query(`CREATE SCHEMA ${schema}`);
+    assertConnectionsHealthy();
     // Minimal disposable relations; production data and schema are untouched.
     await writer.query(`CREATE TABLE ${schema}.translation_keys (id int PRIMARY KEY, key text);
       CREATE TABLE ${schema}.translations (id int PRIMARY KEY, key_id int, value text);
@@ -83,16 +116,23 @@ if (!url) {
     );
     assert.equal(JSON.stringify(receivedA).includes('secret'), false);
     assert.equal(new Set(receivedA.map((event) => event.eventId)).size, 5);
-    console.log(
-      'PASS: two independent PostgreSQL listeners, commit/rollback, key/value/category events and identity-only payloads.',
-    );
-    console.log(
-      'This is a database delivery proof, not authenticated browser cross-client acceptance.',
-    );
+  } catch (error) {
+    failure = connectionFailure ?? { error };
   } finally {
-    await writer.query('ROLLBACK').catch(() => undefined);
-    await writer.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await Promise.all([a.end(), b.end(), writer.end()]);
-    console.log('Disposable acceptance schema removed.');
+    await finishPostgresAcceptance({
+      writer,
+      clients: [a, b, writer],
+      schema,
+      schemaCreationAttempted,
+      failure: failure ?? connectionFailure,
+    });
   }
+  assertConnectionsHealthy();
+  console.log(
+    'PASS: two independent PostgreSQL listeners, commit/rollback, key/value/category events and identity-only payloads.',
+  );
+  console.log('Disposable acceptance schema removed and clients closed.');
+  console.log(
+    'This is a database delivery proof, not authenticated browser cross-client acceptance.',
+  );
 }
