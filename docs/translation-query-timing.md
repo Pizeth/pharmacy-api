@@ -8,6 +8,7 @@ at a time through the frontend's `/test` page. Unset the flag when finished.
 - `totalMs` measures from the API middleware to response completion.
 - `beforePolicyMs` includes authentication and other work before the policy
   lookup. It is not an isolated Better Auth measurement.
+- `sessionMs` measures the Better Auth getSession call within that interval.
 - `policyMs` measures loading the caller's CASL ability.
 - `rowsMs` and `countMs` measure the two concurrent Prisma operations,
   including connection acquisition. Do not add them to get elapsed time.
