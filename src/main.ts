@@ -10,6 +10,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+import { translationQueryTiming } from './common/data-table/translation-query-timing';
 // import { HotModule } from './types/types';
 
 // declare const module: HotModule;
@@ -110,6 +111,7 @@ async function bootstrap() {
    */
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
+  app.use(translationQueryTiming);
 
   /**
    * --------------------------------------------------------------

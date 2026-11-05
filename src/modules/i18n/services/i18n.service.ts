@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { timeTranslationQueryPhase } from 'common/data-table/translation-query-timing';
 import { Prisma, Translation } from 'generated/prisma/client';
 import { DBHelper } from 'modules/helpers/services/db-helper';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
@@ -234,35 +235,39 @@ export class I18nService {
          *   select/include
          */
         findMany: ({ skip, take, where, orderBy }) =>
-          this.prisma.translationKey.findMany({
-            skip,
-            take,
-            /**
-             * Do not pass an explicit undefined where.
-             */
-            ...(where ? { where } : {}),
+          timeTranslationQueryPhase('rows', () =>
+            this.prisma.translationKey.findMany({
+              skip,
+              take,
+              /**
+               * Do not pass an explicit undefined where.
+               */
+              ...(where ? { where } : {}),
 
-            /**
-             * Generic DataTable contracts use readonly arrays.
-             *
-             * Prisma's generated API may expect a mutable input
-             * array, so create the concrete Prisma argument array
-             * here at the resource boundary.
-             */
-            orderBy: [...orderBy],
-            select: TRANSLATION_KEY_DATA_TABLE_SELECT,
-          }),
+              /**
+               * Generic DataTable contracts use readonly arrays.
+               *
+               * Prisma's generated API may expect a mutable input
+               * array, so create the concrete Prisma argument array
+               * here at the resource boundary.
+               */
+              orderBy: [...orderBy],
+              select: TRANSLATION_KEY_DATA_TABLE_SELECT,
+            }),
+          ),
 
         /**
          * DBHelper supplies the same translated `where` object used by
          * findMany().
          */
         count: ({ where }) =>
-          where
-            ? this.prisma.translationKey.count({
-                where,
-              })
-            : this.prisma.translationKey.count(),
+          timeTranslationQueryPhase('count', () =>
+            where
+              ? this.prisma.translationKey.count({
+                  where,
+                })
+              : this.prisma.translationKey.count(),
+          ),
       },
     });
   }
