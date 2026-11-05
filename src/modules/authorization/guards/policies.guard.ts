@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AppError } from 'exceptions/app.exception';
+import { timeTranslationQueryPhase } from 'common/data-table/translation-query-timing';
 import { CaslAbilityFactory } from '../casl/casl-ability.factory';
 import { CHECK_POLICIES_KEY } from '../decorators/check-policies.decorator';
 import type { AppAbility } from '../casl/app-ability';
@@ -98,7 +99,9 @@ export class PoliciesGuard implements CanActivate {
       );
     }
 
-    const ability = await this.caslAbilityFactory.createForUser(userId);
+    const ability = await timeTranslationQueryPhase('policy', () =>
+      this.caslAbilityFactory.createForUser(userId),
+    );
 
     const allowed = policyHandlers.every((handler) =>
       this.executePolicyHandler(handler, ability),
