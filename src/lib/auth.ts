@@ -1,3 +1,4 @@
+import { timeTranslationQueryPhase } from 'common/data-table/translation-query-timing';
 import { betterAuth, isProduction, type BetterAuthOptions } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { PrismaClient } from 'generated/prisma/client';
@@ -46,9 +47,17 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     appName: 'Razeth',
     onAPIError: { errorURL: getAuthErrorURL() },
     baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-    database: prismaAdapter(prisma, {
-      provider: 'postgresql',
-    }),
+    database: (authOptions: Parameters<ReturnType<typeof prismaAdapter>>[0]) => {
+      const adapter = prismaAdapter(prisma, { provider: 'postgresql' })(authOptions);
+      if (process.env.TRANSLATION_QUERY_TIMING === 'true') {
+        const findOne = adapter.findOne;
+        adapter.findOne = (query) =>
+          query.model === 'session'
+            ? timeTranslationQueryPhase('sessionLookup', () => findOne(query))
+            : findOne(query);
+      }
+      return adapter;
+    },
     trustedOrigins: [
       // process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
       // process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod

@@ -39,6 +39,7 @@ it('logs completed stages only for the opted-in translation query', async () => 
       totalMs: expect.any(Number),
       beforePolicyMs: expect.any(Number),
       sessionMs: expect.any(Number),
+      sessionLookupMs: undefined,
       policyMs: expect.any(Number),
       rowsMs: expect.any(Number),
       countMs: expect.any(Number),
