@@ -119,6 +119,7 @@ async function bootstrap() {
    * --------------------------------------------------------------
    */
   app.enableCors({
+    maxAge: 300,
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
       .split(',')
       .map((origin) => origin.trim()),
