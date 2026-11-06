@@ -5,7 +5,7 @@
   "description": "",
   "author": "",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "nest build --builder rspack --path tsconfig.build.json --rspackPath rspack.config.cjs",
