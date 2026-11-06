@@ -25,6 +25,7 @@ it('logs completed stages only for the opted-in translation query', async () => 
     await new Promise<void>((resolve, reject) => {
       translationQueryTiming(request, response as unknown as Response, () => {
         void Promise.all([
+          timeTranslationQueryPhase('session', () => Promise.resolve(null)),
           timeTranslationQueryPhase('policy', () => Promise.resolve(true)),
           timeTranslationQueryPhase('rows', () => Promise.resolve([])),
           timeTranslationQueryPhase('count', () => Promise.resolve(0)),
@@ -37,6 +38,7 @@ it('logs completed stages only for the opted-in translation query', async () => 
       status: 200,
       totalMs: expect.any(Number),
       beforePolicyMs: expect.any(Number),
+      sessionMs: expect.any(Number),
       policyMs: expect.any(Number),
       rowsMs: expect.any(Number),
       countMs: expect.any(Number),

@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { performance } from 'node:perf_hooks';
 import type { NextFunction, Request, Response } from 'express';
 
-type Phase = 'policy' | 'rows' | 'count';
+type Phase = 'session' | 'policy' | 'rows' | 'count';
 type Timing = Partial<Record<Phase, number>> & {
   started: number;
   beforePolicy?: number;
@@ -34,6 +34,7 @@ export function translationQueryTiming(
       status: response.statusCode,
       totalMs: round(performance.now() - timing.started),
       beforePolicyMs: round(timing.beforePolicy),
+      sessionMs: round(timing.session),
       policyMs: round(timing.policy),
       rowsMs: round(timing.rows),
       countMs: round(timing.count),
