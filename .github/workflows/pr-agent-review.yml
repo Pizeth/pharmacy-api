@@ -15,7 +15,7 @@ jobs:
   review:
     if: >-
       github.event.label.name == 'pr-agent-review' &&
-      github.actor == github.repository_owner &&
+      contains(fromJSON('["Pizeth"]'), github.actor) &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
