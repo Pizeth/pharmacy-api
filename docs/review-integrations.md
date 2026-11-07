@@ -36,8 +36,8 @@ Do not add a workflow that claims to run until the key and model are available.
 
 ## Setup status
 
-Configuration prepared; dashboard activation and first scans are pending.
-App installation and provider authorization must be verified separately for each
+As of 7 November 2026, Codacy, DeepSource, diffray, cubic, LlamaPReview and Sourcery GitHub Apps are installed on the two named repositories. Codacy has both repositories activated and API baseline results are visible. DeepSource personal-information onboarding and diffray dashboard sign-in remain pending. Sourcery baseline scans completed (findings require triage). Cubic account displays an introductory trial; permanent public-repository free-plan eligibility is not yet verified. No payment details were supplied.
+Runtime review triggers must be verified separately for each
 repository. No coverage reporter token is required for source analysis; coverage
 upload can be added later with its own restricted secret.
 
@@ -50,3 +50,11 @@ upload can be added later with its own restricted secret.
 - https://github.com/apps/llamapreview
 - https://docs.sourcery.ai/reviews/configure/
 - https://github.com/The-PR-Agent/pr-agent
+
+## Verified backup settings
+
+- Sourcery: automatic reviews require the sourcery-review label; manual @sourcery-ai review remains available. Summaries, review guides, tips and automatic approvals are disabled. Draft reviews remain off.
+- cubic: head-branch ignore glob ** skips automatic reviews while manual mentions remain available. Incremental automatic reviews and draft reviews are off, sensitivity is Medium, automatic fixes and approvals are off. Use @cubic-dev-ai review this pull request when a backup is needed.
+- LlamaPReview: installed on both repositories; opening/ready non-draft event behavior follows its hosted defaults. First completed review remains unverified.
+- PR-Agent: pending a model-provider Actions secret and supported model selection; no workflow has been enabled.
+
