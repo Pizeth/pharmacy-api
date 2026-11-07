@@ -36,7 +36,7 @@ Do not add a workflow that claims to run until the key and model are available.
 
 ## Setup status
 
-As of 7 November 2026, Codacy, DeepSource, diffray, cubic, LlamaPReview and Sourcery GitHub Apps are installed on the two named repositories. Codacy has both repositories activated and API baseline results are visible. DeepSource personal-information onboarding and diffray dashboard sign-in remain pending. Sourcery baseline scans completed (findings require triage). Cubic account displays a seven-day introductory trial with no payment method. Its current subscription documentation confirms fallback to the free plan and a separate public-repository fair-use allowance; no paid plan was selected. No payment details were supplied.
+As of 7 November 2026, Codacy, DeepSource, diffray, cubic, LlamaPReview and Sourcery GitHub Apps are installed on the two named repositories. Codacy has both repositories activated and API baseline results are visible. DeepSource was activated on both repositories on 8 November 2026 using dashboard analyzer settings after the onboarding generator stalled. Both persisted CODE ANALYSIS ACTIVE and started their first baseline analysis. The client enables React, NodeJS, Browser and Jest; the API enables NodeJS, Jest and Docker. Diffray dashboard GitHub sign-in remains stalled. Sourcery baseline scans completed (findings require triage). Cubic account displays a seven-day introductory trial with no payment method. Its current subscription documentation confirms fallback to the free plan and a separate public-repository fair-use allowance; no paid plan was selected. No payment details were supplied.
 Runtime review triggers must be verified separately for each
 repository. No coverage reporter token is required for source analysis; coverage
 upload can be added later with its own restricted secret.
@@ -57,3 +57,13 @@ upload can be added later with its own restricted secret.
 - cubic: head-branch ignore glob ** skips automatic reviews while manual mentions remain available. Incremental automatic reviews and draft reviews are off, sensitivity is Medium, automatic fixes and approvals are off. Use @cubic-dev-ai review this pull request when a backup is needed.
 - LlamaPReview: installed on both repositories; opening/ready non-draft event behavior follows its hosted defaults. First completed review remains unverified.
 - PR-Agent: pending a model-provider Actions secret and supported model selection; no workflow has been enabled.
+
+## PR-Agent Gemini key setup
+
+1. Create a dedicated Gemini API key in Google AI Studio: https://aistudio.google.com/api-keys
+2. In each repository, open Settings > Secrets and variables > Actions > New repository secret.
+3. Set the name to `PR_AGENT_GEMINI_API_KEY` and paste the key only in GitHub's secret value field.
+4. Tell the maintainer the secret has been saved; do not put its value in chat, source, application env files, or workflow logs.
+5. A manual-only review workflow still needs to be added and validated. The workflow will map this secret to `GOOGLE_AI_STUDIO.GEMINI_API_KEY` and select a supported `gemini/...` model. `GITHUB_TOKEN` is supplied automatically by Actions.
+
+Use a separate key per repository if independent rotation is useful. Provider quotas still apply. See https://ai.google.dev/gemini-api/docs/api-key and https://github.com/The-PR-Agent/pr-agent/blob/main/docs/docs/installation/github.md .
