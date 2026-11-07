@@ -56,7 +56,7 @@ upload can be added later with its own restricted secret.
 - Sourcery: automatic reviews require the sourcery-review label; manual @sourcery-ai review remains available. Summaries, review guides, tips and automatic approvals are disabled. Draft reviews remain off.
 - cubic: head-branch ignore glob ** skips automatic reviews while manual mentions remain available. Incremental automatic reviews and draft reviews are off, sensitivity is Medium, automatic fixes and approvals are off. Use @cubic-dev-ai review this pull request when a backup is needed.
 - LlamaPReview: installed on both repositories; opening/ready non-draft event behavior follows its hosted defaults. First completed review remains unverified.
-- PR-Agent: pending a model-provider Actions secret and supported model selection; no workflow has been enabled.
+- PR-Agent: the secret name is verified in both repositories. The manual-review workflow uses a pinned container and Gemini 3.8 Flash. Live acceptance is tracked in the setup PRs.
 
 ## PR-Agent Gemini key setup
 
@@ -64,6 +64,21 @@ upload can be added later with its own restricted secret.
 2. In each repository, open Settings > Secrets and variables > Actions > New repository secret.
 3. Set the name to `PR_AGENT_GEMINI_API_KEY` and paste the key only in GitHub's secret value field.
 4. Tell the maintainer the secret has been saved; do not put its value in chat, source, application env files, or workflow logs.
-5. A manual-only review workflow still needs to be added and validated. The workflow will map this secret to `GOOGLE_AI_STUDIO.GEMINI_API_KEY` and select a supported `gemini/...` model. `GITHUB_TOKEN` is supplied automatically by Actions.
+5. The manual workflow maps this secret to `GOOGLE_AI_STUDIO.GEMINI_API_KEY` and select a supported `gemini/...` model. `GITHUB_TOKEN` is supplied automatically by Actions.
 
 Use a separate key per repository if independent rotation is useful. Provider quotas still apply. See https://ai.google.dev/gemini-api/docs/api-key and https://github.com/The-PR-Agent/pr-agent/blob/main/docs/docs/installation/github.md .
+
+## Run the PR-Agent backup
+
+On a non-draft pull request from a branch in this repository, the repository owner
+adds the `pr-agent-review` label. One review is requested; pushes do not trigger it.
+To review a later revision, wait for completion, remove the label, and add it again.
+Fork PRs and requests by other actors are intentionally skipped. The Actions job
+checks that the secret is configured without printing its value. It has read-only
+source permission and write access only to issues/PRs for review output.
+
+The workflow does not check out or execute pull-request code, rewrite descriptions,
+or run automatic code suggestions. It pins the Docker runtime by digest. Review
+findings still require verification and do not replace CI or authorize a merge.
+If the model/provider quota fails, the job must be investigated rather than treated
+as a successful review. No fallback model is configured, avoiding unexpected usage.
