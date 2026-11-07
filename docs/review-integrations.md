@@ -36,7 +36,7 @@ Do not add a workflow that claims to run until the key and model are available.
 
 ## Setup status
 
-As of 7 November 2026, Codacy, DeepSource, diffray, cubic, LlamaPReview and Sourcery GitHub Apps are installed on the two named repositories. Codacy has both repositories activated and API baseline results are visible. DeepSource personal-information onboarding and diffray dashboard sign-in remain pending. Sourcery baseline scans completed (findings require triage). Cubic account displays an introductory trial; permanent public-repository free-plan eligibility is not yet verified. No payment details were supplied.
+As of 7 November 2026, Codacy, DeepSource, diffray, cubic, LlamaPReview and Sourcery GitHub Apps are installed on the two named repositories. Codacy has both repositories activated and API baseline results are visible. DeepSource personal-information onboarding and diffray dashboard sign-in remain pending. Sourcery baseline scans completed (findings require triage). Cubic account displays a seven-day introductory trial with no payment method. Its current subscription documentation confirms fallback to the free plan and a separate public-repository fair-use allowance; no paid plan was selected. No payment details were supplied.
 Runtime review triggers must be verified separately for each
 repository. No coverage reporter token is required for source analysis; coverage
 upload can be added later with its own restricted secret.
@@ -57,4 +57,3 @@ upload can be added later with its own restricted secret.
 - cubic: head-branch ignore glob ** skips automatic reviews while manual mentions remain available. Incremental automatic reviews and draft reviews are off, sensitivity is Medium, automatic fixes and approvals are off. Use @cubic-dev-ai review this pull request when a backup is needed.
 - LlamaPReview: installed on both repositories; opening/ready non-draft event behavior follows its hosted defaults. First completed review remains unverified.
 - PR-Agent: pending a model-provider Actions secret and supported model selection; no workflow has been enabled.
-
