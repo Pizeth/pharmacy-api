@@ -91,7 +91,7 @@ Activated repositories can be checked at https://app.codacy.com/organizations/gh
 https://app.deepsource.com/gh/Pizeth/pharmacy-client and https://app.deepsource.com/gh/Pizeth/pharmacy-api .
 
 - Client live acceptance succeeded and posted a review: https://github.com/Pizeth/pharmacy-client/actions/runs/42423574365 . The review's claim that Gemini 3.8 Flash is invalid is contradicted by that same run's successful inference and the upstream Gemini configuration example.
-- API acceptance reached inference but first timed out, then received provider HTTP 503 high-demand responses: https://github.com/Pizeth/pharmacy-api/actions/runs/42425082191 . These failures correctly produced a failed job. A successful completed API review is still required; do not call it green based on secret presence alone.
+- API acceptance reached inference but first timed out, then received provider HTTP 503 high-demand responses: https://github.com/Pizeth/pharmacy-api/actions/runs/42425082191 . These failures correctly produced a failed job. The final API acceptance succeeded and posted a review with no major issues: https://github.com/Pizeth/pharmacy-api/actions/runs/42428326425 . Secret presence alone was not treated as acceptance.
 - Both workflows allow 300 seconds per model request while retaining a 15-minute job limit. Model fallbacks remain disabled.
 - The trusted caller list is explicit rather than comparing the caller with a repository owner that could be an organization. Review that list when maintainers change or repositories transfer.
 - Installing these apps does not resolve baseline findings or establish merge readiness. See client PR 58 and API PR 14 for current checks and acceptance status.
