@@ -111,12 +111,17 @@ DeepSource whole-master baselines completed on client `2c78673` (1491 findings) 
 API `4a32f21` (428 findings: 425 JavaScript/TypeScript and 3 Docker). Baseline quality
 gates fail because of findings; this differs from a scanner crash. Codacy's client
 whole-master rerun completed without tool errors and lists 1279 findings. Its initial
-944 count was partial. API ESLint exposed two bundled plugin crashes; the operator
+944 count was partial. API ESLint exposed three bundled plugin crashes; the operator
 approved an API-only copy of the default coding standard disabling only
 `security-node/detect-unhandled-async-errors` and
-`security-node/detect-improper-exception-handling`. All other patterns are retained;
+`security-node/detect-improper-exception-handling`, and
+`security-node/detect-unhandled-event-errors`. All other patterns are retained;
 the client keeps the original standard. Restore these rules after the plugin is fixed.
-The corrected API scan must be verified separately rather than inferred from PR checks.
+The corrected API master scan completed in two minutes without analyzer errors
+(ESLint: 19 seconds), listing 306 baseline findings: 162 security, 119 error prone,
+22 best practice and 3 compatibility. The API-only standard retains 33 tools and
+2618 patterns; the unchanged client standard retains 2621 patterns. These are
+findings to triage, not 306 confirmed defects or a claim of zero baseline issues.
 
 Whole-repository analysis covers supported source languages, not every byte. Codacy
 Cloud skips files above 150 KB, including the client SVG component
