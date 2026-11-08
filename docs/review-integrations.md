@@ -77,6 +77,8 @@ Fork PRs and requests by other actors are intentionally skipped. The Actions job
 checks that the secret is configured without printing its value. It has read-only
 source permission and write access only to issues/PRs for review output.
 
+The workflow is defined on the trusted base branch (`pull_request_target`). Both the original actor and the rerun actor must be allowlisted. Unrelated labels have separate concurrency groups, so they cannot displace a queued review.
+
 The workflow does not check out or execute pull-request code, rewrite descriptions,
 or run automatic code suggestions. It pins the Docker runtime by digest. Review
 findings still require verification and do not replace CI or authorize a merge.
@@ -95,3 +97,38 @@ https://app.deepsource.com/gh/Pizeth/pharmacy-client and https://app.deepsource.
 - Both workflows allow 300 seconds per model request while retaining a 15-minute job limit. Model fallbacks remain disabled.
 - The trusted caller list is explicit rather than comparing the caller with a repository owner that could be an organization. Review that list when maintainers change or repositories transfer.
 - Installing these apps does not resolve baseline findings or establish merge readiness. See client PR 58 and API PR 14 for current checks and acceptance status.
+
+## Qodex and full-baseline follow-up (8 November 2026)
+
+Operator-observed settings: both public repositories are linked to the Qodex project.
+Automatic reviews and approvals are off; use `@qodex-ai review` when a backup is needed.
+Minor correctness findings are posted; lower-severity style notes are grouped. The
+existing free plan is selected. No application credentials or Codex tokens were shared.
+Do not treat a neutral check as a clean review: inspect its title for incomplete,
+provider-refusal or rate-limit results.
+
+DeepSource whole-master baselines completed on client `2c78673` (1491 findings) and
+API `4a32f21` (428 findings: 425 JavaScript/TypeScript and 3 Docker). Baseline quality
+gates fail because of findings; this differs from a scanner crash. Codacy's client
+whole-master rerun completed without tool errors and lists 1279 findings. Its initial
+944 count was partial. API ESLint exposed two bundled plugin crashes; the operator
+approved an API-only copy of the default coding standard disabling only
+`security-node/detect-unhandled-async-errors` and
+`security-node/detect-improper-exception-handling`. All other patterns are retained;
+the client keeps the original standard. Restore these rules after the plugin is fixed.
+The corrected API scan must be verified separately rather than inferred from PR checks.
+
+Whole-repository analysis covers supported source languages, not every byte. Codacy
+Cloud skips files above 150 KB, including the client SVG component
+`src/components/icons/socials/mcs.tsx` and the API's auto-generated
+`src/dicebear-styles.map.ts`. The SVG passed separate local ESLint analysis; this is
+not a Codacy result. Large lockfiles and profiling JSON are also above that limit.
+Coverage reports have not been uploaded; displayed zero coverage does not establish
+actual test coverage. Existing baseline findings require a separate, prioritized
+triage rather than suppressing all warnings to make the baseline green.
+
+Source results: https://app.codacy.com/gh/Pizeth/pharmacy-client/dashboard ,
+https://app.codacy.com/gh/Pizeth/pharmacy-api/dashboard ,
+https://app.deepsource.com/gh/Pizeth/pharmacy-client and
+https://app.deepsource.com/gh/Pizeth/pharmacy-api . These observations are dated
+8 November 2026; they are not evidence for an earlier calendar date.

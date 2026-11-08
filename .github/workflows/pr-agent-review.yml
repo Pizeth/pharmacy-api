@@ -2,13 +2,13 @@ name: PR-Agent manual review
 
 # Add this label to request one review. Pushes do not trigger the backup bot.
 on:
-  pull_request:
+  pull_request_target:
     types: [labeled]
 
 permissions: {}
 
 concurrency:
-  group: pr-agent-${{ github.event.pull_request.number }}
+  group: pr-agent-${{ github.event.pull_request.number }}-${{ github.event.label.name }}
   cancel-in-progress: false
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
     if: >-
       github.event.label.name == 'pr-agent-review' &&
       contains(fromJSON('["Pizeth"]'), github.actor) &&
+      contains(fromJSON('["Pizeth"]'), github.triggering_actor) &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -34,7 +35,8 @@ jobs:
             exit 1
           fi
 
-      # No checkout: the reviewer reads the PR through GitHub's API.
+      # Trusted base-branch workflow only. Never check out or execute PR code.
+      # The reviewer reads the PR through GitHub's API.
       # Pin the runtime itself, not a wrapper that pulls a moving image tag.
       - name: Review with Gemini
         uses: docker://pragent/pr-agent@sha256:b1ed6e8de56eb4d6e4169ee0d5c209bb5ed1ef071a01c0c042c64b80192a785c
