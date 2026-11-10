@@ -1,6 +1,6 @@
 # Telegram sign-in (OIDC)
 
-Status: implemented on the Telegram feature branch; not deployed until its PR is reviewed and merged.
+Status: initial OIDC integration deployed via PR #15. Live authorization currently stops at Telegram with `redirect_uri required`; verify the exact allowed callback in BotFather before completing sign-in.
 
 ## BotFather and Infisical
 
@@ -16,13 +16,13 @@ For a separate local backend, register its exact callback (`http://localhost:300
 
 ## Identity and email
 
-Only `openid` and `profile` are requested. Better Auth validates signature, issuer, audience and request nonce before our profile mapper runs; PKCE remains enabled. Failed/incomplete discovery must not fall back to unverified decoding.
+Only `openid` and `profile` are requested. Better Auth validates signature, issuer, audience and request nonce before our profile mapper runs; PKCE remains enabled. The token endpoint uses HTTP Basic client authentication, as required by the Telegram integration guide. Failed/incomplete discovery must not fall back to unverified decoding.
 
 Telegram does not supply email. New Telegram identities receive a stable, non-deliverable `SUBJECT@telegram.placeholder.invalid` address with `emailVerified: false`. The immutable token subject identifies the account; Telegram usernames are not trusted as email, local usernames or account-linking keys. Users need to add and verify a real email before relying on email recovery. Existing email accounts are not automatically linked by matching Telegram display name or username. Existing explicit account-linking restrictions remain unchanged.
 
 ## Acceptance
 
-- With either credential missing, `/auth-info/providers` omits Telegram.
+- With either credential missing, `/api/auth-info/providers` omits Telegram.
 - With both present, the existing frontend registry renders its Telegram button and uses the existing `signIn.social` route; no new frontend client plugin is needed for the installed Better Auth version.
 - Verify the authorization redirect uses the official Telegram host, supported scopes, state, nonce and S256 PKCE, and its redirect URI exactly matches BotFather.
 - Sign in with a disposable Telegram account and confirm its name/photo, unverified placeholder email, and non-admin permissions. Sign out and sign in again: the same account must be reused.

@@ -36,6 +36,7 @@ describe('Telegram OIDC configuration', () => {
       clientSecret: 'secret',
       pkce: true,
       requireIdTokenVerification: true,
+      tokenEndpointAuth: { method: 'client_secret_basic' },
       scopes: ['openid', 'profile'],
       discoveryUrl:
         'https://oauth.telegram.org/.well-known/openid-configuration',
