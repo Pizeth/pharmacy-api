@@ -14,6 +14,7 @@ describe('Telegram OIDC callback verification', () => {
   let keys: Awaited<ReturnType<typeof generateKeyPair>>;
   let foreignKeys: Awaited<ReturnType<typeof generateKeyPair>>;
   let tokenResponse = '';
+  const backgroundTasks: Promise<unknown>[] = [];
   beforeAll(async () => {
     keys = await generateKeyPair('RS256');
     foreignKeys = await generateKeyPair('RS256');
@@ -89,6 +90,10 @@ describe('Telegram OIDC callback verification', () => {
       throw new Error('Missing fixture address');
     origin = `http://127.0.0.1:${address.port}`;
   });
+  afterEach(async () => {
+    while (backgroundTasks.length)
+      await Promise.allSettled(backgroundTasks.splice(0));
+  });
   afterAll(async () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -116,6 +121,13 @@ describe('Telegram OIDC callback verification', () => {
       secret: randomBytes(32).toString('hex'),
       database: memoryAdapter(store),
       logger: { disabled: true },
+      advanced: {
+        backgroundTasks: {
+          handler: (task) => {
+            backgroundTasks.push(task);
+          },
+        },
+      },
       plugins: [
         ...(withSentinel
           ? [
@@ -324,7 +336,7 @@ describe('Telegram OIDC callback verification', () => {
     ).toBe('fixture-device-request');
     tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
     const response = await finish(auth, attempt);
-    expect(response.headers.get('location')).toBe(origin + '/dashboard');
+    expect(response.headers.get('location')).toBe(`${origin}/dashboard`);
     expect(store.user).toHaveLength(1);
   });
 
