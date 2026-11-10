@@ -6,6 +6,7 @@ import { memoryAdapter } from 'better-auth/adapters/memory';
 import { genericOAuth } from 'better-auth/plugins';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { createTelegramProvider } from './auth.telegram.js';
+import { sentinelProxyHeaders } from './auth.sentinel-proxy.js';
 
 /** Exercises real Better Auth verification against a local OIDC issuer without production data. */
 describe('Telegram OIDC callback verification', () => {
@@ -131,6 +132,7 @@ describe('Telegram OIDC callback verification', () => {
       plugins: [
         ...(withSentinel
           ? [
+              sentinelProxyHeaders(),
               dash({
                 apiKey: randomBytes(24).toString('hex'),
                 apiUrl: origin,
@@ -220,6 +222,7 @@ describe('Telegram OIDC callback verification', () => {
     auth: ReturnType<typeof fixture>['auth'],
     attempt: Awaited<ReturnType<typeof begin>>,
     error?: string,
+    headers: Record<string, string> = {},
   ) {
     const query = new URLSearchParams({
       state: requiredParameter(attempt.url, 'state'),
@@ -228,7 +231,7 @@ describe('Telegram OIDC callback verification', () => {
     else query.set('code', 'fixture-code');
     return auth.handler(
       new Request(`${origin}/api/auth/callback/telegram?${query}`, {
-        headers: { cookie: attempt.cookie },
+        headers: { cookie: attempt.cookie, ...headers },
       }),
     );
   }
@@ -339,6 +342,42 @@ describe('Telegram OIDC callback verification', () => {
     expect(response.headers.get('location')).toBe(`${origin}/dashboard`);
     expect(store.user).toHaveLength(1);
   });
+
+  it('resolves the verified OAuth cookie despite a gateway request id on the callback', async () => {
+    const { auth, store } = fixture(true);
+    const attempt = await begin(auth, true);
+    tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+    const response = await finish(auth, attempt, undefined, {
+      'X-Request-Id': 'gateway-callback-request',
+    });
+    expect(response.headers.get('location')).toBe(`${origin}/dashboard`);
+    expect(store.user).toHaveLength(1);
+    expect(store.session).toHaveLength(1);
+  });
+
+  it.each(['missing', 'forged-cookie', 'forged-modern-header'] as const)(
+    'rejects %s identification despite a gateway callback id',
+    async (mode) => {
+      const { auth, store } = fixture(true);
+      const attempt = await begin(auth, mode !== 'missing');
+      if (mode === 'forged-cookie') {
+        attempt.cookie = attempt.cookie.replace(
+          /__infra-rid=[^;]+/,
+          '__infra-rid=unresolvable-cookie',
+        );
+      }
+      tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+      const response = await finish(auth, attempt, undefined, {
+        'X-Request-Id': 'gateway-callback-request',
+        ...(mode === 'forged-modern-header'
+          ? { 'X-Sentinel-Request-Id': 'unresolvable-modern-id' }
+          : {}),
+      });
+      expect(response.status).toBe(403);
+      expect(store.user).toHaveLength(0);
+      expect(store.session).toHaveLength(0);
+    },
+  );
 
   it('keeps new-account creation blocked without a verified Sentinel device', async () => {
     const { auth, store } = fixture(true);
