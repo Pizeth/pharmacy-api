@@ -38,7 +38,7 @@ describe('Telegram OIDC callback verification', () => {
       else if (request.url === '/token')
         response.end(
           JSON.stringify({
-            access_token: 'fixture-access',
+            access_token: randomBytes(24).toString('hex'),
             token_type: 'Bearer',
             id_token: tokenResponse,
           }),
@@ -117,14 +117,20 @@ describe('Telegram OIDC callback verification', () => {
     };
   }
 
+  /** Requires an authorization parameter instead of asserting away a missing value. */
+  function requiredParameter(url: URL, name: string): string {
+    const value = url.searchParams.get(name);
+    if (!value) throw new Error(`Missing authorization parameter: ${name}`);
+    return value;
+  }
   /** Exchanges a test authorization code using the state and cookie from the login attempt. */
-  async function finish(
+  function finish(
     auth: ReturnType<typeof fixture>['auth'],
     attempt: Awaited<ReturnType<typeof begin>>,
     error?: string,
   ) {
     const query = new URLSearchParams({
-      state: attempt.url.searchParams.get('state')!,
+      state: requiredParameter(attempt.url, 'state'),
     });
     if (error) query.set('error', error);
     else query.set('code', 'fixture-code');
@@ -136,7 +142,7 @@ describe('Telegram OIDC callback verification', () => {
   }
 
   /** Signs a locally issued token with independently overridable verification claims. */
-  async function issue(
+  function issue(
     nonce: string,
     overrides: Record<string, unknown> = {},
     foreign = false,
@@ -169,7 +175,7 @@ describe('Telegram OIDC callback verification', () => {
       expect(attempt.url.searchParams.get('code_challenge')).toBeTruthy();
       const nonce = attempt.url.searchParams.get('nonce');
       expect(nonce).toBeTruthy();
-      tokenResponse = await issue(nonce!);
+      tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
       const response = await finish(auth, attempt);
       expect(response.headers.get('location')).toBe(`${origin}/dashboard`);
     }
@@ -208,7 +214,7 @@ describe('Telegram OIDC callback verification', () => {
         failure === 'missing-token'
           ? ''
           : await issue(
-              attempt.url.searchParams.get('nonce')!,
+              requiredParameter(attempt.url, 'nonce'),
               overrides,
               failure === 'signature',
             );
