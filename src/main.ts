@@ -10,6 +10,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+import {
+  SENTINEL_REQUEST_HEADERS,
+  SENTINEL_RESPONSE_HEADERS,
+} from './lib/auth.sentinel';
 import { translationQueryTiming } from './common/data-table/translation-query-timing';
 // import { HotModule } from './types/types';
 
@@ -128,16 +132,13 @@ async function bootstrap() {
       'Content-Type',
       'Authorization',
       'x-captcha-response',
-      'X-Visitor-Id',
-      'X-Request-Id',
-      'X-PoW-Solution',
+      ...SENTINEL_REQUEST_HEADERS,
     ],
     exposedHeaders: [
       'set-auth-token', // 👈 expose Bearer token header
       'set-auth-jwt', // 👈 expose JWT header (used by getSession)
       'Authorization',
-      'X-PoW-Challenge',
-      'X-PoW-Reason',
+      ...SENTINEL_RESPONSE_HEADERS,
     ],
 
     /**
