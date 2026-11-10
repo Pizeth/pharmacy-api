@@ -315,7 +315,13 @@ describe('Telegram OIDC callback verification', () => {
   it('carries verified Sentinel identification across the OAuth callback', async () => {
     const { auth, store } = fixture(true);
     const attempt = await begin(auth, true);
-    expect(attempt.cookie).toContain('__infra-rid=');
+    const infraCookie = attempt.cookie
+      .split(/;\s*/)
+      .find((value) => value.startsWith('__infra-rid='));
+    expect(infraCookie).toBeDefined();
+    expect(
+      decodeURIComponent(infraCookie?.slice('__infra-rid='.length) ?? ''),
+    ).toBe('fixture-device-request');
     tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
     const response = await finish(auth, attempt);
     expect(response.headers.get('location')).toBe(origin + '/dashboard');
