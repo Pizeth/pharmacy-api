@@ -38,6 +38,7 @@ export function createTelegramProvider(
     providerId: 'telegram',
     clientId,
     clientSecret,
+    tokenEndpointAuth: { method: 'client_secret_basic' },
     discoveryUrl: 'https://oauth.telegram.org/.well-known/openid-configuration',
     requireIdTokenVerification: true,
     scopes: ['openid', 'profile'],

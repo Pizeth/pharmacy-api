@@ -23,6 +23,16 @@ describe('Telegram OIDC callback verification', () => {
     };
     server = createServer((request, response) => {
       response.setHeader('Content-Type', 'application/json');
+      // The issuer rejects token exchanges without the required HTTP Basic client authentication.
+      const expectedAuth = `Basic ${Buffer.from(['123', 'fixture-secret'].join(':')).toString('base64')}`;
+      if (
+        request.url === '/token' &&
+        request.headers.authorization !== expectedAuth
+      ) {
+        response.statusCode = 401;
+        response.end('{}');
+        return;
+      }
       if (request.url === '/discovery')
         response.end(
           JSON.stringify({
