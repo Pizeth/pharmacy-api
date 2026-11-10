@@ -1,5 +1,21 @@
 import type { SentinelOptions } from '@better-auth/infra';
 
+/** Preserve legacy clients while allowing proxy-safe SDK identification and challenge headers. */
+export const SENTINEL_REQUEST_HEADERS = [
+  'X-Visitor-Id',
+  'X-Request-Id',
+  'X-PoW-Solution',
+  'X-Sentinel-Visitor-Id',
+  'X-Sentinel-Request-Id',
+  'X-Sentinel-PoW-Solution',
+] as const;
+export const SENTINEL_RESPONSE_HEADERS = [
+  'X-PoW-Challenge',
+  'X-PoW-Reason',
+  'X-Sentinel-PoW-Challenge',
+  'X-Sentinel-PoW-Reason',
+] as const;
+
 /** Browser ingestion is project-scoped; authenticated server KV calls use its origin. */
 export function getSentinelOptions(
   env: NodeJS.ProcessEnv = process.env,
@@ -57,7 +73,7 @@ export function getSentinelOptions(
         notifyUser: false,
         notifyAdmin: false,
       },
-      // Enabled for SDK support; infra 0.4.22 currently stubs device detection.
+      // Keep SDK-backed unknown-device detection enabled.
       unknownDeviceNotification: true,
     },
   };

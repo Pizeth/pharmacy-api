@@ -1,6 +1,6 @@
 # Telegram sign-in (OIDC)
 
-Status: initial OIDC integration deployed via PR #15. Live authorization currently stops at Telegram with `redirect_uri required`; verify the exact allowed callback in BotFather before completing sign-in.
+Status: Telegram OIDC and Basic token authentication are deployed. The proxy-safe identification changes below require a coordinated backend/client release, followed by final user sign-in acceptance.
 
 ## BotFather and Infisical
 
@@ -29,3 +29,13 @@ Telegram does not supply email. New Telegram identities receive a stable, non-de
 - Exercise deny/cancel and tampered/expired tokens; no session should be created. Do not use an existing administrator account for the first acceptance run.
 
 References: https://core.telegram.org/bots/telegram-login and https://better-auth.com/docs/plugins/generic-oauth
+
+## Proxy-safe device identification
+
+The production ingress rewrites the generic `X-Request-Id` header. A controlled anonymous-device check confirmed the record exists in KV, but the API's `__infra-rid` cookie contained a different ID. OAuth then could not resolve a verified visitor and correctly blocked new-account creation. Existing Google sign-in does not exercise that creation guard.
+
+Use `@better-auth/infra` 0.4.28 on both ends and `sentinelHeaders: 'modern'` in the browser client, so identity and challenge requests use `X-Sentinel-*`. Backend CORS must allow those request headers and expose namespaced challenge headers. The new server accepts modern and legacy inputs; keep legacy challenge responses during backend-first rollout so existing clients can still solve challenges. The modern client reads either response family.
+
+Deploy the backend support before the frontend. Rebuild/restart development clients after their dependency/configuration update, and hard-refresh the login page; the development hostname currently returns long-lived browser cache headers for stable chunk URLs.
+
+Acceptance: a real KV lookup ID sent as `X-Sentinel-Request-Id` must survive the ingress and appear unchanged in the OAuth relay cookie even when generic `X-Request-Id` differs. Forged visitor headers or missing/unresolvable device records must remain blocked. No placeholder device ID or guard exemption is used.

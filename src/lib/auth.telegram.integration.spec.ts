@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { betterAuth } from 'better-auth';
+import { dash, sentinel } from '@better-auth/infra';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 import { genericOAuth } from 'better-auth/plugins';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -22,18 +23,41 @@ describe('Telegram OIDC callback verification', () => {
       alg: 'RS256',
     };
     server = createServer((request, response) => {
+      const route = request.url?.replace(/^\/api\/v1/, '');
       response.setHeader('Content-Type', 'application/json');
       // The issuer rejects token exchanges without the required HTTP Basic client authentication.
       const expectedAuth = `Basic ${Buffer.from(['123', 'fixture-secret'].join(':')).toString('base64')}`;
       if (
-        request.url === '/token' &&
+        route === '/token' &&
         request.headers.authorization !== expectedAuth
       ) {
         response.statusCode = 401;
         response.end('{}');
         return;
       }
-      if (request.url === '/discovery')
+      if (route === '/identify/fixture-device-request') {
+        response.end(
+          JSON.stringify({
+            visitorId: 'fixture-device',
+            requestId: 'fixture-device-request',
+            ip: '127.0.0.1',
+          }),
+        );
+        return;
+      }
+      if (route?.startsWith('/security/') || route?.startsWith('/events')) {
+        response.end(
+          JSON.stringify({
+            reserved: true,
+            isAbuse: false,
+            action: 'allow',
+            accountCount: 0,
+            maxAccounts: 3,
+          }),
+        );
+        return;
+      }
+      if (route === '/discovery')
         response.end(
           JSON.stringify({
             issuer: origin,
@@ -43,9 +67,8 @@ describe('Telegram OIDC callback verification', () => {
             id_token_signing_alg_values_supported: ['RS256'],
           }),
         );
-      else if (request.url === '/jwks')
-        response.end(JSON.stringify({ keys: [jwk] }));
-      else if (request.url === '/token')
+      else if (route === '/jwks') response.end(JSON.stringify({ keys: [jwk] }));
+      else if (route === '/token')
         response.end(
           JSON.stringify({
             access_token: randomBytes(24).toString('hex'),
@@ -76,7 +99,7 @@ describe('Telegram OIDC callback verification', () => {
   });
 
   /** Creates an isolated auth store using the production provider options and local discovery. */
-  function fixture() {
+  function fixture(withSentinel = false) {
     const store: Record<string, Record<string, unknown>[]> = {
       user: [],
       account: [],
@@ -94,6 +117,31 @@ describe('Telegram OIDC callback verification', () => {
       database: memoryAdapter(store),
       logger: { disabled: true },
       plugins: [
+        ...(withSentinel
+          ? [
+              dash({
+                apiKey: randomBytes(24).toString('hex'),
+                apiUrl: origin,
+                kvUrl: origin,
+                kvOptions: {
+                  timeout: 500,
+                  retry: { attempts: 0, baseDelay: 0, maxDelay: 0 },
+                },
+              }),
+              sentinel({
+                apiKey: randomBytes(24).toString('hex'),
+                apiUrl: origin,
+                kvUrl: origin,
+                kvOptions: {
+                  timeout: 500,
+                  retry: { attempts: 0, baseDelay: 0, maxDelay: 0 },
+                },
+                security: {
+                  freeTrialAbuse: { enabled: true, maxAccountsPerVisitor: 3 },
+                },
+              }),
+            ]
+          : []),
         genericOAuth({
           config: [{ ...configured, discoveryUrl: `${origin}/discovery` }],
         }),
@@ -103,11 +151,32 @@ describe('Telegram OIDC callback verification', () => {
   }
 
   /** Begins authorization and preserves the browser state cookie for the callback. */
-  async function begin(auth: ReturnType<typeof fixture>['auth']) {
+  async function begin(
+    auth: ReturnType<typeof fixture>['auth'],
+    identified: boolean | 'rewritten' | 'forged' = false,
+  ) {
     const response = await auth.handler(
       new Request(`${origin}/api/auth/sign-in/social`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: origin },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: origin,
+          ...(identified
+            ? {
+                'X-Request-Id': 'gateway-generated-id',
+                'X-Visitor-Id': 'fixture-device',
+                ...(identified === 'rewritten'
+                  ? {}
+                  : {
+                      'X-Sentinel-Request-Id':
+                        identified === 'forged'
+                          ? 'missing-device-record'
+                          : 'fixture-device-request',
+                      'X-Sentinel-Visitor-Id': 'untrusted-client-visitor',
+                    }),
+              }
+            : {}),
+        },
         body: JSON.stringify({
           provider: 'telegram',
           callbackURL: `${origin}/dashboard`,
@@ -115,6 +184,7 @@ describe('Telegram OIDC callback verification', () => {
         }),
       }),
     );
+    if (response.status !== 200) throw new Error(await response.text());
     expect(response.status).toBe(200);
     const body = (await response.json()) as { url: string };
     const url = new URL(body.url);
@@ -242,4 +312,37 @@ describe('Telegram OIDC callback verification', () => {
     expect(store.user ?? []).toHaveLength(0);
     expect(store.session ?? []).toHaveLength(0);
   });
+  it('carries verified Sentinel identification across the OAuth callback', async () => {
+    const { auth, store } = fixture(true);
+    const attempt = await begin(auth, true);
+    expect(attempt.cookie).toContain('__infra-rid=');
+    tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+    const response = await finish(auth, attempt);
+    expect(response.headers.get('location')).toBe(origin + '/dashboard');
+    expect(store.user).toHaveLength(1);
+  });
+
+  it('keeps new-account creation blocked without a verified Sentinel device', async () => {
+    const { auth, store } = fixture(true);
+    const attempt = await begin(auth);
+    tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+    const response = await finish(auth, attempt);
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain(
+      'Account creation is not allowed without device identification.',
+    );
+    expect(store.user).toHaveLength(0);
+  });
+  it.each(['rewritten', 'forged'] as const)(
+    'does not create accounts for an unverified %s request id',
+    async (mode) => {
+      const { auth, store } = fixture(true);
+      const attempt = await begin(auth, mode);
+      tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+      const response = await finish(auth, attempt);
+      expect(response.status).toBe(403);
+      expect(store.user).toHaveLength(0);
+      expect(store.session).toHaveLength(0);
+    },
+  );
 });
