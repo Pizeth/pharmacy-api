@@ -7,7 +7,7 @@ const context = {
 } as Parameters<RequestHook>[1];
 
 describe('Sentinel OAuth proxy headers', () => {
-  const hook = sentinelProxyHeaders().onRequest!;
+  const hook = sentinelProxyHeaders().onRequest;
 
   it.each(['callback/telegram', 'oauth2/callback/telegram'])(
     'preserves the browser cookie and unrelated headers on %s',

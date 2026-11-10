@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth';
 
 /** Let redirect callbacks resolve Sentinel's verified cookie instead of a gateway trace ID. */
-export function sentinelProxyHeaders(): BetterAuthPlugin {
+export function sentinelProxyHeaders() {
   return {
     id: 'sentinel-proxy-headers',
     onRequest: (request, ctx) => {
@@ -25,5 +25,5 @@ export function sentinelProxyHeaders(): BetterAuthPlugin {
       headers.delete('X-Request-Id');
       return Promise.resolve({ request: new Request(request, { headers }) });
     },
-  };
+  } satisfies BetterAuthPlugin;
 }
