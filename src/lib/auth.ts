@@ -25,6 +25,7 @@ import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
 import { dash, sentinel } from '@better-auth/infra';
 import { getSentinelOptions } from './auth.sentinel';
+import { sentinelProxyHeaders } from './auth.sentinel-proxy';
 import {
   AUTH_TOKEN_STORAGE,
   getAuthErrorURL,
@@ -226,6 +227,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       skipStateCookieCheck: false,
     },
     plugins: [
+      sentinelProxyHeaders(),
       apiKey(),
       // admin() kept ONLY for utilities: ban user, list users, impersonate
       // Its `role` string field on User is ignored — CASL handles authorization

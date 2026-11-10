@@ -1,6 +1,6 @@
 # Telegram sign-in (OIDC)
 
-Status: Telegram OIDC and Basic token authentication are deployed. The proxy-safe identification changes below require a coordinated backend/client release, followed by final user sign-in acceptance.
+Status: Telegram OIDC, Basic token authentication and modern Sentinel headers are deployed. The callback header normalization below is awaiting deployment and final user sign-in acceptance.
 
 ## BotFather and Infisical
 
@@ -39,3 +39,9 @@ Use `@better-auth/infra` 0.4.28 on both ends and `sentinelHeaders: 'modern'` in 
 Deploy the backend support before the frontend. Rebuild/restart development clients after their dependency/configuration update, and hard-refresh the login page; the development hostname currently returns long-lived browser cache headers for stable chunk URLs.
 
 Acceptance: a real KV lookup ID sent as `X-Sentinel-Request-Id` must survive the ingress and appear unchanged in the OAuth relay cookie even when generic `X-Request-Id` differs. Forged visitor headers or missing/unresolvable device records must remain blocked. No placeholder device ID or guard exemption is used.
+
+### Redirect callback trace headers
+
+The modern-header release protected the initial POST, but the ingress also adds a generic `X-Request-Id` to the redirected GET callback. Infra 0.4.28 prefers that header over its saved cookie, so a verified cookie alone is insufficient. The Better Auth dashboard confirmed the initial request passed while `/callback/:id` was blocked with `identification_required`. A local callback regression reproduces this failure by adding the ingress header to an otherwise valid redirect.
+
+`sentinelProxyHeaders()` removes only generic `X-Request-Id` on GET `/callback/:id` and `/oauth2/callback/:id` under Better Auth's configured base path, when no explicit modern identification header is present. Sentinel still resolves the untouched `__infra-rid` cookie through KV. Explicit modern IDs retain precedence, including invalid IDs; absent or forged cookies still fail. POST identification, other routes, OAuth state/nonce/signature verification, IP headers and account-creation policy stay unchanged.
