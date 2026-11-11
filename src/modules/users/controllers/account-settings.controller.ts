@@ -5,8 +5,6 @@ import {
   ForbiddenException,
   Get,
   NotFoundException,
-  Param,
-  ParseIntPipe,
   Patch,
   Post,
   Session,
@@ -21,10 +19,7 @@ import {
   createSocialProfileSchema,
   updateSocialProfileSchema,
 } from '../dto/social-profile.dto';
-import type {
-  CreateSocialProfileDto,
-  UpdateSocialProfileDto,
-} from '../dto/social-profile.dto';
+import type { CreateSocialProfileDto } from '../dto/social-profile.dto';
 import { SocialProfilesService } from '../services/social-profiles.service';
 
 const phoneSchema = z
@@ -38,6 +33,11 @@ const phoneSchema = z
       .nullable(),
   })
   .strict();
+
+const socialLinkId = z.object({ id: z.number().int().positive() }).strict();
+const socialLinkUpdate = socialLinkId.extend({
+  changes: updateSocialProfileSchema,
+});
 
 @Controller({ path: 'account/settings', version: VERSION_NEUTRAL })
 @UseGuards(AuthGuard)
@@ -105,20 +105,23 @@ export class AccountSettingsController {
     return this.socialProfiles.create(await this.owner(session), body);
   }
 
-  @Patch('social-links/:id')
+  @Patch('social-links')
   async updateLink(
     @Session() session: UserSession<Auth>,
-    @Param('id', ParseIntPipe) id: number,
-    @Body({ schema: updateSocialProfileSchema }) body: UpdateSocialProfileDto,
+    @Body({ schema: socialLinkUpdate }) body: z.infer<typeof socialLinkUpdate>,
   ) {
-    return this.socialProfiles.update(await this.owner(session), id, body);
+    return this.socialProfiles.update(
+      await this.owner(session),
+      body.id,
+      body.changes,
+    );
   }
 
-  @Delete('social-links/:id')
+  @Delete('social-links')
   async deleteLink(
     @Session() session: UserSession<Auth>,
-    @Param('id', ParseIntPipe) id: number,
+    @Body({ schema: socialLinkId }) body: z.infer<typeof socialLinkId>,
   ) {
-    return this.socialProfiles.delete(await this.owner(session), id);
+    return this.socialProfiles.delete(await this.owner(session), body.id);
   }
 }

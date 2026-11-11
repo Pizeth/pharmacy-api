@@ -41,7 +41,10 @@ describe('AccountSettingsController', () => {
   });
 
   it('uses the signed-in owner when updating a social link', async () => {
-    await controller.updateLink(session, 7, { handle: 'officer' });
+    await controller.updateLink(session, {
+      id: 7,
+      changes: { handle: 'officer' },
+    });
     expect(updateLink).toHaveBeenCalledWith(42, 7, { handle: 'officer' });
   });
 
