@@ -67,7 +67,7 @@ export class UsersService {
     });
   }
 
-  async getAdminDisplayDetail(id: number) {
+  getAdminDisplayDetail(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -78,6 +78,7 @@ export class UsersService {
         image: true,
         role: true,
         banned: true,
+        isLinked: true,
         emailVerified: true,
         userRole: {
           select: {
