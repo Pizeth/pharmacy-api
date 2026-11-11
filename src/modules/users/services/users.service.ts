@@ -78,6 +78,7 @@ export class UsersService {
         image: true,
         role: true,
         banned: true,
+        isLinked: true,
         emailVerified: true,
         userRole: {
           select: {

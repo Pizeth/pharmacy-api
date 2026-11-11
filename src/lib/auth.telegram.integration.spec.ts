@@ -7,6 +7,7 @@ import { genericOAuth } from 'better-auth/plugins';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { createTelegramProvider } from './auth.telegram.js';
 import { sentinelProxyHeaders } from './auth.sentinel-proxy.js';
+import { accountLinking } from './auth.account-linking.js';
 
 /** Exercises real Better Auth verification against a local OIDC issuer without production data. */
 describe('Telegram OIDC callback verification', () => {
@@ -121,6 +122,8 @@ describe('Telegram OIDC callback verification', () => {
       baseURL: origin,
       secret: randomBytes(32).toString('hex'),
       database: memoryAdapter(store),
+      emailAndPassword: { enabled: true },
+      account: { accountLinking },
       logger: { disabled: true },
       advanced: {
         backgroundTasks: {
@@ -168,6 +171,7 @@ describe('Telegram OIDC callback verification', () => {
   async function begin(
     auth: ReturnType<typeof fixture>['auth'],
     identified: boolean | 'rewritten' | 'forged' = false,
+    requestSignUp = true,
   ) {
     const response = await auth.handler(
       new Request(`${origin}/api/auth/sign-in/social`, {
@@ -193,6 +197,7 @@ describe('Telegram OIDC callback verification', () => {
         },
         body: JSON.stringify({
           provider: 'telegram',
+          requestSignUp,
           callbackURL: `${origin}/dashboard`,
           disableRedirect: true,
         }),
@@ -254,6 +259,89 @@ describe('Telegram OIDC callback verification', () => {
       )
       .sign(foreign ? foreignKeys.privateKey : keys.privateKey);
   }
+
+  it('requires explicit signup for a new Telegram identity', async () => {
+    const { auth, store } = fixture();
+    const attempt = await begin(auth, false, false);
+    tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+    const response = await finish(auth, attempt);
+    expect(response.headers.get('location')).not.toBe(`${origin}/dashboard`);
+    expect(store.user).toHaveLength(0);
+  });
+
+  it.each([false, true])(
+    'links Telegram to a signed-in account only when its subject is available (already linked: %s)',
+    async (alreadyLinked) => {
+      const { auth, store } = fixture();
+      if (alreadyLinked) {
+        const initial = await begin(auth);
+        tokenResponse = await issue(requiredParameter(initial.url, 'nonce'));
+        await finish(auth, initial);
+      }
+
+      const signup = await auth.handler(
+        new Request(`${origin}/api/auth/sign-up/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: origin },
+          body: JSON.stringify({
+            email: 'officer@example.test',
+            name: 'Officer',
+            password: randomBytes(24).toString('hex'),
+          }),
+        }),
+      );
+      expect(signup.status).toBe(200);
+      const sessionCookie = signup.headers
+        .getSetCookie()
+        .map((value) => value.split(';')[0])
+        .join('; ');
+      const start = await auth.handler(
+        new Request(`${origin}/api/auth/link-social`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: origin,
+            Cookie: sessionCookie,
+          },
+          body: JSON.stringify({
+            provider: 'telegram',
+            callbackURL: `${origin}/dashboard`,
+            disableRedirect: true,
+          }),
+        }),
+      );
+      expect(start.status).toBe(200);
+      const payload = (await start.json()) as { url: string };
+      const attempt = {
+        url: new URL(payload.url),
+        cookie: [
+          sessionCookie,
+          ...start.headers.getSetCookie().map((value) => value.split(';')[0]),
+        ].join('; '),
+      };
+      tokenResponse = await issue(requiredParameter(attempt.url, 'nonce'));
+      const response = await finish(auth, attempt);
+      const officer = store.user.find(
+        (user) => user.email === 'officer@example.test',
+      );
+      const telegram = store.account.find(
+        (account) => account.providerId === 'telegram',
+      );
+      expect(officer).toBeDefined();
+      expect(telegram).toBeDefined();
+      if (alreadyLinked) {
+        expect(response.headers.get('location')).not.toBe(
+          `${origin}/dashboard`,
+        );
+        expect(telegram?.userId).not.toBe(officer?.id);
+        expect(store.user).toHaveLength(2);
+      } else {
+        expect(response.headers.get('location')).toBe(`${origin}/dashboard`);
+        expect(telegram?.userId).toBe(officer?.id);
+        expect(store.user).toHaveLength(1);
+      }
+    },
+  );
 
   it('uses PKCE, nonce, state and the exact callback, and reuses a verified account', async () => {
     const { auth, store } = fixture();
