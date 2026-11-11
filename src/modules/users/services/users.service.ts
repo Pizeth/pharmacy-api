@@ -67,7 +67,7 @@ export class UsersService {
     });
   }
 
-  async getAdminDisplayDetail(id: number) {
+  getAdminDisplayDetail(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
