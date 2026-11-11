@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { AppError } from 'exceptions/app.exception';
-import { isTelegramPlaceholderEmail } from 'lib/auth.telegram.js';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
+import { isTelegramPlaceholderEmail } from '../../../lib/auth.telegram.js';
 
 // account.service.ts
 @Injectable()
