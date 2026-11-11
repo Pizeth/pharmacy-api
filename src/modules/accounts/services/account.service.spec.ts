@@ -16,7 +16,7 @@ describe('officer ID verification', () => {
   const findProfile = jest.fn<() => Promise<object | null>>();
   const updateProfile = jest.fn<() => Promise<{ count: number }>>();
   const updateUser = jest.fn<() => Promise<void>>();
-  const transaction = jest.fn(async (work: (tx: object) => Promise<void>) =>
+  const transaction = jest.fn((work: (tx: object) => Promise<void>) =>
     work({
       profile: { updateMany: updateProfile },
       user: { update: updateUser },
