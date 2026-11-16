@@ -10,6 +10,7 @@ import { SocialProfilesController } from './controllers/social-profiles.controll
 import { SocialProfilesService } from './services/social-profiles.service';
 import { SocialProvidersController } from './controllers/social-providers.controller';
 import { SocialProvidersService } from './services/social-providers.service';
+import { AccountSettingsController } from './controllers/account-settings.controller';
 
 @Module({
   imports: [DBHelperModule, CommonModule, ConfigModule],
@@ -30,6 +31,7 @@ import { SocialProvidersService } from './services/social-providers.service';
     UserController,
     SocialProfilesController,
     SocialProvidersController,
+    AccountSettingsController,
   ],
 })
 export class UserModule {}

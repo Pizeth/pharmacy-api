@@ -1,3 +1,4 @@
+import { timeTranslationQueryPhase } from 'common/data-table/translation-query-timing';
 import { betterAuth, isProduction, type BetterAuthOptions } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { PrismaClient } from 'generated/prisma/client';
@@ -24,6 +25,9 @@ import { apiKey } from '@better-auth/api-key';
 import { i18n } from '@better-auth/i18n';
 import { dash, sentinel } from '@better-auth/infra';
 import { getSentinelOptions } from './auth.sentinel';
+import { sentinelProxyHeaders } from './auth.sentinel-proxy';
+import { accountLinking } from './auth.account-linking';
+import { isTelegramPlaceholderEmail } from './auth.telegram.js';
 import {
   AUTH_TOKEN_STORAGE,
   getAuthErrorURL,
@@ -46,9 +50,17 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     appName: 'Razeth',
     onAPIError: { errorURL: getAuthErrorURL() },
     baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-    database: prismaAdapter(prisma, {
-      provider: 'postgresql',
-    }),
+    database: (authOptions: Parameters<ReturnType<typeof prismaAdapter>>[0]) => {
+      const adapter = prismaAdapter(prisma, { provider: 'postgresql' })(authOptions);
+      if (process.env.TRANSLATION_QUERY_TIMING === 'true') {
+        const findOne = adapter.findOne;
+        adapter.findOne = (query) =>
+          query.model === 'session'
+            ? timeTranslationQueryPhase('sessionLookup', () => findOne(query))
+            : findOne(query);
+      }
+      return adapter;
+    },
     trustedOrigins: [
       // process.env.FRONTEND_URL || 'http://localhost:8080', // Next.js prod
       // process.env.BETTER_AUTH_URL || 'http://localhost:3000', // NestJS prod
@@ -144,6 +156,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     },
     socialProviders: getSocialProvidersConfig(),
     user: {
+      changeEmail: { enabled: true },
       additionalFields: {
         // Role relation — CASL reads this to load permissions
         roleId: {
@@ -214,9 +227,11 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       },
     },
     account: {
+      accountLinking,
       skipStateCookieCheck: false,
     },
     plugins: [
+      sentinelProxyHeaders(),
       apiKey(),
       // admin() kept ONLY for utilities: ban user, list users, impersonate
       // Its `role` string field on User is ignored — CASL handles authorization
@@ -323,6 +338,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     ],
     emailVerification: {
       sendVerificationEmail: async (data: Email, request?: Request) => {
+        if (isTelegramPlaceholderEmail(data.user.email)) return;
         // void sendEmail({
         //   to: user.email,
         //   subject: 'Verify your email address',

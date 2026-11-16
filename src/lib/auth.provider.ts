@@ -1,4 +1,5 @@
 import { GenericOAuthConfig } from 'better-auth/plugins';
+import { createTelegramProvider } from './auth.telegram.js';
 
 /**
  * 1. Declare core Social Providers in a strict constant object.
@@ -16,30 +17,11 @@ export const SOCIAL_PROVIDERS_CONFIG = {
   // ⚡ If you add "apple" or "microsoft" here later, the types and endpoints update automatically!
 };
 
-/**
- * 2. Declare Generic OAuth Providers in a strict constant array.
- * TypeScript will automatically extract the literal 'providerId' string values.
- */
-// export const GENERIC_PROVIDERS_CONFIG: GenericOAuthConfig[] = [
-//   {
-//     // Enforces that this string matches your type union
-//     providerId: 'telegram',
-//     clientId: process.env.TELEGRAM_CLIENT_ID as string,
-//     clientSecret: process.env.TELEGRAM_CLIENT_SECRET,
-//     discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL,
-//   },
-//   // ⚡ If you append a new generic provider here, the type auto-updates instantly!
-// ];
+const telegramProvider = createTelegramProvider(process.env);
 
-export const GENERIC_PROVIDERS_CONFIG_RAW = [
-  {
-    providerId: 'telegram',
-    clientId: process.env.TELEGRAM_CLIENT_ID!,
-    clientSecret: process.env.TELEGRAM_CLIENT_SECRET!,
-    discoveryUrl: process.env.TELEGRAM_DISCOVERY_URL!,
-  },
-  // ⚡ If you append a new generic provider here, the type auto-updates instantly!
-] as const satisfies readonly GenericOAuthConfig[];
+export const GENERIC_PROVIDERS_CONFIG_RAW = telegramProvider
+  ? [telegramProvider]
+  : [];
 
 export const GENERIC_PROVIDERS_CONFIG: GenericOAuthConfig[] = [
   ...GENERIC_PROVIDERS_CONFIG_RAW,

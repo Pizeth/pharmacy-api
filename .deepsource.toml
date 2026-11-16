@@ -1,0 +1,17 @@
+version = 1
+
+test_patterns = ["**/*.spec.ts", "**/*.test.ts", "test/**"]
+exclude_patterns = ["node_modules/**", "dist/**", "build/**", "coverage/**", "generated/prisma/**", "src/generated/prisma/**"]
+
+[[analyzers]]
+name = "javascript"
+enabled = true
+
+  [analyzers.meta]
+  environment = ["nodejs", "jest"]
+  module_system = "es-modules"
+  dialect = "typescript"
+
+[[analyzers]]
+name = "docker"
+enabled = true

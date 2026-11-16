@@ -10,6 +10,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { CorrelationMiddleware } from './middlewares/correlation.middleware';
+import {
+  SENTINEL_REQUEST_HEADERS,
+  SENTINEL_RESPONSE_HEADERS,
+} from './lib/auth.sentinel';
+import { translationQueryTiming } from './common/data-table/translation-query-timing';
 // import { HotModule } from './types/types';
 
 // declare const module: HotModule;
@@ -110,6 +115,7 @@ async function bootstrap() {
    */
   const correlationMiddleware = new CorrelationMiddleware();
   app.use(correlationMiddleware.use.bind(correlationMiddleware));
+  app.use(translationQueryTiming);
 
   /**
    * --------------------------------------------------------------
@@ -117,6 +123,7 @@ async function bootstrap() {
    * --------------------------------------------------------------
    */
   app.enableCors({
+    maxAge: 300,
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
       .split(',')
       .map((origin) => origin.trim()),
@@ -125,16 +132,13 @@ async function bootstrap() {
       'Content-Type',
       'Authorization',
       'x-captcha-response',
-      'X-Visitor-Id',
-      'X-Request-Id',
-      'X-PoW-Solution',
+      ...SENTINEL_REQUEST_HEADERS,
     ],
     exposedHeaders: [
       'set-auth-token', // 👈 expose Bearer token header
       'set-auth-jwt', // 👈 expose JWT header (used by getSession)
       'Authorization',
-      'X-PoW-Challenge',
-      'X-PoW-Reason',
+      ...SENTINEL_RESPONSE_HEADERS,
     ],
 
     /**

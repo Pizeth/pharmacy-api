@@ -1,0 +1,9 @@
+---
+# Keep source, tests and migrations analyzed; omit generated artifacts only.
+exclude_paths:
+  - "node_modules/**"
+  - "dist/**"
+  - "build/**"
+  - "coverage/**"
+  - "generated/prisma/**"
+  - "src/generated/prisma/**"

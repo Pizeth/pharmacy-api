@@ -36,6 +36,7 @@
 
 import { Module } from '@nestjs/common';
 import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
+import { timeTranslationQueryPhase } from 'common/data-table/translation-query-timing';
 import { createAuth } from 'lib/auth';
 import { PrismaModule } from 'modules/prisma/prisma.module';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
@@ -51,9 +52,18 @@ import { ResendService } from 'modules/email/services/resend.service';
     BetterAuthModule.forRootAsync({
       imports: [PrismaModule, ResendModule],
       inject: [PrismaService, ResendService],
-      useFactory: (prisma: PrismaService, email: ResendService) => ({
-        auth: createAuth(prisma, email),
-      }),
+      useFactory: (prisma: PrismaService, email: ResendService) => {
+        const auth = createAuth(prisma, email);
+        if (process.env.TRANSLATION_QUERY_TIMING === 'true') {
+          auth.api.getSession = new Proxy(auth.api.getSession, {
+            apply: (getSession, receiver, args) =>
+              timeTranslationQueryPhase('session', () =>
+                Reflect.apply(getSession, receiver, args),
+              ),
+          });
+        }
+        return { auth };
+      },
     }),
   ],
   providers: [AuthHooks, AuthService],
