@@ -85,5 +85,6 @@ export const USER_TABLE_SELECT = {
   role: true,
   roleId: true,
   banned: true,
+  isLinked: true,
   emailVerified: true,
 } satisfies Prisma.UserSelect;

@@ -1,6 +1,12 @@
 import type { GenericOAuthConfig } from 'better-auth/plugins';
 import { decodeJwt } from 'jose';
 
+const TELEGRAM_PLACEHOLDER_DOMAIN = 'telegram.placeholder.invalid';
+
+export function isTelegramPlaceholderEmail(email: string): boolean {
+  return email.toLowerCase().endsWith(`@${TELEGRAM_PLACEHOLDER_DOMAIN}`);
+}
+
 /** Maps claims only after Generic OAuth verifies the token signature, issuer, audience and nonce. */
 export const getTelegramUserInfo: NonNullable<
   GenericOAuthConfig['getUserInfo']
@@ -19,7 +25,7 @@ export const getTelegramUserInfo: NonNullable<
           : 'Telegram user',
       image: typeof claims.picture === 'string' ? claims.picture : undefined,
       // Telegram provides no email. Never treat its mutable username as an email or account key.
-      email: `${claims.sub}@telegram.placeholder.invalid`,
+      email: `${claims.sub}@${TELEGRAM_PLACEHOLDER_DOMAIN}`,
       emailVerified: false,
     });
   } catch {
@@ -41,6 +47,7 @@ export function createTelegramProvider(
     tokenEndpointAuth: { method: 'client_secret_basic' },
     discoveryUrl: 'https://oauth.telegram.org/.well-known/openid-configuration',
     requireIdTokenVerification: true,
+    disableImplicitSignUp: true,
     scopes: ['openid', 'profile'],
     pkce: true,
     getUserInfo: getTelegramUserInfo,

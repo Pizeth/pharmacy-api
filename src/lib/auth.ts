@@ -26,6 +26,8 @@ import { i18n } from '@better-auth/i18n';
 import { dash, sentinel } from '@better-auth/infra';
 import { getSentinelOptions } from './auth.sentinel';
 import { sentinelProxyHeaders } from './auth.sentinel-proxy';
+import { accountLinking } from './auth.account-linking';
+import { isTelegramPlaceholderEmail } from './auth.telegram.js';
 import {
   AUTH_TOKEN_STORAGE,
   getAuthErrorURL,
@@ -154,6 +156,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     },
     socialProviders: getSocialProvidersConfig(),
     user: {
+      changeEmail: { enabled: true },
       additionalFields: {
         // Role relation — CASL reads this to load permissions
         roleId: {
@@ -224,6 +227,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       },
     },
     account: {
+      accountLinking,
       skipStateCookieCheck: false,
     },
     plugins: [
@@ -334,6 +338,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
     ],
     emailVerification: {
       sendVerificationEmail: async (data: Email, request?: Request) => {
+        if (isTelegramPlaceholderEmail(data.user.email)) return;
         // void sendEmail({
         //   to: user.email,
         //   subject: 'Verify your email address',
