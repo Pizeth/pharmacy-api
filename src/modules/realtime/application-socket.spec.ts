@@ -39,9 +39,9 @@ it('checks the upgrade origin and authenticates the Socket.IO handshake', async 
     const rejected = (client: Socket) =>
       new Promise<Error>((resolve, reject) => {
         client.once('connect_error', resolve);
-        client.once('connect', () =>
-          reject(new Error('Unexpected connection')),
-        );
+        client.once('connect', () => {
+          reject(new Error('Unexpected connection'));
+        });
         client.connect();
       });
 
@@ -63,6 +63,10 @@ it('checks the upgrade origin and authenticates the Socket.IO handshake', async 
   } finally {
     clients.forEach((client) => client.disconnect());
     close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        resolve();
+      });
+    });
   }
 });

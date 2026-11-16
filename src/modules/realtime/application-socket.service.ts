@@ -36,7 +36,7 @@ export function attachApplicationSocket(
   );
 
   io.use((socket, next) => {
-    void authenticate(socket.request.headers)
+    authenticate(socket.request.headers)
       .then((expiresAt) => {
         const remaining = expiresAt ? expiresAt.getTime() - Date.now() : 0;
         if (!Number.isFinite(remaining) || remaining <= 0) {
@@ -46,14 +46,18 @@ export function attachApplicationSocket(
         socket.data.connectionLifetime = Math.min(remaining, MAX_CONNECTION_MS);
         next();
       })
-      .catch(() => next(new Error('Unauthorized')));
+      .catch(() => {
+        next(new Error('Unauthorized'));
+      });
   });
 
   io.on('connection', (socket) => {
     const lifetime = socket.data.connectionLifetime;
     const timeout = setTimeout(() => socket.disconnect(true), lifetime);
     timeout.unref();
-    socket.once('disconnect', () => clearTimeout(timeout));
+    socket.once('disconnect', () => {
+      clearTimeout(timeout);
+    });
   });
 
   return () => {
