@@ -102,7 +102,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
         throw new Error('Realtime migration is not applied.');
       await client.query(`LISTEN ${REALTIME_CHANNEL}`);
       if (documentsEnabled)
-        await client.query('LISTEN ' + DOCUMENT_REALTIME_CHANNEL);
+        await client.query(`LISTEN ${DOCUMENT_REALTIME_CHANNEL}`);
       if (this.stopping || failed) {
         await client.end();
         return;

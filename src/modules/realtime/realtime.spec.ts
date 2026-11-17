@@ -352,7 +352,7 @@ it('drops invisible document events and sends only an ID-free invalidation to au
         (id: number, event?: DocumentRealtimeNotification) => Promise<boolean>
       >()
       .mockImplementation(
-        async (_id, event) => !event || event.previousAssignees.includes(42),
+        (_id, event) => Promise.resolve(!event || event.previousAssignees.includes(42)),
       ),
   };
   const controller = new RealtimeController(
