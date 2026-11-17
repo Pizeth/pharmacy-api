@@ -24,6 +24,8 @@ import { RealtimeBus } from '../src/modules/realtime/realtime-bus.service';
 import { RealtimeController } from '../src/modules/realtime/realtime.controller';
 import { I18nAdminController } from '../src/modules/i18n/controllers/i18n-admin.controller';
 import { I18nService } from '../src/modules/i18n/services/i18n.service';
+import { DocumentTrackingService } from '../src/modules/document-tracking/document-tracking.service';
+import { z } from 'zod';
 import { DBHelper } from '../src/modules/helpers/services/db-helper';
 import {
   parseRealtimeEvent,
@@ -36,6 +38,8 @@ import type { Request, Response } from 'express';
 const url = getRealtimeTestDatabaseUrl(process.env);
 // These are local process settings only. No production configuration is changed.
 process.env.REALTIME_ENABLED = 'true';
+const documentHandoff = process.env.REALTIME_TEST_DOCUMENT_HANDOFF === 'true';
+process.env.DOCUMENT_REALTIME_ENABLED = String(documentHandoff);
 process.env.REALTIME_DATABASE_URL = url;
 process.env.BETTER_AUTH_SECRET = randomUUID() + randomUUID();
 process.env.BETTER_AUTH_URL = 'http://localhost:8082';
@@ -70,6 +74,12 @@ let categoryId: number | undefined;
 let app: Awaited<ReturnType<typeof NestFactory.create>> | undefined;
 const controllers: AbortController[] = [];
 const browser = process.env.REALTIME_TEST_BROWSER_BUNDLE;
+const documentFixture: {
+  documentId?: string;
+  categoryId?: string;
+  typeId?: string;
+  workflowId?: string;
+} = {};
 let finishBrowser: (() => void) | undefined;
 let failure: unknown;
 let baseline: number[] | undefined;
@@ -89,6 +99,17 @@ const readBaseline = () =>
     prisma.translationCategory.count(),
     prisma.translation.count(),
     prisma.session.count(),
+    ...(documentHandoff
+      ? [
+          prisma.trackedDocument.count(),
+          prisma.documentStep.count(),
+          prisma.documentTrackingEvent.count(),
+          prisma.trackingWorkflow.count(),
+          prisma.trackingWorkflowStep.count(),
+          prisma.documentCategory.count(),
+          prisma.documentType.count(),
+        ]
+      : []),
   ]);
 
 async function until(predicate: () => boolean, label: string) {
@@ -258,7 +279,7 @@ try {
   // tsx does not emit decorator parameter metadata. Explicit DI preserves the real implementations.
   Reflect.defineMetadata(
     'design:paramtypes',
-    [RealtimeBus, RealtimeAccess],
+    [RealtimeBus, RealtimeAccess, DocumentTrackingService],
     RealtimeController,
   );
   Reflect.defineMetadata(
@@ -271,11 +292,13 @@ try {
     [Reflector, CaslAbilityFactory],
     PoliciesGuard,
   );
+  const tracking = new DocumentTrackingService(db, new DBHelper(db));
   @Module({
     imports: [AuthModule.forRoot({ auth, disableControllers: true })],
     controllers: [RealtimeController, I18nAdminController],
     providers: [
       RealtimeBus,
+      { provide: DocumentTrackingService, useValue: tracking },
       { provide: CaslAbilityFactory, useValue: abilities },
       PoliciesGuard,
       {
@@ -398,7 +421,14 @@ try {
   });
   assert.equal(await status(cookieDenied), 403);
 
-  async function open(credentials: string) {
+  const open = (credentials: string) =>
+    openStream(credentials, endpoint, parseRealtimeEvent);
+
+  const openStream = async <T extends { type: string }>(
+    credentials: string,
+    endpoint: string,
+    decode: (data: string) => T | undefined,
+  ) => {
     const controller = new AbortController();
     controllers.push(controller);
     const opening = setTimeout(() => controller.abort(), 12000);
@@ -408,7 +438,7 @@ try {
     }).finally(() => clearTimeout(opening));
     assert.equal(response.status, 200);
     assert(response.body);
-    const events: RealtimeEvent[] = [];
+    const events: T[] = [];
     let closed = false,
       streamError: unknown;
     const completion = (async () => {
@@ -426,7 +456,7 @@ try {
             buffer = buffer.slice(end + 2);
             for (const line of raw.split('\n'))
               if (line.startsWith('data: ')) {
-                const event = parseRealtimeEvent(line.slice(6));
+                const event = decode(line.slice(6));
                 assert(event, 'Invalid protected event');
                 events.push(event);
               }
@@ -451,6 +481,85 @@ try {
         if (streamError) throw streamError;
       },
     };
+  };
+  if (documentHandoff) {
+    const category = await prisma.documentCategory.create({
+      data: { name: prefix },
+    });
+    documentFixture.categoryId = category.id;
+    const type = await prisma.documentType.create({ data: { name: prefix } });
+    documentFixture.typeId = type.id;
+    const step = {
+      key: 'RECEIVED',
+      name: 'Received',
+      nameKh: 'Received',
+      position: 0,
+    };
+    const workflow = await prisma.trackingWorkflow.create({
+      data: { key: prefix, name: prefix, steps: { create: step } },
+      include: { steps: true },
+    });
+    documentFixture.workflowId = workflow.id;
+    const document = await prisma.trackedDocument.create({
+      data: {
+        title: prefix,
+        categoryId: category.id,
+        typeId: type.id,
+        workflowId: workflow.id,
+        receivedAt: new Date(),
+        steps: {
+          create: {
+            ...step,
+            workflowStepId: workflow.steps[0].id,
+            status: 'ACTIVE',
+            assignedToId: a.user.id,
+          },
+        },
+      },
+    });
+    documentFixture.documentId = document.id;
+    const decodeDocument = (data: string) => {
+      const frame = z
+        .strictObject({
+          version: z.literal(1),
+          eventId: z.uuid(),
+          resource: z.literal('tracked-documents'),
+          type: z.literal('invalidate'),
+          occurredAt: z.iso.datetime(),
+        })
+        .safeParse(JSON.parse(data));
+      return frame.success ? frame.data : undefined;
+    };
+    const documentEndpoint = `${base}/api/v1/live/tracked-documents`;
+    const oldViewer = await openStream(
+      cookieA,
+      documentEndpoint,
+      decodeDocument,
+    );
+    const newViewer = await openStream(
+      cookieB,
+      documentEndpoint,
+      decodeDocument,
+    );
+    await assert.rejects(tracking.get(b.user.id, document.id), { status: 404 });
+    await tracking.progress(a.user.id, document.id, {
+      version: document.version,
+      action: 'ASSIGN',
+      note: 'Disposable acceptance handoff',
+      assignedToId: b.user.id,
+    });
+    await until(
+      () => oldViewer.events.length === 2 && newViewer.events.length === 2,
+      'document handoff invalidates both sessions',
+    );
+    assert.equal(oldViewer.events[1].eventId, newViewer.events[1].eventId);
+    oldViewer.assertHealthy();
+    newViewer.assertHealthy();
+    await assert.rejects(tracking.get(a.user.id, document.id), { status: 404 });
+    assert.equal((await tracking.get(b.user.id, document.id)).id, document.id);
+    console.log(
+      'Verified two authenticated document streams refresh on reassignment and subsequent reads enforce current visibility.',
+    );
   }
   const streamA = await open(cookieA),
     streamB = await open(cookieB);
@@ -624,6 +733,27 @@ try {
   const cleanup = await Promise.allSettled([app?.close()]);
   try {
     if (fixturesStarted) {
+      if (documentFixture.documentId) {
+        const documentId = documentFixture.documentId;
+        await prisma.documentTrackingEvent.deleteMany({
+          where: { documentId },
+        });
+        await prisma.documentStep.deleteMany({ where: { documentId } });
+        await prisma.trackedDocument.delete({ where: { id: documentId } });
+      }
+      if (documentFixture.workflowId) {
+        const workflowId = documentFixture.workflowId;
+        await prisma.trackingWorkflowStep.deleteMany({ where: { workflowId } });
+        await prisma.trackingWorkflow.delete({ where: { id: workflowId } });
+      }
+      if (documentFixture.categoryId)
+        await prisma.documentCategory.delete({
+          where: { id: documentFixture.categoryId },
+        });
+      if (documentFixture.typeId)
+        await prisma.documentType.delete({
+          where: { id: documentFixture.typeId },
+        });
       if (categoryId !== undefined)
         await prisma.translationCategory.delete({ where: { id: categoryId } });
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });

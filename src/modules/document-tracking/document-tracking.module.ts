@@ -7,5 +7,6 @@ import { DocumentTrackingService } from './document-tracking.service';
   imports: [DBHelperModule, FileModule],
   controllers: [DocumentTrackingController],
   providers: [DocumentTrackingService],
+  exports: [DocumentTrackingService],
 })
 export class DocumentTrackingModule {}

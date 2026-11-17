@@ -8,6 +8,9 @@ import { DocumentTrackingService } from './document-tracking.service';
 import type { PrismaService } from 'modules/prisma/services/prisma.service';
 import type { DBHelper } from 'modules/helpers/services/db-helper';
 const mock = () => ({
+  $executeRaw: jest
+    .fn<(...args: unknown[]) => Promise<number>>()
+    .mockResolvedValue(1),
   user: {
     findUnique: jest
       .fn<(...args: unknown[]) => Promise<unknown>>()
@@ -90,6 +93,44 @@ function setup() {
     ),
   };
 }
+it('queues the attachment invalidation in the document transaction only when enabled', async () => {
+  const { tx, service } = setup();
+  tx.trackedDocument.findFirst.mockResolvedValue(record());
+  const input = {
+    version: 3,
+    name: 'Attachment',
+    url: 'https://example.test/file',
+    kind: 'INCOMING' as const,
+  };
+  const env = jest.replaceProperty(process, 'env', {
+    ...process.env,
+    DOCUMENT_REALTIME_ENABLED: 'false',
+  });
+  try {
+    await service.attach(2, 'document', input);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+
+    env.replaceValue({ ...process.env, DOCUMENT_REALTIME_ENABLED: 'true' });
+    await service.attach(2, 'document', input);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const [, channel, payload] = tx.$executeRaw.mock.calls[0];
+    expect(channel).toBe('document_tracking_live_v1');
+    expect(JSON.parse(String(payload))).toMatchObject({
+      version: 1,
+      documentId: 'document',
+      previousAssignees: [],
+    });
+
+    tx.trackedDocument.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.attach(2, 'document', input)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  } finally {
+    env.restore();
+  }
+});
+
 it('scopes record reads to creator, stage handlers and history recipients', async () => {
   const { tx, service } = setup();
   tx.trackedDocument.findFirst.mockResolvedValue(null);
@@ -276,4 +317,43 @@ it('does not let a delegated manager update another handler progress', async () 
     }),
   ).rejects.toBeInstanceOf(ForbiddenException);
   expect(tx.trackedDocument.updateMany).not.toHaveBeenCalled();
+});
+
+it('refreshes current and previous viewers after a handoff without including unrelated or disabled accounts', async () => {
+  const { tx, service } = setup();
+  const change = { documentId: 'document', previousAssignees: [2] };
+  const enabled = {
+    role: 'user',
+    isEnabled: true,
+    isActivated: true,
+    userRole: null,
+  };
+  tx.user.findUnique
+    .mockResolvedValueOnce({ ...enabled, id: 2 })
+    .mockResolvedValueOnce({ ...enabled, id: 3 })
+    .mockResolvedValueOnce({ ...enabled, id: 4 })
+    .mockResolvedValueOnce({ ...enabled, id: 2, isEnabled: false });
+  tx.trackedDocument.findFirst
+    .mockResolvedValueOnce({ id: 'document' })
+    .mockResolvedValueOnce(null);
+
+  await expect(service.canReceiveInvalidation(2, change)).resolves.toBe(true);
+  expect(tx.trackedDocument.findFirst).not.toHaveBeenCalled();
+  await expect(service.canReceiveInvalidation(3, change)).resolves.toBe(true);
+  expect(tx.trackedDocument.findFirst).toHaveBeenLastCalledWith({
+    where: {
+      id: 'document',
+      OR: [
+        { createdById: 3 },
+        { steps: { some: { assignedToId: 3 } } },
+        { events: { some: { recipientId: 3 } } },
+      ],
+    },
+    select: { id: true },
+  });
+  await expect(service.canReceiveInvalidation(4, change)).resolves.toBe(false);
+  await expect(
+    service.canReceiveInvalidation(2, change),
+  ).rejects.toBeInstanceOf(ForbiddenException);
+  expect(tx.trackedDocument.findFirst).toHaveBeenCalledTimes(2);
 });
