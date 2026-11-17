@@ -532,35 +532,36 @@ export class DocumentTrackingService {
       return this.finishMutation(tx, id, actor);
     });
   }
+  private async progressReceipt(
+    tx: Prisma.TransactionClient,
+    document: Awaited<ReturnType<typeof DocumentTrackingService.read>>,
+    input: ProgressInput,
+    plan: ReturnType<typeof planProgress>,
+    handingOff: boolean,
+  ) {
+    if (!handingOff) {
+      if (input.assignedToId != null || input.departmentId != null) {
+        throw new BadRequestException(
+          'Handler and office are only set during a handoff.',
+        );
+      }
+      return { receiver: null, receipt: null };
+    }
+    const receiver = await this.handler(tx, input.assignedToId);
+    if (!receiver) return { receiver: null, receipt: null };
+    const stepId = plan.target?.id ?? plan.current.id;
+    const departmentId = document.steps.find((step) => step.id === stepId)?.departmentId;
+    const receipt = await this.receiptContext(tx, receiver, input.departmentId, departmentId);
+    return { receiver, receipt };
+  }
+
   async progress(userId: number, id: string, input: ProgressInput) {
     const actor = await this.actor(userId);
     return this.prisma.$transaction(async (tx) => {
       const document = await DocumentTrackingService.read(tx, id, actor),
         plan = planProgress(document, input, actor);
       const handingOff = ['ASSIGN', 'FORWARD', 'RETURN'].includes(input.action);
-      const receiver = handingOff
-        ? await this.handler(tx, input.assignedToId)
-        : null;
-      const receipt =
-        handingOff && receiver
-          ? await this.receiptContext(
-              tx,
-              receiver,
-              input.departmentId,
-              plan.target
-                ? document.steps.find((step) => step.id === plan.target!.id)
-                    ?.departmentId
-                : document.steps.find((step) => step.id === plan.current.id)
-                    ?.departmentId,
-            )
-          : null;
-      if (
-        !handingOff &&
-        (input.assignedToId != null || input.departmentId != null)
-      )
-        throw new BadRequestException(
-          'Handler and office are only set during a handoff.',
-        );
+      const { receiver, receipt } = await this.progressReceipt(tx, document, input, plan, handingOff);
       const now = new Date();
       const storage =
         plan.kind === 'COMPLETED'
