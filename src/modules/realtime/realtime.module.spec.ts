@@ -8,7 +8,18 @@ import {
 import type { Auth } from 'lib/auth';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { CaslAbilityFactory } from 'modules/authorization/casl/casl-ability.factory';
-import { RealtimeModule } from './realtime.module';
+import { R2Service } from 'modules/files/services/cloudflare-r2.service';
+
+@Module({
+  providers: [{ provide: R2Service, useValue: {} }],
+  exports: [R2Service],
+})
+class StubFileModule {}
+
+jest.unstable_mockModule('modules/files/file.module', () => ({
+  FileModule: StubFileModule,
+}));
+const { RealtimeModule } = await import('./realtime.module');
 import { RealtimeAccess } from './realtime-access.service';
 
 it('resolves the real globally configured async Better Auth provider across sibling modules with the gate off', async () => {

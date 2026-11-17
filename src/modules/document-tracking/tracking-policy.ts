@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import type { Prisma } from 'generated/prisma/client';
 import type { ProgressInput } from './document-tracking.schemas';
 export interface TrackingActor {
   id: number;
@@ -12,6 +13,20 @@ export interface TrackingActor {
   /** Actual administrator authority for progress overrides. */
   isTrackingAdmin: boolean;
 }
+export function trackingReadScope(
+  actor: Pick<TrackingActor, 'id' | 'isAdmin'>,
+): Prisma.TrackedDocumentWhereInput {
+  return actor.isAdmin
+    ? {}
+    : {
+        OR: [
+          { createdById: actor.id },
+          { steps: { some: { assignedToId: actor.id } } },
+          { events: { some: { recipientId: actor.id } } },
+        ],
+      };
+}
+
 export interface TrackingStep {
   id: string;
   key: string;

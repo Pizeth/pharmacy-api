@@ -8,6 +8,8 @@ import { CaslAbilityFactory } from 'modules/authorization/casl/casl-ability.fact
 import type { PrismaService } from 'modules/prisma/services/prisma.service';
 import { RealtimeAccess } from './realtime-access.service';
 import type { RealtimeBus } from './realtime-bus.service';
+import type { DocumentTrackingService } from 'modules/document-tracking/document-tracking.service';
+import type { DocumentRealtimeNotification } from './document-realtime.contract';
 import { RealtimeController } from './realtime.controller';
 import {
   parseRealtimeEvent,
@@ -332,4 +334,57 @@ it('handles synchronous bus completion during subscription without stranding a r
   expect(f.response.write).not.toHaveBeenCalled();
   expect(f.events.observed).toBe(false);
   expect(jest.getTimerCount()).toBe(0);
+});
+
+it('drops invisible document events and sends only an ID-free invalidation to authorized viewers', async () => {
+  const env = jest.replaceProperty(process, 'env', {
+    ...process.env,
+    DOCUMENT_REALTIME_ENABLED: 'true',
+  });
+  const { bus, request, response } = setup();
+  const events = new Subject<DocumentRealtimeNotification | null>();
+  const access = {
+    authenticatedUserId: jest.fn<() => Promise<number>>().mockResolvedValue(42),
+  };
+  const documents = {
+    canReceiveInvalidation: jest
+      .fn<
+        (id: number, event?: DocumentRealtimeNotification) => Promise<boolean>
+      >()
+      .mockImplementation(
+        async (_id, event) => !event || event.previousAssignees.includes(42),
+      ),
+  };
+  const controller = new RealtimeController(
+    { ...bus, documentNotifications: events } as unknown as RealtimeBus,
+    access as unknown as RealtimeAccess,
+    documents as unknown as DocumentTrackingService,
+  );
+  try {
+    await controller.trackedDocuments(
+      request as unknown as Request,
+      response as unknown as Response,
+    );
+    await flush();
+    response.write.mockClear();
+    const event = {
+      version: 1 as const,
+      eventId: 'd10c3043-b54c-468a-8c03-1b430ecf4fc0',
+      documentId: '9effeda2-04a5-4e48-bb34-49834d302f9c',
+      previousAssignees: [42],
+      occurredAt: '2026-11-17T02:00:00.000Z',
+    };
+    events.next({ ...event, previousAssignees: [] });
+    events.next(event);
+    await flush();
+    expect(response.write).toHaveBeenCalledTimes(1);
+    const frame = String(response.write.mock.calls[0][0]);
+    expect(frame).toContain('"type":"invalidate"');
+    expect(frame).not.toContain(event.documentId);
+    expect(frame).not.toContain('previousAssignees');
+    expect(access.authenticatedUserId).toHaveBeenCalledTimes(4);
+  } finally {
+    response.emit('close');
+    env.restore();
+  }
 });

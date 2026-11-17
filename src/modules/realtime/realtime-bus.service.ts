@@ -7,6 +7,11 @@ import {
 import { Client } from 'pg';
 import { Subject } from 'rxjs';
 import {
+  DOCUMENT_REALTIME_CHANNEL,
+  parseDocumentRealtimeNotification,
+  type DocumentRealtimeNotification,
+} from './document-realtime.contract';
+import {
   parseRealtimeEvent,
   REALTIME_CHANNEL,
   resyncEvent,
@@ -19,6 +24,9 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeBus.name);
   private readonly events = new Subject<RealtimeEvent>();
   readonly notifications = this.events.asObservable();
+  private readonly documentEvents =
+    new Subject<DocumentRealtimeNotification | null>();
+  readonly documentNotifications = this.documentEvents.asObservable();
   private client?: Client;
   private retry?: ReturnType<typeof setTimeout>;
   private stopping = false;
@@ -47,6 +55,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
       keepAlive: true,
     });
     this.client = client;
+    const documentsEnabled = process.env.DOCUMENT_REALTIME_ENABLED === 'true';
     let failed = false;
     const disconnected = () => {
       if (failed || this.stopping) return;
@@ -67,13 +76,13 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     client.on('error', disconnected);
     client.on('end', disconnected);
     client.on('notification', (message) => {
-      if (
-        client !== this.client ||
-        !this.ready ||
-        message.channel !== REALTIME_CHANNEL ||
-        !message.payload
-      )
+      if (client !== this.client || !this.ready || !message.payload) return;
+      if (message.channel === DOCUMENT_REALTIME_CHANNEL && documentsEnabled) {
+        const event = parseDocumentRealtimeNotification(message.payload);
+        if (event) this.documentEvents.next(event);
         return;
+      }
+      if (message.channel !== REALTIME_CHANNEL) return;
       const event = parseRealtimeEvent(message.payload);
       if (event) this.events.next(event);
     });
@@ -92,12 +101,15 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
       if (triggers.rows[0]?.count !== 3)
         throw new Error('Realtime migration is not applied.');
       await client.query(`LISTEN ${REALTIME_CHANNEL}`);
+      if (documentsEnabled)
+        await client.query('LISTEN ' + DOCUMENT_REALTIME_CHANNEL);
       if (this.stopping || failed) {
         await client.end();
         return;
       }
       this.ready = true;
       this.attempts = 0;
+      if (documentsEnabled) this.documentEvents.next(null);
       this.events.next(resyncEvent());
     } catch {
       disconnected();
@@ -109,6 +121,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
     this.ready = false;
     clearTimeout(this.retry);
     this.events.complete();
+    this.documentEvents.complete();
     await this.client?.end().catch(() => undefined);
   }
 }

@@ -20,6 +20,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Prisma } from 'generated/prisma/client';
+import { DOCUMENT_REALTIME_CHANNEL } from '../realtime/document-realtime.contract';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { DBHelper } from 'modules/helpers/services/db-helper';
 import type { DataTableQuery } from 'common/data-table';
@@ -33,6 +34,7 @@ import {
   canAttachDocument,
   hasDocumentManagementPermission,
   planProgress,
+  trackingReadScope,
   type TrackingActor,
 } from './tracking-policy';
 import type {
@@ -125,17 +127,6 @@ export class DocumentTrackingService {
         ),
     };
   }
-  private scope(actor: TrackingActor): Prisma.TrackedDocumentWhereInput {
-    return actor.isAdmin
-      ? {}
-      : {
-          OR: [
-            { createdById: actor.id },
-            { steps: { some: { assignedToId: actor.id } } },
-            { events: { some: { recipientId: actor.id } } },
-          ],
-        };
-  }
   private format<T extends RecordRow>(record: T, actor: TrackingActor) {
     const current = record.steps.find((step) => step.status === 'ACTIVE');
     const name = (value: RecordRow['responsibleDepartment']) =>
@@ -159,6 +150,20 @@ export class DocumentTrackingService {
       },
     };
   }
+  async canReceiveInvalidation(
+    userId: number,
+    change?: { documentId: string; previousAssignees: readonly number[] },
+  ): Promise<boolean> {
+    const actor = await this.actor(userId);
+    if (!change || change.previousAssignees.includes(actor.id)) return true;
+    return Boolean(
+      await this.prisma.trackedDocument.findFirst({
+        where: { id: change.documentId, ...trackingReadScope(actor) },
+        select: { id: true },
+      }),
+    );
+  }
+
   async metadata(userId: number) {
     const actor = await this.actor(userId);
     const [workflow, categories, types, handlers, departments] =
@@ -220,7 +225,11 @@ export class DocumentTrackingService {
       resolved = resolveDataTableQueryForHttp(trackingQueryPolicy, input),
       translated = trackingTranslator.translate(resolved);
     const where: Prisma.TrackedDocumentWhereInput = {
-      AND: [{ archivedAt: null }, this.scope(actor), translated.where ?? {}],
+      AND: [
+        { archivedAt: null },
+        trackingReadScope(actor),
+        translated.where ?? {},
+      ],
     };
     const result = await this.db.getDataTablePage({
       query: { ...translated, where },
@@ -246,9 +255,10 @@ export class DocumentTrackingService {
     tx: Prisma.TransactionClient,
     id: string,
     actor: TrackingActor,
+    scope = trackingReadScope(actor),
   ) {
     const row = await tx.trackedDocument.findFirst({
-      where: { id, ...this.scope(actor) },
+      where: { id, ...scope },
       include: detailInclude,
     });
     if (!row)
@@ -396,6 +406,36 @@ export class DocumentTrackingService {
         'This document changed. Close this form and reload the latest record.',
       );
   }
+  private async finishMutation(
+    tx: Prisma.TransactionClient,
+    id: string,
+    actor: TrackingActor,
+    previousAssignees: readonly (number | null | undefined)[] = [],
+  ) {
+    // The transaction already authorized this mutation. A successful handoff
+    // can remove the caller from the scope used by subsequent reads.
+    const scope = previousAssignees.includes(actor.id)
+      ? {}
+      : trackingReadScope(actor);
+    const record = this.format(await this.read(tx, id, actor, scope), actor);
+    if (process.env.DOCUMENT_REALTIME_ENABLED === 'true') {
+      const payload = JSON.stringify({
+        version: 1,
+        eventId: randomUUID(),
+        documentId: id,
+        previousAssignees: [
+          ...new Set(
+            previousAssignees.filter(
+              (assignee): assignee is number => assignee != null,
+            ),
+          ),
+        ],
+        occurredAt: new Date().toISOString(),
+      });
+      await tx.$executeRaw`SELECT pg_notify(${DOCUMENT_REALTIME_CHANNEL}, ${payload})`;
+    }
+    return record;
+  }
   async create(userId: number, input: DocumentInput) {
     const actor = await this.actor(userId);
     this.requireAdmin(actor);
@@ -452,7 +492,7 @@ export class DocumentTrackingService {
           note: 'Document registered.',
         },
       });
-      return this.format(await this.read(tx, document.id, actor), actor);
+      return this.finishMutation(tx, document.id, actor);
     });
   }
   async update(userId: number, id: string, input: UpdateDocumentInput) {
@@ -489,7 +529,7 @@ export class DocumentTrackingService {
           note: 'Document metadata updated.',
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
   async progress(userId: number, id: string, input: ProgressInput) {
@@ -642,7 +682,14 @@ export class DocumentTrackingService {
           note: input.note || null,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(
+        tx,
+        id,
+        actor,
+        handingOff
+          ? [plan.current.assignedToId, plan.target?.assignedToId]
+          : [],
+      );
     });
   }
   async archive(userId: number, id: string, version: number, note: string) {
@@ -665,7 +712,7 @@ export class DocumentTrackingService {
           note,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
   private authorizeAttachment(
@@ -708,7 +755,7 @@ export class DocumentTrackingService {
             'Added ' + input.kind.toLowerCase() + ' attachment: ' + input.name,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
   async uploadAttachment(
