@@ -585,13 +585,13 @@ export class DocumentTrackingService {
       ...(input.action === 'RETURN' &&
       plan.target &&
       plan.target.position <=
-        document.steps.find((step) => step.key === 'STAMPING')!.position
+        (document.steps.find((step) => step.key === 'STAMPING')?.position ?? -1)
         ? { stampedAt: null }
         : {}),
       ...(input.action === 'RETURN' &&
       plan.target &&
       plan.target.position <=
-        document.steps.find((step) => step.key === 'DISPATCH')!.position
+        (document.steps.find((step) => step.key === 'DISPATCH')?.position ?? -1)
         ? { dispatchedAt: null }
         : {}),
       ...(input.action === 'FORWARD' && plan.current.key === 'STAMPING'
