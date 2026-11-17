@@ -573,7 +573,7 @@ export class DocumentTrackingService {
     input: ProgressInput,
     plan: ReturnType<typeof planProgress>,
     now: Date,
-    storage: { id: number } | null,
+    storage: { id: string } | null,
   ): Prisma.TrackedDocumentUpdateInput {
     return {
       status: plan.status,
