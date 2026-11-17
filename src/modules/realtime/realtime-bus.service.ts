@@ -63,6 +63,7 @@ export class RealtimeBus implements OnModuleInit, OnModuleDestroy {
       this.ready = false;
       // Clients reconnect and canonically refetch after every gap.
       this.events.next(resyncEvent());
+      if (documentsEnabled) this.documentEvents.next(null);
       void client.end().catch(() => undefined);
       const delay = Math.min(30000, 1000 * 2 ** Math.min(this.attempts++, 5));
       this.retry = setTimeout(() => {

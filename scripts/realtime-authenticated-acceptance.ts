@@ -424,11 +424,11 @@ try {
   const open = (credentials: string) =>
     openStream(credentials, endpoint, parseRealtimeEvent);
 
-  async function openStream<T extends { type: string }>(
+  const openStream = async <T extends { type: string }>(
     credentials: string,
     endpoint: string,
     decode: (data: string) => T | undefined,
-  ) {
+  ) => {
     const controller = new AbortController();
     controllers.push(controller);
     const opening = setTimeout(() => controller.abort(), 12000);
@@ -481,7 +481,7 @@ try {
         if (streamError) throw streamError;
       },
     };
-  }
+  };
   if (documentHandoff) {
     const category = await prisma.documentCategory.create({
       data: { name: prefix },
