@@ -15,7 +15,7 @@ import { R2Service } from 'modules/files/services/cloudflare-r2.service';
   exports: [R2Service],
 })
 class StubFileModule {
-  static readonly fixture = true;
+  readonly fixture = true;
 }
 
 jest.unstable_mockModule('modules/files/file.module', () => ({

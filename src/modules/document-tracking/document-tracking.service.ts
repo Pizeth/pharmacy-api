@@ -269,7 +269,10 @@ export class DocumentTrackingService {
   }
   async get(userId: number, id: string) {
     const actor = await this.actor(userId);
-    return this.format(await DocumentTrackingService.read(this.prisma, id, actor), actor);
+    return this.format(
+      await DocumentTrackingService.read(this.prisma, id, actor),
+      actor,
+    );
   }
   private requireAdmin(actor: TrackingActor) {
     if (!actor.isAdmin)
@@ -417,7 +420,10 @@ export class DocumentTrackingService {
     const scope = previousAssignees.includes(actor.id)
       ? {}
       : trackingReadScope(actor);
-    const record = this.format(await DocumentTrackingService.read(tx, id, actor, scope), actor);
+    const record = this.format(
+      await DocumentTrackingService.read(tx, id, actor, scope),
+      actor,
+    );
     if (process.env.DOCUMENT_REALTIME_ENABLED === 'true') {
       const payload = JSON.stringify({
         version: 1,
@@ -550,9 +556,63 @@ export class DocumentTrackingService {
     const receiver = await this.handler(tx, input.assignedToId);
     if (!receiver) return { receiver: null, receipt: null };
     const stepId = plan.target?.id ?? plan.current.id;
-    const departmentId = document.steps.find((step) => step.id === stepId)?.departmentId;
-    const receipt = await this.receiptContext(tx, receiver, input.departmentId, departmentId);
+    const departmentId = document.steps.find(
+      (step) => step.id === stepId,
+    )?.departmentId;
+    const receipt = await this.receiptContext(
+      tx,
+      receiver,
+      input.departmentId,
+      departmentId,
+    );
     return { receiver, receipt };
+  }
+
+  private static progressUpdates(
+    document: Awaited<ReturnType<typeof DocumentTrackingService.read>>,
+    input: ProgressInput,
+    plan: ReturnType<typeof planProgress>,
+    now: Date,
+    storage: { id: number } | null,
+  ): Prisma.TrackedDocumentUpdateInput {
+    return {
+      status: plan.status,
+      ...(plan.kind === 'COMPLETED'
+        ? { completedAt: now }
+        : input.action === 'RETURN'
+          ? { completedAt: null }
+          : {}),
+      ...(input.action === 'RETURN' &&
+      plan.target &&
+      plan.target.position <=
+        document.steps.find((step) => step.key === 'STAMPING')!.position
+        ? { stampedAt: null }
+        : {}),
+      ...(input.action === 'RETURN' &&
+      plan.target &&
+      plan.target.position <=
+        document.steps.find((step) => step.key === 'DISPATCH')!.position
+        ? { dispatchedAt: null }
+        : {}),
+      ...(input.action === 'FORWARD' && plan.current.key === 'STAMPING'
+        ? { stampedAt: now }
+        : {}),
+      ...(input.action === 'FORWARD' && plan.current.key === 'DISPATCH'
+        ? { dispatchedAt: now }
+        : {}),
+      ...(input.action === 'FORWARD' &&
+      ['STAMPING', 'DISPATCH'].includes(plan.current.key) &&
+      input.outgoingNumber?.trim()
+        ? { outgoingNumber: input.outgoingNumber.trim() }
+        : {}),
+      ...(storage ? { storageLocation: { connect: { id: storage.id } } } : {}),
+      ...(plan.kind === 'COMPLETED' && input.chronologicalCode !== undefined
+        ? { chronologicalCode: input.chronologicalCode || null }
+        : {}),
+      ...(plan.kind === 'COMPLETED' && input.archiveSequence !== undefined
+        ? { archiveSequence: input.archiveSequence }
+        : {}),
+    };
   }
 
   async progress(userId: number, id: string, input: ProgressInput) {
@@ -561,7 +621,13 @@ export class DocumentTrackingService {
       const document = await DocumentTrackingService.read(tx, id, actor),
         plan = planProgress(document, input, actor);
       const handingOff = ['ASSIGN', 'FORWARD', 'RETURN'].includes(input.action);
-      const { receiver, receipt } = await this.progressReceipt(tx, document, input, plan, handingOff);
+      const { receiver, receipt } = await this.progressReceipt(
+        tx,
+        document,
+        input,
+        plan,
+        handingOff,
+      );
       const now = new Date();
       const storage =
         plan.kind === 'COMPLETED'
@@ -626,46 +692,13 @@ export class DocumentTrackingService {
             ...(receipt ? { departmentId: receipt.departmentId } : {}),
           },
         });
-      const updates: Prisma.TrackedDocumentUpdateInput = {
-        status: plan.status,
-        ...(plan.kind === 'COMPLETED'
-          ? { completedAt: now }
-          : input.action === 'RETURN'
-            ? { completedAt: null }
-            : {}),
-        ...(input.action === 'RETURN' &&
-        plan.target &&
-        plan.target.position <=
-          document.steps.find((step) => step.key === 'STAMPING')!.position
-          ? { stampedAt: null }
-          : {}),
-        ...(input.action === 'RETURN' &&
-        plan.target &&
-        plan.target.position <=
-          document.steps.find((step) => step.key === 'DISPATCH')!.position
-          ? { dispatchedAt: null }
-          : {}),
-        ...(input.action === 'FORWARD' && plan.current.key === 'STAMPING'
-          ? { stampedAt: now }
-          : {}),
-        ...(input.action === 'FORWARD' && plan.current.key === 'DISPATCH'
-          ? { dispatchedAt: now }
-          : {}),
-        ...(input.action === 'FORWARD' &&
-        ['STAMPING', 'DISPATCH'].includes(plan.current.key) &&
-        input.outgoingNumber?.trim()
-          ? { outgoingNumber: input.outgoingNumber.trim() }
-          : {}),
-        ...(storage
-          ? { storageLocation: { connect: { id: storage.id } } }
-          : {}),
-        ...(plan.kind === 'COMPLETED' && input.chronologicalCode !== undefined
-          ? { chronologicalCode: input.chronologicalCode || null }
-          : {}),
-        ...(plan.kind === 'COMPLETED' && input.archiveSequence !== undefined
-          ? { archiveSequence: input.archiveSequence }
-          : {}),
-      };
+      const updates = DocumentTrackingService.progressUpdates(
+        document,
+        input,
+        plan,
+        now,
+        storage,
+      );
       await tx.trackedDocument.update({ where: { id }, data: updates });
       await tx.documentTrackingEvent.create({
         data: {
