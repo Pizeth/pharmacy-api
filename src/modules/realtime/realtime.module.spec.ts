@@ -15,7 +15,7 @@ import { R2Service } from 'modules/files/services/cloudflare-r2.service';
   exports: [R2Service],
 })
 class StubFileModule {
-  // Nest uses this class as the module token.
+  static readonly fixture = true;
 }
 
 jest.unstable_mockModule('modules/files/file.module', () => ({
