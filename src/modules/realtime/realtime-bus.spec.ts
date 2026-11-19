@@ -99,3 +99,46 @@ it('LISTENs once, rejects malformed messages, reconnects with resync, and cleans
   expect(jest.getTimerCount()).toBe(0);
   expect(clients[1].end).toHaveBeenCalledTimes(1);
 });
+
+it('keeps validated document notifications off the translation stream', async () => {
+  const env = jest.replaceProperty(process, 'env', {
+    ...process.env,
+    REALTIME_ENABLED: 'true',
+    REALTIME_DATABASE_URL: 'postgres://test',
+    DOCUMENT_REALTIME_ENABLED: 'true',
+  });
+  const bus = new RealtimeBus();
+  const translations = jest.fn();
+  const documents = jest.fn();
+  bus.notifications.subscribe(translations);
+  bus.documentNotifications.subscribe(documents);
+  try {
+    await bus.onModuleInit();
+    expect(clients[0].query).toHaveBeenCalledWith(
+      'LISTEN document_tracking_live_v1',
+    );
+    const event = {
+      version: 1,
+      eventId: 'd10c3043-b54c-468a-8c03-1b430ecf4fc0',
+      documentId: '9effeda2-04a5-4e48-bb34-49834d302f9c',
+      previousAssignees: [42],
+      occurredAt: '2026-11-17T02:00:00.000Z',
+    };
+    for (const payload of [event, { ...event, previousAssignees: [-1] }]) {
+      clients[0].emit('notification', {
+        channel: 'document_tracking_live_v1',
+        payload: JSON.stringify(payload),
+      });
+    }
+    expect(documents).toHaveBeenCalledTimes(2);
+    expect(documents).toHaveBeenNthCalledWith(1, null);
+    expect(documents).toHaveBeenNthCalledWith(2, event);
+    expect(translations).toHaveBeenCalledTimes(1);
+    expect(translations).toHaveBeenCalledWith(
+      expect.objectContaining({ resource: 'translations', reason: 'resync' }),
+    );
+  } finally {
+    await bus.onModuleDestroy();
+    env.restore();
+  }
+});

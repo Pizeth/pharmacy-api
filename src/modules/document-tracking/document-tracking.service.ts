@@ -20,6 +20,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Prisma } from 'generated/prisma/client';
+import { DOCUMENT_REALTIME_CHANNEL } from '../realtime/document-realtime.contract';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import { DBHelper } from 'modules/helpers/services/db-helper';
 import type { DataTableQuery } from 'common/data-table';
@@ -33,6 +34,7 @@ import {
   canAttachDocument,
   hasDocumentManagementPermission,
   planProgress,
+  trackingReadScope,
   type TrackingActor,
 } from './tracking-policy';
 import type {
@@ -125,17 +127,6 @@ export class DocumentTrackingService {
         ),
     };
   }
-  private scope(actor: TrackingActor): Prisma.TrackedDocumentWhereInput {
-    return actor.isAdmin
-      ? {}
-      : {
-          OR: [
-            { createdById: actor.id },
-            { steps: { some: { assignedToId: actor.id } } },
-            { events: { some: { recipientId: actor.id } } },
-          ],
-        };
-  }
   private format<T extends RecordRow>(record: T, actor: TrackingActor) {
     const current = record.steps.find((step) => step.status === 'ACTIVE');
     const name = (value: RecordRow['responsibleDepartment']) =>
@@ -159,6 +150,20 @@ export class DocumentTrackingService {
       },
     };
   }
+  async canReceiveInvalidation(
+    userId: number,
+    change?: { documentId: string; previousAssignees: readonly number[] },
+  ): Promise<boolean> {
+    const actor = await this.actor(userId);
+    if (!change || change.previousAssignees.includes(actor.id)) return true;
+    return Boolean(
+      await this.prisma.trackedDocument.findFirst({
+        where: { id: change.documentId, ...trackingReadScope(actor) },
+        select: { id: true },
+      }),
+    );
+  }
+
   async metadata(userId: number) {
     const actor = await this.actor(userId);
     const [workflow, categories, types, handlers, departments] =
@@ -220,7 +225,11 @@ export class DocumentTrackingService {
       resolved = resolveDataTableQueryForHttp(trackingQueryPolicy, input),
       translated = trackingTranslator.translate(resolved);
     const where: Prisma.TrackedDocumentWhereInput = {
-      AND: [{ archivedAt: null }, this.scope(actor), translated.where ?? {}],
+      AND: [
+        { archivedAt: null },
+        trackingReadScope(actor),
+        translated.where ?? {},
+      ],
     };
     const result = await this.db.getDataTablePage({
       query: { ...translated, where },
@@ -242,13 +251,14 @@ export class DocumentTrackingService {
       total: result.metadata.totalItems,
     };
   }
-  private async read(
+  private static async read(
     tx: Prisma.TransactionClient,
     id: string,
     actor: TrackingActor,
+    scope = trackingReadScope(actor),
   ) {
     const row = await tx.trackedDocument.findFirst({
-      where: { id, ...this.scope(actor) },
+      where: { id, ...scope },
       include: detailInclude,
     });
     if (!row)
@@ -259,7 +269,10 @@ export class DocumentTrackingService {
   }
   async get(userId: number, id: string) {
     const actor = await this.actor(userId);
-    return this.format(await this.read(this.prisma, id, actor), actor);
+    return this.format(
+      await DocumentTrackingService.read(this.prisma, id, actor),
+      actor,
+    );
   }
   private requireAdmin(actor: TrackingActor) {
     if (!actor.isAdmin)
@@ -396,6 +409,39 @@ export class DocumentTrackingService {
         'This document changed. Close this form and reload the latest record.',
       );
   }
+  private async finishMutation(
+    tx: Prisma.TransactionClient,
+    id: string,
+    actor: TrackingActor,
+    previousAssignees: readonly (number | null | undefined)[] = [],
+  ) {
+    // The transaction already authorized this mutation. A successful handoff
+    // can remove the caller from the scope used by subsequent reads.
+    const scope = previousAssignees.includes(actor.id)
+      ? {}
+      : trackingReadScope(actor);
+    const record = this.format(
+      await DocumentTrackingService.read(tx, id, actor, scope),
+      actor,
+    );
+    if (process.env.DOCUMENT_REALTIME_ENABLED === 'true') {
+      const payload = JSON.stringify({
+        version: 1,
+        eventId: randomUUID(),
+        documentId: id,
+        previousAssignees: [
+          ...new Set(
+            previousAssignees.filter(
+              (assignee): assignee is number => assignee != null,
+            ),
+          ),
+        ],
+        occurredAt: new Date().toISOString(),
+      });
+      await tx.$executeRaw`SELECT pg_notify(${DOCUMENT_REALTIME_CHANNEL}, ${payload})`;
+    }
+    return record;
+  }
   async create(userId: number, input: DocumentInput) {
     const actor = await this.actor(userId);
     this.requireAdmin(actor);
@@ -452,14 +498,14 @@ export class DocumentTrackingService {
           note: 'Document registered.',
         },
       });
-      return this.format(await this.read(tx, document.id, actor), actor);
+      return this.finishMutation(tx, document.id, actor);
     });
   }
   async update(userId: number, id: string, input: UpdateDocumentInput) {
     const actor = await this.actor(userId);
     this.requireAdmin(actor);
     return this.prisma.$transaction(async (tx) => {
-      const current = await this.read(tx, id, actor);
+      const current = await DocumentTrackingService.read(tx, id, actor);
       await this.catalogs(tx, input);
       if (
         input.assignedToId !==
@@ -489,38 +535,99 @@ export class DocumentTrackingService {
           note: 'Document metadata updated.',
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
-  async progress(userId: number, id: string, input: ProgressInput) {
-    const actor = await this.actor(userId);
-    return this.prisma.$transaction(async (tx) => {
-      const document = await this.read(tx, id, actor),
-        plan = planProgress(document, input, actor);
-      const handingOff = ['ASSIGN', 'FORWARD', 'RETURN'].includes(input.action);
-      const receiver = handingOff
-        ? await this.handler(tx, input.assignedToId)
-        : null;
-      const receipt =
-        handingOff && receiver
-          ? await this.receiptContext(
-              tx,
-              receiver,
-              input.departmentId,
-              plan.target
-                ? document.steps.find((step) => step.id === plan.target!.id)
-                    ?.departmentId
-                : document.steps.find((step) => step.id === plan.current.id)
-                    ?.departmentId,
-            )
-          : null;
-      if (
-        !handingOff &&
-        (input.assignedToId != null || input.departmentId != null)
-      )
+  private async progressReceipt(
+    tx: Prisma.TransactionClient,
+    document: Awaited<ReturnType<typeof DocumentTrackingService.read>>,
+    input: ProgressInput,
+    plan: ReturnType<typeof planProgress>,
+    handingOff: boolean,
+  ) {
+    if (!handingOff) {
+      if (input.assignedToId != null || input.departmentId != null) {
         throw new BadRequestException(
           'Handler and office are only set during a handoff.',
         );
+      }
+      return { receiver: null, receipt: null };
+    }
+    const receiver = await this.handler(tx, input.assignedToId);
+    if (!receiver) return { receiver: null, receipt: null };
+    const stepId = plan.target?.id ?? plan.current.id;
+    const departmentId = document.steps.find(
+      (step) => step.id === stepId,
+    )?.departmentId;
+    const receipt = await this.receiptContext(
+      tx,
+      receiver,
+      input.departmentId,
+      departmentId,
+    );
+    return { receiver, receipt };
+  }
+
+  private static progressUpdates(
+    document: Awaited<ReturnType<typeof DocumentTrackingService.read>>,
+    input: ProgressInput,
+    plan: ReturnType<typeof planProgress>,
+    now: Date,
+    storage: { id: string } | null,
+  ): Prisma.TrackedDocumentUpdateInput {
+    return {
+      status: plan.status,
+      ...(plan.kind === 'COMPLETED'
+        ? { completedAt: now }
+        : input.action === 'RETURN'
+          ? { completedAt: null }
+          : {}),
+      ...(input.action === 'RETURN' &&
+      plan.target &&
+      plan.target.position <=
+        (document.steps.find((step) => step.key === 'STAMPING')?.position ?? -1)
+        ? { stampedAt: null }
+        : {}),
+      ...(input.action === 'RETURN' &&
+      plan.target &&
+      plan.target.position <=
+        (document.steps.find((step) => step.key === 'DISPATCH')?.position ?? -1)
+        ? { dispatchedAt: null }
+        : {}),
+      ...(input.action === 'FORWARD' && plan.current.key === 'STAMPING'
+        ? { stampedAt: now }
+        : {}),
+      ...(input.action === 'FORWARD' && plan.current.key === 'DISPATCH'
+        ? { dispatchedAt: now }
+        : {}),
+      ...(input.action === 'FORWARD' &&
+      ['STAMPING', 'DISPATCH'].includes(plan.current.key) &&
+      input.outgoingNumber?.trim()
+        ? { outgoingNumber: input.outgoingNumber.trim() }
+        : {}),
+      ...(storage ? { storageLocation: { connect: { id: storage.id } } } : {}),
+      ...(plan.kind === 'COMPLETED' && input.chronologicalCode !== undefined
+        ? { chronologicalCode: input.chronologicalCode || null }
+        : {}),
+      ...(plan.kind === 'COMPLETED' && input.archiveSequence !== undefined
+        ? { archiveSequence: input.archiveSequence }
+        : {}),
+    };
+  }
+
+  async progress(userId: number, id: string, input: ProgressInput) {
+    const actor = await this.actor(userId);
+    return this.prisma.$transaction(async (tx) => {
+      const document = await DocumentTrackingService.read(tx, id, actor),
+        plan = planProgress(document, input, actor);
+      const handingOff = ['ASSIGN', 'FORWARD', 'RETURN'].includes(input.action);
+      const { receiver, receipt } = await this.progressReceipt(
+        tx,
+        document,
+        input,
+        plan,
+        handingOff,
+      );
       const now = new Date();
       const storage =
         plan.kind === 'COMPLETED'
@@ -585,46 +692,13 @@ export class DocumentTrackingService {
             ...(receipt ? { departmentId: receipt.departmentId } : {}),
           },
         });
-      const updates: Prisma.TrackedDocumentUpdateInput = {
-        status: plan.status,
-        ...(plan.kind === 'COMPLETED'
-          ? { completedAt: now }
-          : input.action === 'RETURN'
-            ? { completedAt: null }
-            : {}),
-        ...(input.action === 'RETURN' &&
-        plan.target &&
-        plan.target.position <=
-          document.steps.find((step) => step.key === 'STAMPING')!.position
-          ? { stampedAt: null }
-          : {}),
-        ...(input.action === 'RETURN' &&
-        plan.target &&
-        plan.target.position <=
-          document.steps.find((step) => step.key === 'DISPATCH')!.position
-          ? { dispatchedAt: null }
-          : {}),
-        ...(input.action === 'FORWARD' && plan.current.key === 'STAMPING'
-          ? { stampedAt: now }
-          : {}),
-        ...(input.action === 'FORWARD' && plan.current.key === 'DISPATCH'
-          ? { dispatchedAt: now }
-          : {}),
-        ...(input.action === 'FORWARD' &&
-        ['STAMPING', 'DISPATCH'].includes(plan.current.key) &&
-        input.outgoingNumber?.trim()
-          ? { outgoingNumber: input.outgoingNumber.trim() }
-          : {}),
-        ...(storage
-          ? { storageLocation: { connect: { id: storage.id } } }
-          : {}),
-        ...(plan.kind === 'COMPLETED' && input.chronologicalCode !== undefined
-          ? { chronologicalCode: input.chronologicalCode || null }
-          : {}),
-        ...(plan.kind === 'COMPLETED' && input.archiveSequence !== undefined
-          ? { archiveSequence: input.archiveSequence }
-          : {}),
-      };
+      const updates = DocumentTrackingService.progressUpdates(
+        document,
+        input,
+        plan,
+        now,
+        storage,
+      );
       await tx.trackedDocument.update({ where: { id }, data: updates });
       await tx.documentTrackingEvent.create({
         data: {
@@ -642,14 +716,21 @@ export class DocumentTrackingService {
           note: input.note || null,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(
+        tx,
+        id,
+        actor,
+        handingOff
+          ? [plan.current.assignedToId, plan.target?.assignedToId]
+          : [],
+      );
     });
   }
   async archive(userId: number, id: string, version: number, note: string) {
     const actor = await this.actor(userId);
     this.requireAdmin(actor);
     return this.prisma.$transaction(async (tx) => {
-      await this.read(tx, id, actor);
+      await DocumentTrackingService.read(tx, id, actor);
       await this.claim(tx, id, version);
       await tx.trackedDocument.update({
         where: { id },
@@ -665,7 +746,7 @@ export class DocumentTrackingService {
           note,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
   private authorizeAttachment(
@@ -685,7 +766,7 @@ export class DocumentTrackingService {
   async attach(userId: number, id: string, input: AttachmentInput) {
     return this.prisma.$transaction(async (tx) => {
       const actor = await this.actor(userId, tx);
-      const document = await this.read(tx, id, actor);
+      const document = await DocumentTrackingService.read(tx, id, actor);
       this.authorizeAttachment(document, actor, input.version);
       await this.claim(tx, id, input.version);
       await tx.documentAttachment.create({
@@ -708,7 +789,7 @@ export class DocumentTrackingService {
             'Added ' + input.kind.toLowerCase() + ' attachment: ' + input.name,
         },
       });
-      return this.format(await this.read(tx, id, actor), actor);
+      return this.finishMutation(tx, id, actor);
     });
   }
   async uploadAttachment(
@@ -718,7 +799,7 @@ export class DocumentTrackingService {
     file: Express.Multer.File,
   ) {
     const actor = await this.actor(userId);
-    const document = await this.read(this.prisma, id, actor);
+    const document = await DocumentTrackingService.read(this.prisma, id, actor);
     this.authorizeAttachment(document, actor, input.version);
     if (!file?.buffer?.length)
       throw new BadRequestException('Choose a non-empty file to upload.');

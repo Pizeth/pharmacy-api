@@ -17,7 +17,7 @@ export class RealtimeAccess {
     private readonly abilities: CaslAbilityFactory,
   ) {}
 
-  async assertRead(headers: IncomingHttpHeaders): Promise<void> {
+  async authenticatedUserId(headers: IncomingHttpHeaders): Promise<number> {
     // Do not reuse request.user, a cookie cache, or the opening handshake's ability.
     const session = await this.auth.api.getSession({
       headers: fromNodeHeaders(headers),
@@ -26,6 +26,11 @@ export class RealtimeAccess {
     const id = Number(session?.user.id);
     if (!session || !Number.isSafeInteger(id) || id <= 0)
       throw new UnauthorizedException();
+    return id;
+  }
+
+  async assertRead(headers: IncomingHttpHeaders): Promise<void> {
+    const id = await this.authenticatedUserId(headers);
     const ability = await this.abilities.createForUser(id);
     if (!ability.can(AppAction.Read, AppSubject.TranslationKey))
       throw new ForbiddenException();
