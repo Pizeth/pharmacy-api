@@ -268,9 +268,28 @@ export class UserSeeder {
           createdBy: userId,
           lastUpdatedBy: userId,
           profile: {
-            update: {
-              createdBy: userId,
-              updatedBy: userId,
+            upsert: {
+              create: {
+                officialId: superAdminData.profile.officialId,
+                nationalId: superAdminData.profile.nationalId,
+                firstName: superAdminData.profile.firstName,
+                lastName: superAdminData.profile.lastName,
+                sex: superAdminData.profile.sex,
+                dob: new Date(superAdminData.profile.dob),
+                pob: superAdminData.profile.pob,
+                nationality: superAdminData.profile.nationality,
+                email: superAdminData.email,
+                address: superAdminData.profile.address,
+                phone: superAdminData.profile.phone,
+                married: superAdminData.profile.married,
+                bio: superAdminData.profile.bio || '',
+                status: superAdminData.profile.status,
+                entryDate: new Date(superAdminData.profile.entryDate),
+                retirementAge: superAdminData.profile.retirementAge,
+                createdBy: userId,
+                updatedBy: userId,
+              },
+              update: { createdBy: userId, updatedBy: userId },
             },
           },
           // Only create account if it doesn't already exist
@@ -418,7 +437,7 @@ export class UserSeeder {
         entryDate: new Date(
           this.config.get('SEED_ADMIN_ENTRY_DATE', '04-01-2017'),
         ),
-        retirementAge: this.config.get('SEED_ADMIN_RETIREMENT_AGE', 60),
+        retirementAge: Number(this.config.get('SEED_ADMIN_RETIREMENT_AGE', 60)),
       },
     };
   }
