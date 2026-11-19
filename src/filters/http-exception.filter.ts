@@ -15,6 +15,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { captureException } from '@sentry/node';
 // import { UAParser } from 'ua-parser-js';
 import statusCodes from 'http-status-codes';
 import { ClsService } from 'nestjs-cls';
@@ -63,6 +64,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Log the error using your custom logging logic
     this.excService.logError(this.cls, exception);
+
+    if (statusCode >= 500) {
+      captureException(exception);
+    }
 
     response.status(statusCode).json(errorResponse);
   }
