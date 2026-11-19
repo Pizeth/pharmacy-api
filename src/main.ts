@@ -3,6 +3,7 @@
  * during module initialization.
  */
 import 'dotenv/config';
+import './instrumentation';
 import 'reflect-metadata';
 import { RequestMethod, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
