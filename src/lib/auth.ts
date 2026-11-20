@@ -45,6 +45,18 @@ import {
   authRoles,
 } from 'modules/auth/access-control/auth-access-control';
 
+function turnstileHostnames(): string[] {
+  const production = process.env.NODE_ENV?.toLowerCase() === 'production';
+  const hostnames = (process.env.FRONTEND_URL ?? (production ? '' : 'http://localhost:8080'))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map((origin) => new URL(origin).hostname)
+    .filter((hostname) => !production || !['localhost', '127.0.0.1', '[::1]'].includes(hostname));
+  if (hostnames.length === 0) throw new Error('Turnstile requires a frontend hostname.');
+  return hostnames;
+}
+
 export const options = (prisma: PrismaClient, emailService: ResendService) =>
   ({
     appName: 'Razeth',
@@ -279,9 +291,21 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       lastLoginMethod({ storeInDatabase: true }),
       multiSession(),
       captcha({
-        provider: 'cloudflare-turnstile' as const, // or google-recaptcha, hcaptcha, captchafox
+        provider: 'cloudflare-turnstile',
         secretKey: process.env.TURNSTILE_SECRET_KEY!,
+        endpoints: ['/sign-in/email', '/sign-in/username', '/sign-up/email'],
+        expectedAction: 'auth_form',
+        allowedHostnames: turnstileHostnames(),
       }),
+      {
+        ...captcha({
+          provider: 'cloudflare-turnstile',
+          secretKey: process.env.TURNSTILE_SECRET_KEY!,
+          endpoints: ['/request-password-reset'],
+          allowedHostnames: turnstileHostnames(),
+        }),
+        id: 'captcha-password-reset',
+      },
       magicLink({
         storeToken: AUTH_TOKEN_STORAGE,
         sendMagicLink: async ({ email, token, url, metadata }, _ctx) => {
