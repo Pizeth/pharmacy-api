@@ -302,6 +302,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
           provider: 'cloudflare-turnstile',
           secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
           endpoints: ['/request-password-reset'],
+          expectedAction: 'password_reset',
           allowedHostnames: turnstileHostnames(),
         }),
         id: 'captcha-password-reset',
