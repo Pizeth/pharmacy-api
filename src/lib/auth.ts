@@ -292,7 +292,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       multiSession(),
       captcha({
         provider: 'cloudflare-turnstile',
-        secretKey: process.env.TURNSTILE_SECRET_KEY!,
+        secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
         endpoints: ['/sign-in/email', '/sign-in/username', '/sign-up/email'],
         expectedAction: 'auth_form',
         allowedHostnames: turnstileHostnames(),
@@ -300,7 +300,7 @@ export const options = (prisma: PrismaClient, emailService: ResendService) =>
       {
         ...captcha({
           provider: 'cloudflare-turnstile',
-          secretKey: process.env.TURNSTILE_SECRET_KEY!,
+          secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
           endpoints: ['/request-password-reset'],
           allowedHostnames: turnstileHostnames(),
         }),
