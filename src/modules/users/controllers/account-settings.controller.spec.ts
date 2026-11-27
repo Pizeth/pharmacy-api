@@ -1,24 +1,40 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { jest } from '@jest/globals';
+import type { R2Service } from 'modules/files/services/cloudflare-r2.service';
+import { type } from 'types/commons.enum';
 import type { PrismaService } from 'modules/prisma/services/prisma.service';
 import type { SocialProfilesService } from '../services/social-profiles.service';
-import { AccountSettingsController } from './account-settings.controller';
+jest.unstable_mockModule('@nestjs/throttler', () => ({
+  Throttle: () => () => undefined,
+}));
+jest.unstable_mockModule('@nestjs/platform-express', () => ({
+  FileInterceptor: () => class AvatarFileInterceptor {},
+}));
+const { AccountSettingsController } =
+  await import('./account-settings.controller');
 
 describe('AccountSettingsController', () => {
   const session = { user: { id: '42' } } as Parameters<
-    AccountSettingsController['get']
+    InstanceType<typeof AccountSettingsController>['get']
   >[0];
   const findUnique = jest.fn();
+  const findFirst = jest.fn();
+  const updateUser = jest.fn();
+  const uploadFile = jest.fn();
+  const deleteFile = jest.fn();
   const updateMany = jest.fn();
   const updateLink = jest.fn();
   const prisma = {
-    user: { findUnique },
+    user: { findUnique, findFirst, updateMany: updateUser },
     profile: { updateMany },
   } as unknown as PrismaService;
   const socialProfiles = {
     update: updateLink,
   } as unknown as SocialProfilesService;
-  const controller = new AccountSettingsController(prisma, socialProfiles);
+  const controller = new AccountSettingsController(prisma, socialProfiles, {
+    uploadFile,
+    deleteFile,
+  } as unknown as R2Service);
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -28,6 +44,71 @@ describe('AccountSettingsController', () => {
       banned: false,
     });
     updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  const avatar = {} as Express.Multer.File;
+  const image = 'https://example.test/avatars/photo';
+
+  it('persists the uploaded avatar on the eligible session owner', async () => {
+    findFirst.mockResolvedValue({ id: 42, image: null });
+    uploadFile.mockResolvedValue({
+      type: type.Upload,
+      status: 201,
+      url: image,
+      fileName: 'photo',
+    });
+    updateUser.mockResolvedValue({ count: 1 });
+
+    await expect(controller.uploadAvatar(session, avatar)).resolves.toEqual({
+      image,
+    });
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 42,
+          emailVerified: true,
+          deletedAt: null,
+        }),
+      }),
+    );
+    expect(updateUser).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 42,
+        image: null,
+        emailVerified: true,
+      }),
+      data: { image },
+    });
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects an ineligible account and preserves a provider avatar', async () => {
+    findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 42, image });
+    await expect(
+      controller.uploadAvatar(session, avatar),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      controller.uploadAvatar(session, avatar),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('removes an uploaded avatar when another request changes the account', async () => {
+    findFirst.mockResolvedValue({ id: 42, image: null });
+    uploadFile.mockResolvedValue({
+      type: type.Upload,
+      status: 201,
+      url: image,
+      fileName: 'photo',
+    });
+    updateUser.mockResolvedValue({ count: 0 });
+    deleteFile.mockResolvedValue({ status: 200 });
+    await expect(
+      controller.uploadAvatar(session, avatar),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(deleteFile).toHaveBeenCalledWith('photo');
   });
 
   it('updates only the profile owned by the signed-in officer', async () => {
