@@ -8,7 +8,7 @@ jest.unstable_mockModule('@nestjs/throttler', () => ({
   Throttle: () => () => undefined,
 }));
 jest.unstable_mockModule('@nestjs/platform-express', () => ({
-  FileInterceptor: () => class AvatarFileInterceptor {},
+  FileInterceptor: () => jest.fn(),
 }));
 const { AccountSettingsController } =
   await import('./account-settings.controller');
