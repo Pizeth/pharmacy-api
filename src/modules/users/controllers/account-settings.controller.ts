@@ -1,18 +1,30 @@
 import {
+  BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   ForbiddenException,
   Get,
+  HttpStatus,
+  Logger,
   NotFoundException,
+  ParseFilePipeBuilder,
   Patch,
   Post,
   Session,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { AuthGuard, type UserSession } from '@thallesp/nestjs-better-auth';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { R2Service } from 'modules/files/services/cloudflare-r2.service';
+import { type } from 'types/commons.enum';
 import type { Auth } from 'lib/auth';
 import { PrismaService } from 'modules/prisma/services/prisma.service';
 import {
@@ -21,6 +33,8 @@ import {
 } from '../dto/social-profile.dto';
 import type { CreateSocialProfileDto } from '../dto/social-profile.dto';
 import { SocialProfilesService } from '../services/social-profiles.service';
+
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 const phoneSchema = z
   .object({
@@ -42,9 +56,11 @@ const socialLinkUpdate = socialLinkId.extend({
 @Controller({ path: 'account/settings', version: VERSION_NEUTRAL })
 @UseGuards(AuthGuard)
 export class AccountSettingsController {
+  private readonly logger = new Logger(AccountSettingsController.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly socialProfiles: SocialProfilesService,
+    private readonly files: R2Service,
   ) {}
 
   private async owner(session: UserSession<Auth>) {
@@ -80,6 +96,88 @@ export class AccountSettingsController {
       }),
     ]);
     return { phone: profile?.phone ?? null, links, providers };
+  }
+
+  @Patch('avatar')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: AVATAR_MAX_BYTES, files: 1, fields: 0 },
+    }),
+  )
+  async uploadAvatar(
+    @Session() session: UserSession<Auth>,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: /^image\/(jpeg|png|webp)$/ })
+        .build(),
+    )
+    file: Express.Multer.File,
+  ) {
+    const where = {
+      id: Number(session.user.id),
+      deletedAt: null,
+      emailVerified: true,
+      AND: [
+        { OR: [{ isEnabled: true }, { isEnabled: null }] },
+        { OR: [{ banned: false }, { banned: null }] },
+        { OR: [{ isLocked: false }, { isLocked: null }] },
+      ],
+    };
+    const user = await this.prisma.user.findFirst({
+      where,
+      select: { id: true, image: true },
+    });
+    if (!user) throw new ForbiddenException('A verified email is required.');
+
+    const key = `avatars/${user.id}/${randomUUID()}`;
+    const uploaded = await this.files.uploadFile(file, key);
+    if (
+      uploaded.type !== type.Upload ||
+      uploaded.status !== HttpStatus.CREATED ||
+      !uploaded.url
+    ) {
+      throw new BadRequestException('Could not upload the avatar.');
+    }
+
+    // A database transport error can leave the update outcome unknown.
+    // Only discard the new object after the database confirms no row changed.
+    const result = await this.prisma.user.updateMany({
+      where: { ...where, image: user.image },
+      data: { image: uploaded.url },
+    });
+    if (!result.count) {
+      await this.removeAvatarObject(uploaded.fileName);
+      throw new ConflictException('The account changed during upload.');
+    }
+
+    const namespace = `avatars/${user.id}/`;
+    const newObjectPath = `/${uploaded.fileName}`;
+    if (uploaded.url.endsWith(newObjectPath)) {
+      const oldPrefix = `${uploaded.url.slice(0, -newObjectPath.length)}/${namespace}`;
+      if (user.image?.startsWith(oldPrefix)) {
+        const objectId = user.image.slice(oldPrefix.length);
+        if (
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+            objectId,
+          )
+        ) {
+          await this.removeAvatarObject(namespace + objectId);
+        }
+      }
+    }
+
+    return { image: uploaded.url };
+  }
+
+  private async removeAvatarObject(key: string) {
+    try {
+      const result = await this.files.deleteFile(key);
+      if (result.status !== HttpStatus.OK)
+        this.logger.warn('Could not clean up an unlinked avatar.');
+    } catch {
+      this.logger.warn('Could not clean up an unlinked avatar.');
+    }
   }
 
   @Patch('phone')
