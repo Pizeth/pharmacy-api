@@ -82,18 +82,50 @@ describe('AccountSettingsController', () => {
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
-  it('rejects an ineligible account and preserves a provider avatar', async () => {
-    findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 42, image });
+  it('rejects an ineligible account before uploading', async () => {
+    findFirst.mockResolvedValue(null);
     await expect(
       controller.uploadAvatar(session, avatar),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      controller.uploadAvatar(session, avatar),
-    ).rejects.toBeInstanceOf(ConflictException);
     expect(uploadFile).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['https://provider.example/avatar.png', undefined],
+    [
+      'https://bucket.example/avatars/99/12345678-1234-1234-1234-123456789abc',
+      undefined,
+    ],
+    [
+      'https://bucket.example/avatars/42/12345678-1234-1234-1234-123456789abc',
+      'avatars/42/12345678-1234-1234-1234-123456789abc',
+    ],
+  ])(
+    'replaces %s and cleans up only an avatar owned by the account',
+    async (previous, oldKey) => {
+      const key = 'avatars/42/98765432-1234-1234-1234-123456789abc';
+      const url = 'https://bucket.example/' + key;
+      findFirst.mockResolvedValue({ id: 42, image: previous });
+      uploadFile.mockResolvedValue({
+        type: type.Upload,
+        status: 201,
+        url,
+        fileName: key,
+      });
+      updateUser.mockResolvedValue({ count: 1 });
+      deleteFile.mockResolvedValue({ status: 200 });
+
+      await expect(controller.uploadAvatar(session, avatar)).resolves.toEqual({
+        image: url,
+      });
+      expect(updateUser).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 42, image: previous }),
+        data: { image: url },
+      });
+      if (oldKey) expect(deleteFile).toHaveBeenCalledWith(oldKey);
+      else expect(deleteFile).not.toHaveBeenCalled();
+    },
+  );
 
   it('removes an uploaded avatar when another request changes the account', async () => {
     findFirst.mockResolvedValue({ id: 42, image: null });

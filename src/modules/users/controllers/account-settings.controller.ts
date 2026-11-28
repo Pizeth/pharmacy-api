@@ -129,8 +129,6 @@ export class AccountSettingsController {
       select: { id: true, image: true },
     });
     if (!user) throw new ForbiddenException('A verified email is required.');
-    if (user.image)
-      throw new ConflictException('This account already has an avatar.');
 
     const key = `avatars/${user.id}/${randomUUID()}`;
     const uploaded = await this.files.uploadFile(file, key);
@@ -149,16 +147,34 @@ export class AccountSettingsController {
       });
       if (!result.count)
         throw new ConflictException('The account changed during upload.');
-      return { image: uploaded.url };
     } catch (error) {
-      try {
-        const cleanup = await this.files.deleteFile(uploaded.fileName);
-        if (cleanup.status !== HttpStatus.OK)
-          this.logger.warn('Could not clean up an unlinked avatar.');
-      } catch {
-        this.logger.warn('Could not clean up an unlinked avatar.');
-      }
+      await this.removeAvatarObject(uploaded.fileName);
       throw error;
+    }
+
+    const namespace = 'avatars/' + user.id + '/';
+    const newObjectPath = '/' + uploaded.fileName;
+    if (uploaded.url.endsWith(newObjectPath)) {
+      const oldPrefix =
+        uploaded.url.slice(0, -newObjectPath.length) + '/' + namespace;
+      if (user.image?.startsWith(oldPrefix)) {
+        const objectId = user.image.slice(oldPrefix.length);
+        if (/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(objectId)) {
+          await this.removeAvatarObject(namespace + objectId);
+        }
+      }
+    }
+
+    return { image: uploaded.url };
+  }
+
+  private async removeAvatarObject(key: string) {
+    try {
+      const result = await this.files.deleteFile(key);
+      if (result.status !== HttpStatus.OK)
+        this.logger.warn('Could not clean up an unlinked avatar.');
+    } catch {
+      this.logger.warn('Could not clean up an unlinked avatar.');
     }
   }
 
