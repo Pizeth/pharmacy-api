@@ -159,7 +159,11 @@ export class AccountSettingsController {
         uploaded.url.slice(0, -newObjectPath.length) + '/' + namespace;
       if (user.image?.startsWith(oldPrefix)) {
         const objectId = user.image.slice(oldPrefix.length);
-        if (/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(objectId)) {
+        if (
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+            objectId,
+          )
+        ) {
           await this.removeAvatarObject(namespace + objectId);
         }
       }
