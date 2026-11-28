@@ -143,6 +143,21 @@ describe('AccountSettingsController', () => {
     expect(deleteFile).toHaveBeenCalledWith('photo');
   });
 
+  it('preserves an uploaded object when the database outcome is unknown', async () => {
+    const error = new Error('Database acknowledgement lost');
+    findFirst.mockResolvedValue({ id: 42, image: null });
+    uploadFile.mockResolvedValue({
+      type: type.Upload,
+      status: 201,
+      url: image,
+      fileName: 'photo',
+    });
+    updateUser.mockRejectedValue(error);
+
+    await expect(controller.uploadAvatar(session, avatar)).rejects.toBe(error);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
   it('updates only the profile owned by the signed-in officer', async () => {
     await expect(
       controller.updatePhone(session, { phone: '+855 12345678' }),

@@ -140,16 +140,15 @@ export class AccountSettingsController {
       throw new BadRequestException('Could not upload the avatar.');
     }
 
-    try {
-      const result = await this.prisma.user.updateMany({
-        where: { ...where, image: user.image },
-        data: { image: uploaded.url },
-      });
-      if (!result.count)
-        throw new ConflictException('The account changed during upload.');
-    } catch (error) {
+    // A database transport error can leave the update outcome unknown.
+    // Only discard the new object after the database confirms no row changed.
+    const result = await this.prisma.user.updateMany({
+      where: { ...where, image: user.image },
+      data: { image: uploaded.url },
+    });
+    if (!result.count) {
       await this.removeAvatarObject(uploaded.fileName);
-      throw error;
+      throw new ConflictException('The account changed during upload.');
     }
 
     const namespace = `avatars/${user.id}/`;
