@@ -152,11 +152,10 @@ export class AccountSettingsController {
       throw error;
     }
 
-    const namespace = 'avatars/' + user.id + '/';
-    const newObjectPath = '/' + uploaded.fileName;
+    const namespace = `avatars/${user.id}/`;
+    const newObjectPath = `/${uploaded.fileName}`;
     if (uploaded.url.endsWith(newObjectPath)) {
-      const oldPrefix =
-        uploaded.url.slice(0, -newObjectPath.length) + '/' + namespace;
+      const oldPrefix = `${uploaded.url.slice(0, -newObjectPath.length)}/${namespace}`;
       if (user.image?.startsWith(oldPrefix)) {
         const objectId = user.image.slice(oldPrefix.length);
         if (

@@ -104,7 +104,7 @@ describe('AccountSettingsController', () => {
     'replaces %s and cleans up only an avatar owned by the account',
     async (previous, oldKey) => {
       const key = 'avatars/42/98765432-1234-1234-1234-123456789abc';
-      const url = 'https://bucket.example/' + key;
+      const url = `https://bucket.example/${key}`;
       findFirst.mockResolvedValue({ id: 42, image: previous });
       uploadFile.mockResolvedValue({
         type: type.Upload,
